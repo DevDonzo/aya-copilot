@@ -95,3 +95,43 @@ Any Blue write path should stay pinned to the allowed workspace only.
 - [docs/deployment-guide.md](/Users/hparacha/AyaFinancial/Blue/docs/deployment-guide.md)
 - [tools/blue-cli/README.md](/Users/hparacha/AyaFinancial/Blue/tools/blue-cli/README.md)
 - [docs/internal/README.md](/Users/hparacha/AyaFinancial/Blue/docs/internal/README.md)
+
+## Handoff Status
+
+### Production URLs
+
+- chat: `https://copilot.ayafinancial.com`
+- admin: `https://copilot.ayafinancial.com/admin`
+
+### Production State
+
+- LibreChat is live and serving the Aya employee chat flow.
+- Aya Ops is live behind LibreChat and Blue health checks are passing.
+- The admin surface is focused on employee workload, assigned files, checklist work, overdue counts, and recent employee activity.
+- Blue writes are constrained to the allowed workspace only:
+  - `03 - AYA x Hamza/ AI`
+  - `cmn524yr800e101mh7kn44mhf`
+
+### Signup Policy
+
+- self-signup is enabled
+- only `@ayafinancial.com` email addresses are allowed to register
+- non-Aya domains are rejected at registration
+
+### Aya / Blue Auth Model
+
+- LibreChat identifies the signed-in employee
+- Aya uses per-user Blue credentials for attributable Blue write actions
+- Blue token values should be entered by the employee in the Aya MCP connection flow and must not be committed to the repository
+
+### Admin Access
+
+- manager/admin access uses the Aya Ops auth layer
+- do not store or commit live admin passwords in this repository
+- distribute live credentials through a separate secure channel
+
+### Known Issues / Caveats
+
+- Google OAuth was not treated as the primary production login path in the final handoff pass; password login is the verified path
+- the repository CI currently has message-flow tests that depend on live Blue access and can fail when the external Blue GraphQL call returns `502` or times out
+- the repo is public, so any operational secrets, tokens, local env files, or runtime credentials must stay out of git

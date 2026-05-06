@@ -51,7 +51,7 @@ export async function syncWorkspaceIndex(input?: {
   forceFull?: boolean;
   auth?: BlueRequestAuth | null;
 }) {
-  const workspaceId = config.BLUE_WORKSPACE_ID;
+  const workspaceId = config.BLUE_READ_WORKSPACE_ID;
   const state = await getBlueSyncState(workspaceId, "records");
   const nowIso = new Date().toISOString();
   const fullReconcileMs =
@@ -170,7 +170,7 @@ export async function syncWorkspaceIndex(input?: {
 
 export async function resolveListQuery(query: string) {
   const normalizedQuery = normalizeEntityText(query);
-  const lists = await listCachedBlueLists(config.BLUE_WORKSPACE_ID);
+  const lists = await listCachedBlueLists(config.BLUE_READ_WORKSPACE_ID);
 
   const scored = lists
     .map((list) => ({
@@ -208,7 +208,7 @@ export async function resolveListQuery(query: string) {
 
 export async function resolveRecordQuery(query: string) {
   const matches = (
-    await searchCachedBlueRecords(config.BLUE_WORKSPACE_ID, query, 5)
+    await searchCachedBlueRecords(config.BLUE_READ_WORKSPACE_ID, query, 5)
   ).map((record) => ({
     ...record,
     score: scoreRecordMatch(
@@ -256,7 +256,7 @@ export async function resolveRecordQuery(query: string) {
 
 export async function searchRecordQuery(query: string, limit = 5) {
   return (
-    await searchCachedBlueRecords(config.BLUE_WORKSPACE_ID, query, limit)
+    await searchCachedBlueRecords(config.BLUE_READ_WORKSPACE_ID, query, limit)
   ).map((record) => ({
     id: record.id,
     title: record.title,
@@ -267,7 +267,7 @@ export async function searchRecordQuery(query: string, limit = 5) {
 }
 
 export async function listIndexedRecords(limit = 25) {
-  return (await listCachedBlueRecords(config.BLUE_WORKSPACE_ID, limit)).map(
+  return (await listCachedBlueRecords(config.BLUE_READ_WORKSPACE_ID, limit)).map(
     (record) => ({
       id: record.id,
       title: record.title,
@@ -280,7 +280,7 @@ export async function listIndexedRecords(limit = 25) {
 
 export async function getIndexedRecord(recordId: string) {
   const record = await getCachedBlueRecordById(
-    config.BLUE_WORKSPACE_ID,
+    config.BLUE_READ_WORKSPACE_ID,
     recordId,
   );
   if (!record) {

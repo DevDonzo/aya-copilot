@@ -6,9 +6,13 @@ import { z } from "zod";
 
 const appRoot = path.resolve(import.meta.dirname, "..");
 const workspaceRoot = path.resolve(appRoot, "..", "..");
+const safeBlueWorkspaceId = "cmn524yr800e101mh7kn44mhf";
 const defaultBlueWorkspaceId =
+  process.env.BLUE_WORKSPACE_ID ?? safeBlueWorkspaceId;
+const defaultBlueReadWorkspaceId =
+  process.env.BLUE_READ_WORKSPACE_ID ??
   process.env.BLUE_WORKSPACE_ID ??
-  "cmn524yr800e101mh7kn44mhf";
+  safeBlueWorkspaceId;
 const detectedNodeEnv = process.env.NODE_ENV ?? "development";
 
 const blueConfigEnv = readSimpleEnvFile(
@@ -17,10 +21,20 @@ const blueConfigEnv = readSimpleEnvFile(
 const localBlueToken = readLocalBlueToken(
   path.join(workspaceRoot, ".local", "blue-api-token.json"),
 );
+const forbiddenBlueWorkspaceId = "cmhazc4rl1vkand1eonnmiyjy";
 const resolvedBlueWorkspaceId =
   process.env.BLUE_WORKSPACE_ID ??
   blueConfigEnv.BLUE_WORKSPACE_ID ??
   defaultBlueWorkspaceId;
+const candidateBlueReadWorkspaceId =
+  process.env.BLUE_READ_WORKSPACE_ID ??
+  blueConfigEnv.BLUE_READ_WORKSPACE_ID ??
+  defaultBlueReadWorkspaceId;
+const resolvedBlueReadWorkspaceId =
+  candidateBlueReadWorkspaceId === forbiddenBlueWorkspaceId &&
+  !process.env.BLUE_READ_WORKSPACE_ID
+    ? resolvedBlueWorkspaceId
+    : candidateBlueReadWorkspaceId;
 const defaultDemoReportFallbackIds =
   resolvedBlueWorkspaceId === "cmn524yr800e101mh7kn44mhf"
     ? "cmnhsqk54041rmo01sfcq7a2x,cmnhszrso04mpmk01kzu1jof1"
@@ -30,6 +44,7 @@ const runtimeEnv = {
   ...blueConfigEnv,
   ...process.env,
   BLUE_WORKSPACE_ID: resolvedBlueWorkspaceId,
+  BLUE_READ_WORKSPACE_ID: resolvedBlueReadWorkspaceId,
   BLUE_API_URL:
     process.env.BLUE_API_URL ?? process.env.API_URL ?? blueConfigEnv.API_URL,
   BLUE_AUTH_TOKEN:
@@ -56,7 +71,8 @@ const runtimeEnv = {
 };
 
 const configSchema = z.object({
-  BLUE_WORKSPACE_ID: z.string().default("cmn524yr800e101mh7kn44mhf"),
+  BLUE_WORKSPACE_ID: z.string().default(safeBlueWorkspaceId),
+  BLUE_READ_WORKSPACE_ID: z.string().default(safeBlueWorkspaceId),
   BLUE_API_URL: z.string().default("https://api.blue.cc/graphql"),
   BLUE_AUTH_TOKEN: z.string().default(""),
   BLUE_CLIENT_ID: z.string().default(""),

@@ -1,6 +1,7 @@
 import { logger } from '@librechat/data-schemas';
-import { EModelEndpoint, EToolResources, AgentCapabilities } from 'librechat-data-provider';
+import { EToolResources, AgentCapabilities } from 'librechat-data-provider';
 import type { AgentToolResources, TFile, AgentBaseResource } from 'librechat-data-provider';
+import type { TAgentsEndpoint } from 'librechat-data-provider';
 import type { IMongoFile, AppConfig, IUser } from '@librechat/data-schemas';
 import type { FilterQuery, QueryOptions, ProjectionType } from 'mongoose';
 import type { Request as ServerRequest } from 'express';
@@ -29,6 +30,10 @@ export type TFilterFilesByAgentAccess = (params: {
   role?: string;
   agentId: string;
 }) => Promise<Array<TFile>>;
+
+type TResolvedAppEndpoints = NonNullable<AppConfig['endpoints']> & {
+  agents?: Partial<TAgentsEndpoint>;
+};
 
 /**
  * Helper function to add a file to a specific tool resource category
@@ -177,6 +182,7 @@ export const primeResources = async ({
   tool_resources: AgentToolResources | undefined;
 }> => {
   try {
+    const endpoints = appConfig?.endpoints as TResolvedAppEndpoints | undefined;
     /**
      * Array to collect all unique files that will be returned as attachments
      * Files are added from OCR results and attachment promises, with duplicates prevented
@@ -229,9 +235,9 @@ export const primeResources = async ({
       }
     }
 
-    const isContextEnabled = (
-      appConfig?.endpoints?.[EModelEndpoint.agents]?.capabilities ?? []
-    ).includes(AgentCapabilities.context);
+    const isContextEnabled = (endpoints?.agents?.capabilities ?? []).includes(
+      AgentCapabilities.context,
+    );
 
     const fileIds = tool_resources[EToolResources.context]?.file_ids ?? [];
     const ocrFileIds = tool_resources[EToolResources.ocr]?.file_ids;

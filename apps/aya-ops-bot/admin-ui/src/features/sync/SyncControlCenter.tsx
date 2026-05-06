@@ -10,12 +10,16 @@ export function SyncControlCenter(input: {
   runningAction: string | null;
 }) {
   return (
-    <section className="panel">
+    <section className="panel sync-panel">
       <div className="panel-head">
-        <h2>Sync Control Center</h2>
-        <p className="muted">
-          Trigger manual repair syncs and inspect the current Blue sync watermarks.
-        </p>
+        <div>
+          <div className="eyebrow">Read-only control</div>
+          <h2>Refresh and inspect sync state</h2>
+          <p className="muted">
+            Refresh local reporting data from the main CRM and inspect sync watermarks without
+            writing back to Blue.
+          </p>
+        </div>
       </div>
 
       <div className="sync-actions">
@@ -83,7 +87,7 @@ export function SyncControlCenter(input: {
       </div>
 
       <div className="webhook-box">
-        <h3>Webhook Status</h3>
+        <h3>Webhook status</h3>
         {input.webhooks.length === 0 ? (
           <p className="muted">No Blue webhook subscription is currently registered.</p>
         ) : (

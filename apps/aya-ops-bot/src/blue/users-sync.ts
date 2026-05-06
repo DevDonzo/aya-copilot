@@ -13,7 +13,7 @@ import {
 import { config } from "../config.js";
 
 export async function syncWorkspaceEmployees() {
-  const workspaceUsers = await fetchWorkspaceUsers(config.BLUE_WORKSPACE_ID);
+  const workspaceUsers = await fetchWorkspaceUsers(config.BLUE_READ_WORKSPACE_ID);
   let users = workspaceUsers;
 
   if (countUsersMissingEmail(workspaceUsers) > 0 && config.BLUE_COMPANY_ID) {
@@ -27,7 +27,7 @@ export async function syncWorkspaceEmployees() {
         logger.info(
           {
             employeeSync: {
-              workspaceId: config.BLUE_WORKSPACE_ID,
+              workspaceId: config.BLUE_READ_WORKSPACE_ID,
               companyId: config.BLUE_COMPANY_ID,
               resolvedEmails,
             },
@@ -40,7 +40,7 @@ export async function syncWorkspaceEmployees() {
         {
           err: error,
           employeeSync: {
-            workspaceId: config.BLUE_WORKSPACE_ID,
+            workspaceId: config.BLUE_READ_WORKSPACE_ID,
             companyId: config.BLUE_COMPANY_ID,
           },
         },
@@ -54,7 +54,7 @@ export async function syncWorkspaceEmployees() {
     logger.warn(
       {
         employeeSync: {
-          workspaceId: config.BLUE_WORKSPACE_ID,
+          workspaceId: config.BLUE_READ_WORKSPACE_ID,
           missingEmailCount,
           totalUsers: users.length,
         },

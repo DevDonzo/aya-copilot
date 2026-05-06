@@ -15,6 +15,7 @@ import {
   getClientDetail,
   getEmployeeAssignmentReport,
   getEmployeeActivityReport,
+  getEmployeeDailyBrief,
   getEmployeeDaySummary,
   getEmployeeFollowUpQueue,
   getEmployeeWorkload,
@@ -41,12 +42,58 @@ export async function handleAyaMcpRequest(
   response: ServerResponse,
   parsedBody?: unknown,
 ) {
+  normalizeMcpRequestHeaders(request);
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
   });
   const server = createAyaMcpServer();
   await server.connect(transport);
   await transport.handleRequest(request, response, parsedBody);
+}
+
+function normalizeMcpRequestHeaders(request: IncomingMessage) {
+  const method = request.method?.toUpperCase();
+  const currentAccept = request.headers.accept ?? "";
+  const acceptParts = new Set(
+    currentAccept
+      .split(",")
+      .map((part) => part.trim())
+      .filter(Boolean),
+  );
+
+  if (method === "GET") {
+    acceptParts.add("text/event-stream");
+  }
+
+  if (method === "POST" || method === "DELETE") {
+    acceptParts.add("application/json");
+    acceptParts.add("text/event-stream");
+    if (!request.headers["content-type"]) {
+      request.headers["content-type"] = "application/json";
+      setRawHeader(request, "content-type", "application/json");
+    }
+  }
+
+  if (acceptParts.size > 0) {
+    const acceptValue = Array.from(acceptParts).join(", ");
+    request.headers.accept = acceptValue;
+    setRawHeader(request, "accept", acceptValue);
+  }
+}
+
+function setRawHeader(request: IncomingMessage, name: string, value: string) {
+  const rawHeaders = request.rawHeaders;
+  if (!Array.isArray(rawHeaders)) {
+    return;
+  }
+
+  for (let index = rawHeaders.length - 2; index >= 0; index -= 2) {
+    if (rawHeaders[index]?.toLowerCase() === name) {
+      rawHeaders.splice(index, 2);
+    }
+  }
+
+  rawHeaders.push(name, value);
 }
 
 async function getHeaderActor(
@@ -290,6 +337,48 @@ function createAyaMcpServer() {
           email: actor.email ?? null,
           roleName: actor.roleName ?? null,
         }),
+      };
+    },
+  );
+
+  server.registerTool(
+    "aya_get_daily_brief",
+    {
+      title: "Daily Work Brief",
+      description:
+        "Generate a personal Aya work brief that bundles open records, open assignments, follow-up priorities, recent mentions, and today's activity into one operational snapshot.",
+      inputSchema: {
+        employeeId: z.string().optional(),
+        employeeEmail: z.string().email().optional(),
+        employeeName: z.string().optional(),
+        date: z.string().optional().describe("YYYY-MM-DD"),
+        mentionLookbackDays: z.number().int().min(1).max(30).optional(),
+      },
+    },
+    async (
+      { employeeId, employeeEmail, employeeName, date, mentionLookbackDays },
+      extra,
+    ) => {
+      const actor = await requireToolActor(extra.requestInfo?.headers);
+      const targetName = employeeName ?? actor.displayName;
+      if (
+        actor.roleName !== "admin" &&
+        targetName.trim().toLowerCase() !== actor.displayName.trim().toLowerCase()
+      ) {
+        throw new Error("Daily briefs for other employees require admin access.");
+      }
+
+      const result = await getEmployeeDailyBrief({
+        employeeId: employeeId ?? actor.employeeId,
+        employeeEmail: employeeEmail ?? actor.email,
+        employeeName: targetName,
+        date,
+        mentionLookbackDays,
+      });
+
+      return {
+        content: [{ type: "text", text: result.responseText }],
+        structuredContent: toStructuredContent(result),
       };
     },
   );

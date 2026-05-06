@@ -62,6 +62,30 @@ export const adminTranscriptsQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });
 
+export const managerReportQuerySchema = z
+  .object({
+    dateStart: z.string().trim().min(1).optional(),
+    dateEnd: z.string().trim().min(1).optional(),
+    employeeId: z.string().trim().min(1).optional(),
+    clientQuery: z.string().trim().min(1).optional(),
+    focus: z
+      .enum(["all", "comments", "moves", "creates", "reads", "timeline"])
+      .optional()
+      .default("all"),
+  })
+  .transform((value) => {
+    const today = new Date().toISOString().slice(0, 10);
+    return {
+      ...value,
+      dateStart: value.dateStart ?? today,
+      dateEnd: value.dateEnd ?? value.dateStart ?? today,
+    };
+  })
+  .refine((value) => value.dateStart <= value.dateEnd, {
+    message: "dateStart must be before or equal to dateEnd",
+    path: ["dateStart"],
+  });
+
 export const employeeSummaryQuerySchema = z
   .object({
     employeeId: z.string().trim().min(1).optional(),

@@ -1,97 +1,97 @@
 # Aya Copilot for Blue
 
-Aya Copilot is an integrated operational layer and automation framework for Aya Financial, built to extend the capabilities of the Blue CRM (Blue.cc). This repository serves as the central hub for the Aya ecosystem, providing a secure bridge between the system of record and conversational AI interfaces.
+Aya Copilot is Aya Financial's internal chat and operations layer for Blue CRM.
 
-## System Architecture
+This repository combines the employee chat surface, the secured backend that talks to Blue, deployment assets, and internal tooling in one workspace.
 
-The ecosystem is partitioned into three distinct functional layers:
+## What Lives Here
 
-### 1. User Interface Layer (apps/librechat)
-A customized deployment of LibreChat serving as the primary engagement surface for employees. It facilitates natural language interaction with CRM data via the Model Context Protocol (MCP).
+### `apps/librechat`
 
-### 2. Logic & Governance Layer (apps/aya-ops-bot)
-The core backend service responsible for business logic, identity resolution, and security enforcement.
-- **Identity Provider**: Maps chat sessions to Blue employee records for attributed actions.
-- **Security Guardrails**: Implements strict workspace-level scoping to prevent unauthorized writes.
-- **Audit Engine**: Maintains structured logs of all LLM-driven CRM modifications.
-- **Persistence**: Utilizes a local SQLite cache for high-performance data retrieval and team summaries.
+The employee-facing chat application.
 
-### 3. Administrative Tooling (tools/blue-cli)
-A high-performance CLI written in Go, utilized for direct GraphQL API interaction, bulk record management, and system configuration.
+- customized LibreChat deployment
+- MCP client surface for Aya tools
+- local and VPS runtime configuration
 
----
+### `apps/aya-ops-bot`
 
-## Technical Overview
+The operational backend.
 
-### Repository Structure
-- **apps/aya-ops-bot**: Fastify (TypeScript) service, MCP implementation, and React-based administration console.
-- **apps/librechat**: Node.js/React application for employee chat workflows.
-- **tools/blue-cli**: Go-based binary for low-level CRM operations.
-- **docs/architecture**: Detailed runtime specifications and system flow diagrams.
-- **reference/**: Exported GraphQL schemas and API documentation.
+- Fastify + TypeScript service
+- MCP server for LibreChat
+- Blue integration, identity resolution, and write guardrails
+- audit logging, sync jobs, and admin UI
 
-### Core Functionality
-- **Conversational Record Management**: Natural language commands for record creation, movement, and modification.
-- **Automated Summarization**: Daily and team-level activity reporting powered by local data indexing.
-- **Identity Propagation**: Transparent mapping of authenticated chat users to CRM actors.
-- **Operational Audit**: Comprehensive persistence of prompt-response cycles and downstream API payloads.
+### `tools/blue-cli`
 
----
+The low-level Blue CLI workspace for direct API operations and maintenance tasks.
 
-## Deployment and Configuration
+### `docs/`
 
-### Requirements
-- Docker and Docker Compose (recommended for full-stack orchestration)
-- Node.js 18.x or later
-- Go 1.21.x or later (for CLI development)
+Project documentation, including architecture and deployment procedures.
 
-### Service Initialization
-To initialize the full stack in a containerized environment:
+### `reference/`
 
-```bash
-git clone https://github.com/AyaFinancial/Blue.git
-cd Blue
-docker-compose up -d
+Reference exports, schemas, and supporting research artifacts.
+
+## Architecture
+
+```text
+Employee
+  -> LibreChat
+    -> Aya MCP / HTTP
+      -> Blue GraphQL
+      -> SQLite
+      -> Admin UI
+
+LibreChat
+  -> MongoDB
+  -> Meilisearch
 ```
 
-### Management CLI Setup
-For administrative access via the command line:
+## Deployment Surfaces
 
-```bash
-brew install heyblueteam/tap/blue-cli
-blue init
-```
+### Local Development
 
----
+Primary local chat setup:
 
-## Governance and Safety
+- [AYA_SETUP.md](/Users/hparacha/AyaFinancial/Blue/apps/librechat/docs/AYA_SETUP.md)
+- [docker-compose.yml](/Users/hparacha/AyaFinancial/Blue/apps/librechat/docker-compose.yml)
 
-The Aya ecosystem is designed with a zero-trust approach to AI-driven CRM writes:
-- **Hard-Scoped Workspaces**: Writes are restricted to explicitly allowed workspace IDs to prevent production data corruption during rollout phases.
-- **Structured Audit Logs**: Every bot interaction is logged in the `bot_audit_logs` table, ensuring compliance with internal financial reporting standards.
-- **Ambiguity Resolution**: The system is configured to request clarification rather than execute actions based on low-confidence intent matching.
+### VPS / Hostinger
 
----
+Primary single-server deployment bundle:
+
+- [README.md](/Users/hparacha/AyaFinancial/Blue/apps/aya-ops-bot/deploy/hostinger/README.md)
+- [docker-compose.yml](/Users/hparacha/AyaFinancial/Blue/apps/aya-ops-bot/deploy/hostinger/docker-compose.yml)
+- [deployment-guide.md](/Users/hparacha/AyaFinancial/Blue/docs/deployment-guide.md)
+
+The Hostinger deployment is designed around one VPS, Docker Compose, bind-mounted state, and optional Cloudflare protection in front.
+
+## Workspace Safety
+
+Blue writes are intentionally constrained during rollout.
+
+- Allowed workspace ID: `cmn524yr800e101mh7kn44mhf`
+- Allowed workspace name: `03 - AYA x Hamza/ AI`
+- Forbidden workspace ID: `cmhazc4rl1vkand1eonnmiyjy`
+- Forbidden workspace name: `AYA sales CRM 3`
+
+Any Blue write path should stay pinned to the allowed workspace only.
+
+## Folder Hygiene
+
+- keep product code under `apps/` and `tools/`
+- keep durable docs under `docs/`
+- keep internal notes and handoffs under `docs/internal/`
+- keep local deployment env/data files out of version control
+- do not leave ad hoc handoff files at the repo root
 
 ## Documentation Index
-- [System Architecture Specification](apps/aya-ops-bot/docs/system-design.md)
-- [Interface Configuration Guide](apps/librechat/docs/AYA_SETUP.md)
-- [CLI Reference Manual](tools/blue-cli/README.md)
-- [Enterprise Deployment Guide](docs/deployment-guide.md)
 
----
-
-### Transitional Compatibility
-Legacy symlinks at the project root (e.g., `LibreChat`, `aya-ops-bot`) are maintained to ensure backward compatibility for existing scripts and local automation.
-
----
-
-**Last verified deployment:** Wed 22 Apr 2026 14:43:02 EDT
-
-**CI/CD Pipeline Live Check:** Wed 22 Apr 2026 15:02:02 EDT
-
-**CI/CD Pipeline Authorization Check:** Wed 22 Apr 2026 15:03:30 EDT
-
-**CI/CD Pipeline Branch Alignment Check:** Wed 22 Apr 2026 15:10:24 EDT
-
-**Final CI/CD Pipeline Verification:** Wed 22 Apr 2026 15:19:26 EDT - All systems GO.
+- [apps/aya-ops-bot/docs/system-design.md](/Users/hparacha/AyaFinancial/Blue/apps/aya-ops-bot/docs/system-design.md)
+- [apps/librechat/docs/AYA_SETUP.md](/Users/hparacha/AyaFinancial/Blue/apps/librechat/docs/AYA_SETUP.md)
+- [docs/deployment-guide.md](/Users/hparacha/AyaFinancial/Blue/docs/deployment-guide.md)
+- [tools/blue-cli/README.md](/Users/hparacha/AyaFinancial/Blue/tools/blue-cli/README.md)
+- [docs/internal/README.md](/Users/hparacha/AyaFinancial/Blue/docs/internal/README.md)

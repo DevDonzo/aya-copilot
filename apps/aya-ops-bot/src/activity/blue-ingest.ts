@@ -52,7 +52,7 @@ function normalizeBlueActivityItem(item: BlueActivityEvent): NormalizedActivityE
 }
 
 export async function ingestBlueActivity(limit = 100) {
-  const syncKey = config.BLUE_COMPANY_ID || config.BLUE_WORKSPACE_ID;
+  const syncKey = config.BLUE_COMPANY_ID || config.BLUE_READ_WORKSPACE_ID;
   const state = await getBlueSyncState(syncKey, "activity");
   const startDate = state?.last_seen_updated_at
     ? new Date(
@@ -60,6 +60,7 @@ export async function ingestBlueActivity(limit = 100) {
       ).toISOString()
     : null;
   const items = await fetchWorkspaceActivity({
+    workspaceId: config.BLUE_READ_WORKSPACE_ID,
     limit,
     startDate,
   });

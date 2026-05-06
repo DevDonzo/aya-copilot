@@ -78,6 +78,8 @@ const INTENT_RESOLVERS: Array<
 > = [
   resolveHelpIntent,
   resolveIdentityIntent,
+  resolveDailyBriefIntent,
+  resolveNotificationsIntent,
   resolveMentionsIntent,
   resolveReportingOverviewIntent,
   resolveReportingQuestionIntent,
@@ -91,6 +93,8 @@ const INTENT_RESOLVERS: Array<
   resolveExceptionReportIntent,
   resolveFollowUpIntent,
   resolveWorkloadIntent,
+  resolveCompleteIntent,
+  resolveSetDueDateIntent,
   resolveCommentCreateIntent,
   resolveCommentListIntent,
   resolveAssignIntent,
@@ -136,6 +140,45 @@ function resolveIdentityIntent(
   }
 
   return candidate("identity.self", 100, 0.99, {}, ["identity:self"]);
+}
+
+function resolveDailyBriefIntent(
+  request: IntentPlannerRequest,
+): IntentCandidate | null {
+  const rawMessage = request.message.trim();
+  const message = normalize(rawMessage);
+
+  if (
+    /^(?:start|open)\s+my\s+day[.?!]?$/i.test(rawMessage) ||
+    /^(?:show|give|open)(?: me)?\s+(?:my\s+)?(?:daily|day|workday)\s+brief[.?!]?$/i.test(
+      rawMessage,
+    ) ||
+    /^(?:what do i need to know|what needs my attention)(?:\s+today)?[.?!]?$/i.test(
+      rawMessage,
+    )
+  ) {
+    return candidate("brief.daily", 97, 0.94, {}, ["brief:daily"]);
+  }
+
+  if (message === "my dashboard") {
+    return candidate("brief.daily", 90, 0.83, {}, ["brief:dashboard:self"]);
+  }
+
+  return null;
+}
+
+function resolveNotificationsIntent(
+  request: IntentPlannerRequest,
+): IntentCandidate | null {
+  const rawMessage = request.message.trim();
+  if (
+    /^(?:show|check|get)(?: me)?\s+(?:my\s+)?notifications[.?!]?$/i.test(rawMessage) ||
+    /^(?:show|check|get)(?: me)?\s+(?:my\s+)?alerts[.?!]?$/i.test(rawMessage)
+  ) {
+    return candidate("notifications.feed", 96, 0.91, {}, ["notifications:feed"]);
+  }
+
+  return null;
 }
 
 function resolveReportingOverviewIntent(
@@ -901,12 +944,17 @@ function resolveCommentCreateIntent(
   const rawMessage = request.message.trim();
   const message = normalize(rawMessage);
 
-  if (!message.startsWith("add note") && !message.startsWith("add comment")) {
+  if (
+    !message.startsWith("add note") &&
+    !message.startsWith("add comment") &&
+    !message.startsWith("add follow up note") &&
+    !message.startsWith("add follow-up note")
+  ) {
     return null;
   }
 
   const rawCommentMatch = rawMessage.match(
-    /^add\s+(?:note|comment)\s+to\s+(.+?)(?::|\s+-\s+)\s*(.+)$/i,
+    /^add\s+(?:note|comment|follow up note|follow-up note)\s+to\s+(.+?)\s*:\s*(.+)$/i,
   );
   const recordQuery = rawCommentMatch?.[1]?.trim();
   const text = rawCommentMatch?.[2]?.trim();
@@ -1113,7 +1161,7 @@ function resolveAssignIntent(
 
   // "assign (task) X to Y"
   const assignMatch = rawMessage.match(
-    /^(?:assign|give)\s+(task\s+)?(.+?)\s+to\s+(.+?)[.?!]?$/i,
+    /^(?:assign|give|reassign)\s+(task\s+)?(.+?)\s+to\s+(.+?)[.?!]?$/i,
   );
 
   if (!assignMatch) {
@@ -1168,6 +1216,84 @@ function resolveAssignIntent(
     },
     [useActiveRecordContext ? `${intent}:context` : intent],
   );
+}
+
+function resolveCompleteIntent(
+  request: IntentPlannerRequest,
+): IntentCandidate | null {
+  const rawMessage = request.message.trim();
+
+  const taskMatch = rawMessage.match(
+    /^(?:mark|set|complete|finish)\s+(?:task\s+)?(.+?)\s+(?:as\s+)?done[.?!]?$/i,
+  );
+  if (taskMatch && /\btask\b/i.test(rawMessage)) {
+    return candidate(
+      "tasks.complete",
+      89,
+      0.84,
+      {
+        taskQuery: taskMatch[1]?.trim(),
+      },
+      ["tasks:complete"],
+    );
+  }
+
+  const recordMatch = rawMessage.match(
+    /^(?:mark|set|complete|finish)\s+(.+?)\s+(?:as\s+)?done[.?!]?$/i,
+  );
+  if (recordMatch) {
+    const recordQuery = recordMatch[1]?.trim();
+    const useActiveRecordContext = isContextPointer(recordQuery);
+    return candidate(
+      "records.complete",
+      88,
+      0.82,
+      useActiveRecordContext ? { useActiveRecordContext: true } : { entityQuery: recordQuery },
+      [useActiveRecordContext ? "records:complete:context" : "records:complete"],
+    );
+  }
+
+  return null;
+}
+
+function resolveSetDueDateIntent(
+  request: IntentPlannerRequest,
+): IntentCandidate | null {
+  const rawMessage = request.message.trim();
+  const taskMatch = rawMessage.match(
+    /^(?:set|change|update)\s+(?:the\s+)?due date\s+for\s+(?:task\s+)?(.+?)\s+to\s+(.+?)[.?!]?$/i,
+  );
+  if (taskMatch && /\btask\b/i.test(rawMessage)) {
+    return candidate(
+      "tasks.set_due_date",
+      89,
+      0.84,
+      {
+        taskQuery: taskMatch[1]?.trim(),
+        dueDate: taskMatch[2]?.trim(),
+      },
+      ["tasks:set-due-date"],
+    );
+  }
+
+  const recordMatch = rawMessage.match(
+    /^(?:set|change|update)\s+(?:the\s+)?due date\s+for\s+(.+?)\s+to\s+(.+?)[.?!]?$/i,
+  );
+  if (recordMatch) {
+    const recordQuery = recordMatch[1]?.trim();
+    const useActiveRecordContext = isContextPointer(recordQuery);
+    return candidate(
+      "records.set_due_date",
+      88,
+      0.82,
+      useActiveRecordContext
+        ? { useActiveRecordContext: true, dueDate: recordMatch[2]?.trim() }
+        : { entityQuery: recordQuery, dueDate: recordMatch[2]?.trim() },
+      [useActiveRecordContext ? "records:set-due-date:context" : "records:set-due-date"],
+    );
+  }
+
+  return null;
 }
 
 function normalizeAssignmentEntityQuery(

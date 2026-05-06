@@ -1,0 +1,14 @@
+Subject: Checking in on the Blue reporting tasks / project structure
+
+Salam Rehan,
+
+I hope you’re doing well.
+
+I saw the email thread from Saim and Sarah about the daily reports and that wishlist of items for Blue. I’ve already taken a look at the requirements, and since I’m already deep in the GraphQL setup, I’m ready to get started on those whenever we’re ready.
+
+I know you mentioned putting a pause on things while we figure out the move to project-based assignments. I wanted to check if you’re looking to lift that pause for these tasks?
+
+If so, I’d love to get your thoughts on how we’ll structure this under the new model—just so I’m clear on the deadlines and how the payment-per-project will work before I dive in. I want to make sure the workflow is set up properly so I can get these delivered for the team.
+
+Best
+Hamza Paracha

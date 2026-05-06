@@ -10,7 +10,7 @@ services:
     depends_on:
       - mongodb
     env_file:
-      - ${AYA_BLUE_ENV_FILE:-${HOME}/.config/blue/config.env}
+      - ${AYA_BLUE_ENV_FILE:-./.blue-local.env}
     environment:
       AYA_PORT: 3010
       AYA_DATA_DIR: /aya/data

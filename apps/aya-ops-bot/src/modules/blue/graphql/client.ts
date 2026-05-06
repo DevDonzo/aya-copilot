@@ -1191,6 +1191,114 @@ export async function setChecklistItemAssignees(input: {
   return data.setChecklistItemAssignees;
 }
 
+export async function updateTodoFields(input: {
+  workspaceId: string;
+  todoIds: string[];
+  done?: boolean;
+  duedAt?: string | null;
+  startedAt?: string | null;
+  auth?: BlueRequestAuth | null;
+}) {
+  const data = await blueGraphqlRequest<{
+    updateTodos: boolean;
+  }>(
+    `
+      mutation UpdateTodos($input: UpdateTodosInput!) {
+        updateTodos(input: $input)
+      }
+    `,
+    {
+      input: {
+        done: input.done,
+        duedAt: input.duedAt,
+        startedAt: input.startedAt,
+        filter: {
+          todoIds: input.todoIds,
+        },
+      },
+    },
+    { projectId: input.workspaceId, auth: input.auth },
+  );
+
+  return data.updateTodos;
+}
+
+export async function editChecklistItem(input: {
+  workspaceId: string;
+  checklistItemId: string;
+  done?: boolean;
+  title?: string;
+  position?: number;
+  auth?: BlueRequestAuth | null;
+}) {
+  const data = await blueGraphqlRequest<{
+    editChecklistItem: {
+      id: string;
+      title: string;
+      done: boolean;
+    };
+  }>(
+    `
+      mutation EditChecklistItem($input: EditChecklistItemInput!) {
+        editChecklistItem(input: $input) {
+          id
+          title
+          done
+        }
+      }
+    `,
+    {
+      input: {
+        checklistItemId: input.checklistItemId,
+        done: input.done,
+        title: input.title,
+        position: input.position,
+      },
+    },
+    { projectId: input.workspaceId, auth: input.auth },
+  );
+
+  return data.editChecklistItem;
+}
+
+export async function updateChecklistItemDueDate(input: {
+  workspaceId: string;
+  checklistItemId: string;
+  startedAt?: string | null;
+  duedAt?: string | null;
+  auth?: BlueRequestAuth | null;
+}) {
+  const data = await blueGraphqlRequest<{
+    updateChecklistItemDueDate: {
+      id: string;
+      title: string;
+      startedAt?: string | null;
+      duedAt?: string | null;
+    };
+  }>(
+    `
+      mutation UpdateChecklistItemDueDate($input: UpdateChecklistItemDueDateInput!) {
+        updateChecklistItemDueDate(input: $input) {
+          id
+          title
+          startedAt
+          duedAt
+        }
+      }
+    `,
+    {
+      input: {
+        checklistItemId: input.checklistItemId,
+        startedAt: input.startedAt,
+        duedAt: input.duedAt,
+      },
+    },
+    { projectId: input.workspaceId, auth: input.auth },
+  );
+
+  return data.updateChecklistItemDueDate;
+}
+
 export async function createLeadRecord(input: {
   workspaceId: string;
   listId: string;

@@ -19,7 +19,9 @@ services:
     depends_on:
       - mongodb
     networks:
-      - aya_private
+      aya_private:
+        aliases:
+          - aya-api
     healthcheck:
       test:
         [

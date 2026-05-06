@@ -6,6 +6,7 @@ import * as authRepo from "./modules/db/repositories/auth.js";
 import * as blueCacheRepo from "./modules/db/repositories/blue-cache.js";
 import * as employeesRepo from "./modules/db/repositories/employees.js";
 import * as identityRepo from "./modules/db/repositories/identity-links.js";
+import * as notificationStateRepo from "./modules/db/repositories/notification-state.js";
 import * as pendingRecordChoiceRepo from "./modules/db/repositories/pending-record-choices.js";
 import * as syncStateRepo from "./modules/db/repositories/sync-state.js";
 import * as webhookRepo from "./modules/db/repositories/webhooks.js";
@@ -38,6 +39,10 @@ export const upsertActiveRecordContext =
 export const getActiveRecordContext = activeRecordContextRepo.getActiveRecordContext;
 export const deleteActiveRecordContext =
   activeRecordContextRepo.deleteActiveRecordContext;
+export const getEmployeeNotificationState =
+  notificationStateRepo.getEmployeeNotificationState;
+export const upsertEmployeeNotificationState =
+  notificationStateRepo.upsertEmployeeNotificationState;
 
 export const replaceBlueListsCache = blueCacheRepo.replaceBlueListsCache;
 export const replaceBlueRecordsCache = blueCacheRepo.replaceBlueRecordsCache;
@@ -62,6 +67,10 @@ export const pruneExpiredAuthSessions = authRepo.pruneExpiredAuthSessions;
 export const insertActivityEvent = activityRepo.insertActivityEvent;
 export const listEventsForEmployeeDay = activityRepo.listEventsForEmployeeDay;
 export const listEventsForEmployeeInRange = activityRepo.listEventsForEmployeeInRange;
+export const listWorkspaceEventsInRange = activityRepo.listWorkspaceEventsInRange;
+export const getWorkspaceActivityOverview = activityRepo.getWorkspaceActivityOverview;
+export const listWorkspaceEmployeeActivity =
+  activityRepo.listWorkspaceEmployeeActivity;
 export const countEventsBySourceForEmployeeDay =
   activityRepo.countEventsBySourceForEmployeeDay;
 export const countEventsByActionForEmployeeDay =

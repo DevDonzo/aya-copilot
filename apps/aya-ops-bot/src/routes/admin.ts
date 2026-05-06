@@ -6,8 +6,9 @@ import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
 import {
   getAdminDashboardLogDetail,
   getAdminDashboardOverview,
-  listAdminDashboardEmployeeActivity,
+  listEmployees,
   listAdminDashboardRecentLogs,
+  listWorkspaceEmployeeActivity,
   listBlueSyncStates,
   listBlueWebhookSubscriptions,
 } from "../db.js";
@@ -17,10 +18,17 @@ import { syncWorkspaceEmployees } from "../blue/users-sync.js";
 import { syncWorkspaceIndex } from "../blue/workspace-index.js";
 import { config } from "../config.js";
 import { NotFoundError } from "../app/errors.js";
+import { buildManagerReport } from "../admin/manager-report.js";
 import { getReportingOverview } from "../reporting/service.js";
 import { normalizeBlueRequestAuth } from "../modules/blue/request-auth.js";
 import {
+  fetchWorkspaceUsers,
+  listAssignedChecklistItems,
+  listAssignedOpenRecords,
+} from "../modules/blue/graphql/client.js";
+import {
   adminLogsQuerySchema,
+  managerReportQuerySchema,
   adminTranscriptsQuerySchema,
   syncBodySchema,
 } from "../types/api.js";
@@ -56,12 +64,17 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const date =
       (request.query as { date?: string } | undefined)?.date ?? getIsoDateString();
     const [syncStates, webhookSubscriptions] = await Promise.all([
-      listBlueSyncStates(config.BLUE_WORKSPACE_ID),
+      listBlueSyncStates(config.BLUE_READ_WORKSPACE_ID),
       listBlueWebhookSubscriptions(config.BLUE_WORKSPACE_ID),
     ]);
     return {
       overview: await getAdminDashboardOverview(date),
-      employees: await listAdminDashboardEmployeeActivity(50),
+      employees: await listWorkspaceEmployeeActivity({
+        workspaceId: config.BLUE_READ_WORKSPACE_ID,
+        dateStart: date,
+        dateEnd: date,
+        limit: 50,
+      }),
       sync: {
         states: syncStates,
         webhooks: webhookSubscriptions,
@@ -101,8 +114,17 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     "/admin/api/employee-activity",
     { preHandler: [app.requireRoles(["admin"])] },
     async () => ({
-      items: await listAdminDashboardEmployeeActivity(100),
+      items: await listWorkspaceEmployeeActivity({
+        workspaceId: config.BLUE_READ_WORKSPACE_ID,
+        limit: 100,
+      }),
     }),
+  );
+
+  app.get(
+    "/admin/api/team-workload",
+    { preHandler: [app.requireRoles(["admin"])] },
+    async () => await buildTeamWorkloadSnapshot(),
   );
 
   app.get(
@@ -129,6 +151,21 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
           reports: null,
         },
       };
+    },
+  );
+
+  app.get(
+    "/admin/api/manager-report",
+    { preHandler: [app.requireRoles(["admin"])] },
+    async (request) => {
+      const query = parseWithSchema(managerReportQuerySchema, request.query);
+      return await buildManagerReport({
+        dateStart: query.dateStart ?? getIsoDateString(),
+        dateEnd: query.dateEnd ?? query.dateStart ?? getIsoDateString(),
+        employeeId: query.employeeId,
+        clientQuery: query.clientQuery,
+        focus: query.focus,
+      });
     },
   );
 
@@ -169,6 +206,122 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
 function getIsoDateString() {
   return new Date().toISOString().slice(0, 10);
+}
+
+async function buildTeamWorkloadSnapshot() {
+  const today = getIsoDateString();
+  const [workspaceUsers, employees] = await Promise.all([
+    fetchWorkspaceUsers(config.BLUE_WORKSPACE_ID),
+    listEmployees(),
+  ]);
+  const employeeById = new Map(employees.map((employee) => [employee.id, employee]));
+
+  const items = await Promise.all(
+    workspaceUsers.map(async (user) => {
+      const [recordsResult, checklistResult] = await Promise.all([
+        listAssignedOpenRecords({
+          workspaceId: config.BLUE_WORKSPACE_ID,
+          companyId: config.BLUE_COMPANY_ID,
+          assigneeId: user.id,
+          limit: 25,
+          skip: 0,
+        }),
+        listAssignedChecklistItems({
+          workspaceId: config.BLUE_WORKSPACE_ID,
+          assigneeId: user.id,
+          done: false,
+          todoDone: false,
+          limit: 25,
+          skip: 0,
+        }),
+      ]);
+
+      const records = recordsResult.items.map((record) => ({
+        id: record.id,
+        title: record.title,
+        listTitle: record.todoList.title,
+        dueAt: record.duedAt ?? null,
+        updatedAt: record.updatedAt ?? null,
+        assigneeNames:
+          record.users?.map((assignee) => assignee.fullName || assignee.email).filter(Boolean) ??
+          [],
+      }));
+
+      const checklistItems = checklistResult.items.map((item) => ({
+        id: item.id,
+        title: item.title,
+        checklistTitle: item.checklist.title,
+        recordId: item.checklist.todo.id,
+        recordTitle: item.checklist.todo.title,
+        listTitle: item.checklist.todo.todoList.title,
+        dueAt: item.duedAt ?? null,
+        updatedAt: item.updatedAt ?? null,
+        assigneeNames:
+          item.users?.map((assignee) => assignee.fullName || assignee.email).filter(Boolean) ??
+          [],
+      }));
+
+      const latestAssignedAt = [records, checklistItems]
+        .flat()
+        .map((item) => item.updatedAt)
+        .filter(Boolean)
+        .sort()
+        .at(-1) ?? null;
+
+      const overdueCount = [...records, ...checklistItems].filter((item) => {
+        if (!item.dueAt) {
+          return false;
+        }
+        return item.dueAt.slice(0, 10) < today;
+      }).length;
+
+      const employee = employeeById.get(user.id);
+
+      return {
+        employeeId: user.id,
+        displayName: user.fullName || employee?.display_name || user.email,
+        email: employee?.email ?? user.email ?? null,
+        roleName: employee?.role_name ?? null,
+        openRecordCount: recordsResult.pageInfo.totalItems ?? records.length,
+        openChecklistCount: checklistResult.pageInfo.totalItems ?? checklistItems.length,
+        overdueCount,
+        latestAssignedAt,
+        openRecords: records,
+        checklistItems,
+      };
+    }),
+  );
+
+  items.sort((left, right) => {
+    const workDelta =
+      right.openRecordCount +
+      right.openChecklistCount -
+      (left.openRecordCount + left.openChecklistCount);
+    if (workDelta !== 0) {
+      return workDelta;
+    }
+
+    const overdueDelta = right.overdueCount - left.overdueCount;
+    if (overdueDelta !== 0) {
+      return overdueDelta;
+    }
+
+    return left.displayName.localeCompare(right.displayName);
+  });
+
+  return {
+    generatedAt: new Date().toISOString(),
+    totals: {
+      employees: items.length,
+      employeesWithOpenWork: items.filter(
+        (item) => item.openRecordCount > 0 || item.openChecklistCount > 0,
+      ).length,
+      openRecords: items.reduce((sum, item) => sum + item.openRecordCount, 0),
+      openChecklistItems: items.reduce((sum, item) => sum + item.openChecklistCount, 0),
+      overdue: items.reduce((sum, item) => sum + item.overdueCount, 0),
+    },
+    employees: items,
+  };
 }
 
 function safeParseJson(value: string | null) {

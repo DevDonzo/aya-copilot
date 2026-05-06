@@ -175,6 +175,14 @@ export async function runMigrations() {
       FOREIGN KEY(employee_id) REFERENCES employees(id)
     );
 
+    CREATE TABLE IF NOT EXISTS employee_notification_state (
+      employee_id TEXT PRIMARY KEY,
+      mentions_seen_through TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(employee_id) REFERENCES employees(id)
+    );
+
     CREATE INDEX IF NOT EXISTS idx_blue_lists_cache_workspace
       ON blue_lists_cache(workspace_id);
     CREATE INDEX IF NOT EXISTS idx_blue_lists_cache_normalized

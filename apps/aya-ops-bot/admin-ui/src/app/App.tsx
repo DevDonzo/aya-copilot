@@ -6,24 +6,15 @@ import {
 } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 
-import { Modal } from "../components/Modal";
-import { EmployeeActivityTable } from "../features/activity/EmployeeActivityTable";
-import { CommandCenter } from "../features/dashboard/CommandCenter";
-import { ReportingCenter } from "../features/dashboard/ReportingCenter";
-import { IdentityLinksManager } from "../features/identity/IdentityLinksManager";
+import { TeamAssignmentDashboard } from "../features/dashboard/TeamAssignmentDashboard";
 import { SyncControlCenter } from "../features/sync/SyncControlCenter";
 import {
-  createIdentityLink,
-  deleteIdentityLink,
   fetchAuthMe,
   fetchEmployeeActivity,
   fetchEmployees,
-  fetchIdentityLinks,
-  fetchLogDetail,
-  fetchLogs,
+  fetchManagerReport,
   fetchOverview,
-  fetchReporting,
-  fetchTranscripts,
+  fetchTeamWorkload,
   login,
   logout,
   runBlueActivitySync,
@@ -31,14 +22,13 @@ import {
   runWorkspaceIndexSync,
   type EmployeeActivityRow,
   type EmployeeRow,
-  type LogRow,
-  type TranscriptRow,
+  type ManagerReportResponse,
 } from "../lib/api";
 import { formatAdminTime, timestampMs } from "../lib/time";
 
-type AdminView = "audit" | "employees" | "operations" | "reporting" | "identity";
+type AdminView = "team" | "system";
 
-type DirectoryEmployee = {
+type TeamDirectoryEmployee = {
   employeeId: string;
   displayName: string;
   email: string | null;
@@ -46,22 +36,43 @@ type DirectoryEmployee = {
   interactionCount: number;
   successRate: number;
   latestInteractionAt: string | null;
-  transcriptCount: number;
-  logCount: number;
+};
+
+const VIEW_COPY: Record<
+  AdminView,
+  {
+    label: string;
+    title: string;
+    description: string;
+  }
+> = {
+  team: {
+    label: "Team",
+    title: "Employee work view",
+    description:
+      "See each employee, what they are assigned, what is overdue, and what they worked on most recently.",
+  },
+  system: {
+    label: "Sync",
+    title: "Read-only sync control",
+    description:
+      "Refresh local reporting data and inspect sync health without writing back to Blue.",
+  },
 };
 
 export function App() {
   const queryClient = useQueryClient();
-  const [activeView, setActiveView] = useState<AdminView>("audit");
+  const [activeView, setActiveView] = useState<AdminView>("team");
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
   const [employeeSearch, setEmployeeSearch] = useState("");
-  const [logSearch, setLogSearch] = useState("");
-  const [outcomeFilter, setOutcomeFilter] = useState("");
-  const [expandedTranscriptIds, setExpandedTranscriptIds] = useState<
-    Set<string>
-  >(() => new Set());
-  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>("");
-  const [selectedLogId, setSelectedLogId] = useState<string | null>(null);
   const [runningAction, setRunningAction] = useState<string | null>(null);
+  const [dashboardFilters, setDashboardFilters] = useState({
+    dateStart: new Date().toISOString().slice(0, 10),
+    dateEnd: new Date().toISOString().slice(0, 10),
+    employeeId: "",
+    clientQuery: "",
+    focus: "all" as const,
+  });
   const [loginForm, setLoginForm] = useState({
     employeeName: "",
     password: "",
@@ -82,40 +93,36 @@ export function App() {
     queryFn: fetchOverview,
     enabled: isAdmin,
   });
-  const logsQuery = useQuery({
-    queryKey: ["logs"],
-    queryFn: () => fetchLogs({ limit: 150 }),
-    enabled: isAdmin,
-  });
-  const transcriptsQuery = useQuery({
-    queryKey: ["transcripts"],
-    queryFn: () => fetchTranscripts({ limit: 75 }),
-    enabled: isAdmin,
-  });
+
   const employeeActivityQuery = useQuery({
     queryKey: ["employee-activity"],
     queryFn: fetchEmployeeActivity,
     enabled: isAdmin,
   });
-  const reportingQuery = useQuery({
-    queryKey: ["reporting"],
-    queryFn: fetchReporting,
-    enabled: isAdmin,
-  });
-  const identityLinksQuery = useQuery({
-    queryKey: ["identity-links"],
-    queryFn: fetchIdentityLinks,
-    enabled: isAdmin,
-  });
+
   const employeesQuery = useQuery({
     queryKey: ["employees"],
     queryFn: fetchEmployees,
     enabled: isAdmin,
   });
-  const logDetailQuery = useQuery({
-    queryKey: ["log-detail", selectedLogId],
-    queryFn: () => fetchLogDetail(selectedLogId!),
-    enabled: isAdmin && Boolean(selectedLogId),
+
+  const managerReportQuery = useQuery({
+    queryKey: ["manager-report", dashboardFilters],
+    queryFn: () =>
+      fetchManagerReport({
+        dateStart: dashboardFilters.dateStart,
+        dateEnd: dashboardFilters.dateEnd,
+        employeeId: dashboardFilters.employeeId || undefined,
+        clientQuery: dashboardFilters.clientQuery || undefined,
+        focus: dashboardFilters.focus,
+      }),
+    enabled: isAdmin,
+  });
+
+  const teamWorkloadQuery = useQuery({
+    queryKey: ["team-workload"],
+    queryFn: fetchTeamWorkload,
+    enabled: isAdmin,
   });
 
   const loginMutation = useMutation({
@@ -132,9 +139,6 @@ export function App() {
   const logoutMutation = useMutation({
     mutationFn: logout,
     onSuccess: async () => {
-      setExpandedTranscriptIds(new Set());
-      setSelectedEmployeeId("");
-      setSelectedLogId(null);
       setError(null);
       queryClient.removeQueries();
       await queryClient.invalidateQueries({ queryKey: ["auth"] });
@@ -190,52 +194,60 @@ export function App() {
     },
   });
 
-  const createLinkMutation = useMutation({
-    mutationFn: createIdentityLink,
-    onSuccess: async () => {
-      setError(null);
-      await refreshAdminData(queryClient);
-    },
-    onError: onMutationError,
-  });
-
-  const deleteLinkMutation = useMutation({
-    mutationFn: deleteIdentityLink,
-    onSuccess: async () => {
-      setError(null);
-      await refreshAdminData(queryClient);
-    },
-    onError: onMutationError,
-  });
-
   const loading =
     authQuery.isLoading ||
     (isAdmin &&
       (overviewQuery.isLoading ||
-        logsQuery.isLoading ||
-        transcriptsQuery.isLoading ||
         employeeActivityQuery.isLoading ||
-        reportingQuery.isLoading ||
-        identityLinksQuery.isLoading ||
-        employeesQuery.isLoading));
+        employeesQuery.isLoading ||
+        managerReportQuery.isLoading ||
+        teamWorkloadQuery.isLoading));
 
-  const employeeDirectory = useMemo(
+  const directory = useMemo(
     () =>
       buildEmployeeDirectory({
         employees: employeesQuery.data?.items ?? [],
         activity: employeeActivityQuery.data?.items ?? [],
-        logs: logsQuery.data?.items ?? [],
-        transcripts: transcriptsQuery.data?.items ?? [],
         search: employeeSearch,
       }),
-    [
-      employeeActivityQuery.data?.items,
-      employeeSearch,
-      employeesQuery.data?.items,
-      logsQuery.data?.items,
-      transcriptsQuery.data?.items,
-    ],
+    [employeeActivityQuery.data?.items, employeeSearch, employeesQuery.data?.items],
   );
+
+  const teamWorkloadById = useMemo(
+    () =>
+      new Map(
+        (teamWorkloadQuery.data?.employees ?? []).map((employee) => [
+          employee.employeeId,
+          employee,
+        ]),
+      ),
+    [teamWorkloadQuery.data?.employees],
+  );
+
+  const teamDirectory = useMemo(() => {
+    const items = [...directory];
+    items.sort((left, right) => {
+      const leftWorkload = teamWorkloadById.get(left.employeeId);
+      const rightWorkload = teamWorkloadById.get(right.employeeId);
+      const leftCount =
+        (leftWorkload?.openRecordCount ?? 0) + (leftWorkload?.openChecklistCount ?? 0);
+      const rightCount =
+        (rightWorkload?.openRecordCount ?? 0) + (rightWorkload?.openChecklistCount ?? 0);
+      if (rightCount !== leftCount) {
+        return rightCount - leftCount;
+      }
+
+      const latestDelta =
+        timestampMs(right.latestInteractionAt) -
+        timestampMs(left.latestInteractionAt);
+      if (latestDelta !== 0) {
+        return latestDelta;
+      }
+
+      return left.displayName.localeCompare(right.displayName);
+    });
+    return items;
+  }, [directory, teamWorkloadById]);
 
   useEffect(() => {
     if (!isAdmin) {
@@ -244,60 +256,43 @@ export function App() {
 
     if (
       selectedEmployeeId &&
-      employeeDirectory.some(
-        (employee) => employee.employeeId === selectedEmployeeId,
-      )
+      teamDirectory.some((employee) => employee.employeeId === selectedEmployeeId)
     ) {
       return;
     }
 
-    setSelectedEmployeeId(employeeDirectory[0]?.employeeId ?? "");
-  }, [employeeDirectory, isAdmin, selectedEmployeeId]);
+    setSelectedEmployeeId(teamDirectory[0]?.employeeId ?? "");
+  }, [isAdmin, selectedEmployeeId, teamDirectory]);
 
-  const selectedEmployee = employeeDirectory.find(
+  const selectedEmployee = teamDirectory.find(
     (employee) => employee.employeeId === selectedEmployeeId,
   );
 
-  const selectedLogs = useMemo(() => {
-    const logs = logsQuery.data?.items ?? [];
-    return logs
-      .filter((row) => {
-        if (selectedEmployeeId && row.employee_id !== selectedEmployeeId) {
-          return false;
-        }
-        if (outcomeFilter && row.outcome !== outcomeFilter) {
-          return false;
-        }
-        if (logSearch) {
-          const haystack =
-            `${row.inbound_text} ${row.response_text ?? ""} ${row.detected_intent ?? ""}`.toLowerCase();
-          if (!haystack.includes(logSearch.toLowerCase())) {
-            return false;
-          }
-        }
-        return true;
-      })
-      .sort((left, right) => {
-        return timestampMs(right.created_at) - timestampMs(left.created_at);
-      });
-  }, [logSearch, logsQuery.data?.items, outcomeFilter, selectedEmployeeId]);
+  const selectedEmployeeWorkload = selectedEmployeeId
+    ? teamWorkloadById.get(selectedEmployeeId) ?? null
+    : null;
 
-  const selectedTranscripts = useMemo(() => {
-    const transcripts = transcriptsQuery.data?.items ?? [];
-    return transcripts
-      .filter((row) => {
-        if (!selectedEmployee) {
-          return true;
-        }
-        return matchesTranscriptToEmployee(row, selectedEmployee);
-      })
-      .sort((left, right) => {
-        return (
-          timestampMs(right.updatedAt ?? right.createdAt) -
-          timestampMs(left.updatedAt ?? left.createdAt)
-        );
-      });
-  }, [selectedEmployee, transcriptsQuery.data?.items]);
+  const selectedEmployeeReport = useMemo(() => {
+    if (!selectedEmployeeId) {
+      return null;
+    }
+
+    return (
+      managerReportQuery.data?.employees.find(
+        (employee) => employee.employeeId === selectedEmployeeId,
+      ) ?? null
+    );
+  }, [managerReportQuery.data?.employees, selectedEmployeeId]);
+
+  const employeeTimeline = useMemo(() => {
+    if (!selectedEmployeeId) {
+      return [];
+    }
+
+    return (managerReportQuery.data?.timeline ?? []).filter(
+      (item) => item.employeeId === selectedEmployeeId,
+    );
+  }, [managerReportQuery.data?.timeline, selectedEmployeeId]);
 
   const latestSyncAt = useMemo(() => {
     const states = overviewQuery.data?.sync.states ?? [];
@@ -308,62 +303,69 @@ export function App() {
       .at(-1);
   }, [overviewQuery.data?.sync.states]);
 
+  const viewMeta = VIEW_COPY[activeView];
+
   return (
-    <main className="shell">
-      <section className="topbar panel">
-        <div className="topbar-main">
-          <div className="topbar-badge">Aya Admin</div>
-          <div>
-            <h1>Audit and operations console</h1>
-            <p className="lede">
-              Review employee conversations, inspect bot replies, and manage
-              rollout from one internal workspace.
-            </p>
-          </div>
+    <main className="shell dashboard-shell">
+      <section className="dashboard-header panel">
+        <div className="dashboard-header-copy">
+          <div className="eyebrow">Aya Operations</div>
+          <h1>Blue operations workspace</h1>
+          <p className="lede">
+            Open the employee workload dashboard directly. See who has work assigned, what is
+            overdue, and what each person has been working on.
+          </p>
         </div>
-        <div className="topbar-actions">
-          {isAdmin ? (
-            <div className="topbar-status">
-              <div className="hero-status-label">Last sync</div>
-              <div className="hero-status-value">
-                {formatAdminTime(latestSyncAt ?? null)}
-              </div>
-            </div>
-          ) : null}
-          <button
-            type="button"
-            className="ghost-button"
-            onClick={() => void refreshAll(queryClient)}
-            disabled={loading}
-          >
-            {loading ? "Refreshing..." : "Refresh"}
-          </button>
-          {authQuery.data?.authenticated ? (
+
+        <div className="dashboard-header-actions">
+          <div className="header-stat-card">
+            <span className="metric-label">Workspace</span>
+            <strong>03 - AYA x Hamza/ AI</strong>
+            <span className="muted">read-only reporting</span>
+          </div>
+          <div className="header-stat-card">
+            <span className="metric-label">Last sync</span>
+            <strong>{formatAdminTime(latestSyncAt ?? null)}</strong>
+            <span className={`status-chip ${loading ? "warn" : "ok"}`}>
+              {loading ? "refreshing" : "live"}
+            </span>
+          </div>
+          <div className="header-button-row">
             <button
               type="button"
               className="ghost-button"
-              onClick={() => void logoutMutation.mutateAsync()}
-              disabled={logoutMutation.isPending}
+              onClick={() => void refreshAll(queryClient)}
+              disabled={loading}
             >
-              {logoutMutation.isPending ? "Logging out..." : "Logout"}
+              {loading ? "Refreshing..." : "Refresh"}
             </button>
-          ) : null}
+            {authQuery.data?.authenticated ? (
+              <button
+                type="button"
+                className="ghost-button"
+                onClick={() => void logoutMutation.mutateAsync()}
+                disabled={logoutMutation.isPending}
+              >
+                {logoutMutation.isPending ? "Logging out..." : "Logout"}
+              </button>
+            ) : null}
+          </div>
         </div>
       </section>
 
       {error ? <div className="error-banner">{error}</div> : null}
-      {loading ? (
-        <div className="loading-bar">Loading Aya admin data…</div>
-      ) : null}
+      {loading ? <div className="loading-bar">Loading operations dashboard…</div> : null}
 
       {!isAdmin ? (
         <section className="panel login-panel">
           <div className="panel-head">
-            <h2>Admin Login</h2>
-            <p className="muted">
-              Sign in to review employee conversations, bot outputs, and
-              operational status.
-            </p>
+            <div>
+              <div className="eyebrow">Private Access</div>
+              <h2>Manager sign-in</h2>
+              <p className="muted">
+                Sign in to open the local operations dashboard for the Aya team.
+              </p>
+            </div>
           </div>
           <form
             className="login-form"
@@ -398,591 +400,85 @@ export function App() {
               className="primary-button"
               disabled={loginMutation.isPending}
             >
-              {loginMutation.isPending ? "Signing In..." : "Sign In"}
+              {loginMutation.isPending ? "Signing in..." : "Open dashboard"}
             </button>
           </form>
         </section>
       ) : null}
 
       {isAdmin ? (
-        <section className="workspace-shell">
-          <aside className="app-sidebar panel">
-            <div className="sidebar-section">
-              <div className="sidebar-label">Aya Internal</div>
-              <div className="sidebar-title">Admin workspace</div>
-              <p className="sidebar-copy">
-                Clean audit-first access to conversations, replies, sync state,
-                and identity links.
-              </p>
+        <>
+          <section className="workspace-nav panel">
+            <div>
+              <div className="eyebrow">{viewMeta.label}</div>
+              <h2>{viewMeta.title}</h2>
+              <p className="muted">{viewMeta.description}</p>
             </div>
-            <nav className="view-tabs">
+            <nav className="view-tabs top-nav-tabs">
               <ViewTab
-                label="Audit"
-                active={activeView === "audit"}
-                onClick={() => setActiveView("audit")}
+                label="Team"
+                active={activeView === "team"}
+                onClick={() => setActiveView("team")}
               />
               <ViewTab
-                label="Employees"
-                active={activeView === "employees"}
-                onClick={() => setActiveView("employees")}
-              />
-              <ViewTab
-                label="Command Center"
-                active={activeView === "operations"}
-                onClick={() => setActiveView("operations")}
-              />
-              <ViewTab
-                label="Reporting"
-                active={activeView === "reporting"}
-                onClick={() => setActiveView("reporting")}
-              />
-              <ViewTab
-                label="Identity"
-                active={activeView === "identity"}
-                onClick={() => setActiveView("identity")}
+                label="Sync"
+                active={activeView === "system"}
+                onClick={() => setActiveView("system")}
               />
             </nav>
-            <div className="sidebar-section sidebar-footnote sidebar-summary-card">
-              <div className="sidebar-label">Live status</div>
-              <div className="sidebar-summary-row">
-                <span>Employees</span>
-                <strong>{employeeDirectory.length}</strong>
-              </div>
-              <div className="sidebar-summary-row">
-                <span>Interactions today</span>
-                <strong>
-                  {overviewQuery.data?.overview.totalInteractions ?? 0}
-                </strong>
-              </div>
-              <div className="sidebar-summary-row">
-                <span>Active today</span>
-                <strong>
-                  {overviewQuery.data?.overview.activeEmployees ?? 0}
-                </strong>
-              </div>
-            </div>
-          </aside>
+          </section>
 
-          <div className="workspace-main">
-            {activeView === "audit" ? (
-              <section className="audit-layout">
-                <aside className="panel employee-rail">
-                  <div className="panel-head">
-                    <div>
-                      <h2>Employees</h2>
-                      <p className="muted">
-                        Pick an employee to review their chats and bot
-                        responses.
-                      </p>
-                    </div>
-                    <span className="sidebar-count">
-                      {employeeDirectory.length}
-                    </span>
-                  </div>
-                  <input
-                    value={employeeSearch}
-                    onChange={(event) => setEmployeeSearch(event.target.value)}
-                    placeholder="Find employee"
-                    className="employee-search"
-                  />
-                  <div className="employee-list">
-                    {employeeDirectory.length === 0 ? (
-                      <div className="empty-state">
-                        No employees matched that search.
-                      </div>
-                    ) : (
-                      employeeDirectory.map((employee) => (
-                        <button
-                          type="button"
-                          key={employee.employeeId}
-                          className={`employee-card ${
-                            employee.employeeId === selectedEmployeeId
-                              ? "selected"
-                              : ""
-                          }`}
-                          onClick={() =>
-                            setSelectedEmployeeId(employee.employeeId)
-                          }
-                        >
-                          <div className="employee-card-top">
-                            <strong>{employee.displayName}</strong>
-                            <span className="status-chip ok">
-                              {employee.roleName ?? "employee"}
-                            </span>
-                          </div>
-                          <div className="employee-card-meta">
-                            <span>
-                              {employee.transcriptCount} conversations
-                            </span>
-                            <span>{employee.logCount} bot interactions</span>
-                          </div>
-                          <div className="employee-card-meta">
-                            <span>Success rate</span>
-                            <span>{employee.successRate.toFixed(0)}%</span>
-                          </div>
-                          <div className="employee-card-meta">
-                            <span>Latest</span>
-                            <span>
-                              {formatAdminTime(employee.latestInteractionAt)}
-                            </span>
-                          </div>
-                        </button>
-                      ))
-                    )}
-                  </div>
-                </aside>
+          {activeView === "team" ? (
+            <TeamAssignmentDashboard
+              employees={teamDirectory}
+              employeeSearch={employeeSearch}
+              onEmployeeSearchChange={setEmployeeSearch}
+              selectedEmployeeId={selectedEmployeeId}
+              onSelectEmployee={setSelectedEmployeeId}
+              selectedEmployee={selectedEmployee ?? null}
+              selectedEmployeeWorkload={selectedEmployeeWorkload}
+              selectedEmployeeReport={selectedEmployeeReport}
+              employeeTimeline={employeeTimeline}
+              totals={teamWorkloadQuery.data?.totals}
+            />
+          ) : null}
 
-                <div className="audit-main">
-                  <section className="panel selected-summary">
-                    <div className="selected-summary-head">
-                      <div>
-                        <div className="sidebar-label">Selected Employee</div>
-                        <h2>
-                          {selectedEmployee?.displayName ??
-                            "Select an employee"}
-                        </h2>
-                        <p className="muted">
-                          {selectedEmployee?.email || "No synced email on file"}
-                        </p>
-                      </div>
-                      {selectedEmployee ? (
-                        <span className="status-chip ok">
-                          {selectedEmployee.roleName ?? "employee"}
-                        </span>
-                      ) : null}
-                    </div>
-                    {selectedEmployee ? (
-                      <div className="summary-metrics">
-                        <MetricCard
-                          label="Bot Interactions"
-                          value={selectedEmployee.logCount}
-                        />
-                        <MetricCard
-                          label="LibreChat Conversations"
-                          value={selectedEmployee.transcriptCount}
-                        />
-                        <MetricCard
-                          label="Success Rate"
-                          value={`${selectedEmployee.successRate.toFixed(0)}%`}
-                        />
-                        <MetricCard
-                          label="Last Activity"
-                          value={formatAdminTime(
-                            selectedEmployee.latestInteractionAt,
-                          )}
-                        />
-                      </div>
-                    ) : (
-                      <div className="empty-state">
-                        Choose an employee from the left to start auditing.
-                      </div>
-                    )}
-                  </section>
-
-                  <section className="panel">
-                    <div className="panel-head">
-                      <div>
-                        <h2>Bot Replies & Actions</h2>
-                        <p className="muted">
-                          Every prompt sent to Aya and exactly what Aya
-                          returned.
-                        </p>
-                      </div>
-                      <div className="filter-grid compact">
-                        <select
-                          value={outcomeFilter}
-                          onChange={(event) =>
-                            setOutcomeFilter(event.target.value)
-                          }
-                        >
-                          <option value="">All outcomes</option>
-                          <option value="success">success</option>
-                          <option value="failure">failure</option>
-                          <option value="unmatched">unmatched</option>
-                        </select>
-                        <input
-                          value={logSearch}
-                          onChange={(event) => setLogSearch(event.target.value)}
-                          placeholder="Search prompt or bot reply"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="audit-stack">
-                      {selectedLogs.length === 0 ? (
-                        <div className="empty-state">
-                          No bot interactions matched the current filters.
-                        </div>
-                      ) : (
-                        selectedLogs.map((row) => (
-                          <article className="audit-card" key={row.id}>
-                            <div className="audit-card-head">
-                              <div>
-                                <strong>
-                                  {row.display_name ?? "Unknown employee"}
-                                </strong>
-                                <div className="audit-meta">
-                                  {formatAdminTime(row.created_at)}
-                                  <span>•</span>
-                                  <span>
-                                    {row.detected_intent ?? "unmatched"}
-                                  </span>
-                                </div>
-                              </div>
-                              <div className="audit-actions">
-                                <span
-                                  className={`status-chip ${
-                                    row.outcome === "success" ? "ok" : "bad"
-                                  }`}
-                                >
-                                  {row.outcome}
-                                </span>
-                                <button
-                                  type="button"
-                                  className="link-button"
-                                  onClick={() => setSelectedLogId(row.id)}
-                                >
-                                  View detail
-                                </button>
-                              </div>
-                            </div>
-                            <div className="audit-block">
-                              <label>Employee Prompt</label>
-                              <p>{row.inbound_text}</p>
-                            </div>
-                            <div className="audit-block reply">
-                              <label>Bot Reply</label>
-                              <p>{row.response_text ?? "No reply recorded."}</p>
-                            </div>
-                          </article>
-                        ))
-                      )}
-                    </div>
-                  </section>
-
-                  <section className="panel">
-                    <div className="panel-head">
-                      <div>
-                        <h2>LibreChat Conversations</h2>
-                        <p className="muted">
-                          Full conversation context from LibreChat for the
-                          selected employee.
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="conversation-stack">
-                      {selectedTranscripts.length === 0 ? (
-                        <div className="empty-state">
-                          No LibreChat conversations were found for this
-                          employee.
-                        </div>
-                      ) : (
-                        selectedTranscripts.map((row) => {
-                          const expanded = expandedTranscriptIds.has(
-                            row.conversationId,
-                          );
-                          const visibleMessages = expanded
-                            ? row.messages
-                            : row.messages.slice(-4);
-                          return (
-                            <article
-                              className="conversation-card"
-                              key={row.conversationId}
-                            >
-                              <div className="conversation-head">
-                                <div>
-                                  <strong>
-                                    {row.title || "Untitled conversation"}
-                                  </strong>
-                                  <div className="audit-meta">
-                                    {row.employeeName ||
-                                      row.employeeEmail ||
-                                      "Unknown employee"}
-                                    <span>•</span>
-                                    <span>{row.model || "Unknown model"}</span>
-                                    <span>•</span>
-                                    <span>
-                                      {formatAdminTime(
-                                        row.updatedAt ?? row.createdAt,
-                                      )}
-                                    </span>
-                                  </div>
-                                </div>
-                                <button
-                                  type="button"
-                                  className="link-button"
-                                  onClick={() =>
-                                    setExpandedTranscriptIds((current) => {
-                                      const next = new Set(current);
-                                      if (next.has(row.conversationId)) {
-                                        next.delete(row.conversationId);
-                                      } else {
-                                        next.add(row.conversationId);
-                                      }
-                                      return next;
-                                    })
-                                  }
-                                >
-                                  {expanded ? "Collapse" : "Expand"}
-                                </button>
-                              </div>
-                              <div className="message-thread">
-                                {visibleMessages.map((message, index) => (
-                                  <div
-                                    key={`${row.conversationId}-${index}`}
-                                    className={`message-bubble ${
-                                      message.isCreatedByUser
-                                        ? "user"
-                                        : "assistant"
-                                    }`}
-                                  >
-                                    <div className="message-sender">
-                                      {message.sender}
-                                    </div>
-                                    <div>{message.text || "Empty message"}</div>
-                                  </div>
-                                ))}
-                              </div>
-                            </article>
-                          );
-                        })
-                      )}
-                    </div>
-                  </section>
-                </div>
+          {activeView === "system" ? (
+            <section className="system-layout">
+              <section className="summary-strip">
+                <MetricCard label="Employees" value={employeesQuery.data?.items.length ?? 0} />
+                <MetricCard
+                  label="Active today"
+                  value={overviewQuery.data?.overview.activeEmployees ?? 0}
+                />
+                <MetricCard
+                  label="Clarifications"
+                  value={overviewQuery.data?.overview.planner.clarificationCount ?? 0}
+                />
+                <MetricCard
+                  label="Low confidence"
+                  value={overviewQuery.data?.overview.planner.lowConfidenceCount ?? 0}
+                />
               </section>
-            ) : null}
 
-            {activeView === "employees" ? (
-              <>
-                <section className="overview-grid compact-grid">
-                  <MetricCard
-                    label="Employees Synced"
-                    value={employeeDirectory.length}
-                  />
-                  <MetricCard
-                    label="Active Today"
-                    value={overviewQuery.data?.overview.activeEmployees ?? 0}
-                  />
-                  <MetricCard
-                    label="Interactions Today"
-                    value={overviewQuery.data?.overview.totalInteractions ?? 0}
-                  />
-                </section>
-                <EmployeeActivityTable
-                  data={employeeActivityQuery.data?.items ?? []}
-                />
-              </>
-            ) : null}
-
-            {activeView === "operations" ? (
-              <>
-                <CommandCenter
-                  overview={overviewQuery.data?.overview}
-                  employees={employeeDirectory}
-                  activity={employeeActivityQuery.data?.items ?? []}
-                  logs={logsQuery.data?.items ?? []}
-                  syncStates={overviewQuery.data?.sync.states ?? []}
-                />
-
-                <section className="overview-grid">
-                  <MetricCard
-                    label="Interactions Today"
-                    value={overviewQuery.data?.overview.totalInteractions ?? 0}
-                  />
-                  <MetricCard
-                    label="Active Employees"
-                    value={overviewQuery.data?.overview.activeEmployees ?? 0}
-                  />
-                  <MetricCard
-                    label="Total Employees"
-                    value={employeeDirectory.length}
-                  />
-                  <MetricCard
-                    label="Latest Sync"
-                    value={formatAdminTime(latestSyncAt ?? null)}
-                  />
-                </section>
-
-                <section className="operations-grid">
-                  <section className="panel operations-panel">
-                    <div className="panel-head">
-                      <div>
-                        <h2>Pilot Rollout</h2>
-                        <p className="muted">
-                          The rollout sequence and adoption standards the team
-                          should hold during launch.
-                        </p>
-                      </div>
-                    </div>
-                    <div className="note-grid">
-                      <article className="note-card">
-                        <div className="sidebar-label">Rollout path</div>
-                        <ul className="sidebar-list compact-list">
-                          {ROLLOUT_STEPS.map((step) => (
-                            <li key={step}>{step}</li>
-                          ))}
-                        </ul>
-                      </article>
-                      <article className="note-card">
-                        <div className="sidebar-label">Adoption priorities</div>
-                        <ul className="sidebar-list compact-list">
-                          {ADOPTION_PRIORITIES.map((item) => (
-                            <li key={item}>{item}</li>
-                          ))}
-                        </ul>
-                      </article>
-                    </div>
-                  </section>
-
-                  <section className="panel operations-panel">
-                    <div className="panel-head">
-                      <div>
-                        <h2>System Summary</h2>
-                        <p className="muted">
-                          Quick read on the current operating state without the
-                          dashboard chrome.
-                        </p>
-                      </div>
-                    </div>
-                    <div className="ops-summary-list">
-                      <div className="ops-summary-row">
-                        <span>Blue workspace</span>
-                        <strong>03 - AYA x Hamza/ AI</strong>
-                      </div>
-                      <div className="ops-summary-row">
-                        <span>Audit logs loaded</span>
-                        <strong>{logsQuery.data?.items.length ?? 0}</strong>
-                      </div>
-                      <div className="ops-summary-row">
-                        <span>Transcripts loaded</span>
-                        <strong>
-                          {transcriptsQuery.data?.items.length ?? 0}
-                        </strong>
-                      </div>
-                      <div className="ops-summary-row">
-                        <span>Webhook subscriptions</span>
-                        <strong>
-                          {overviewQuery.data?.sync.webhooks.length ?? 0}
-                        </strong>
-                      </div>
-                    </div>
-                  </section>
-                </section>
-
-                <SyncControlCenter
-                  states={overviewQuery.data?.sync.states ?? []}
-                  webhooks={overviewQuery.data?.sync.webhooks ?? []}
-                  runningAction={runningAction}
-                  onWorkspaceIndexSync={(forceFull) => {
-                    workspaceSyncMutation.mutate(forceFull);
-                  }}
-                  onEmployeeSync={() => {
-                    employeeSyncMutation.mutate();
-                  }}
-                  onBlueActivitySync={() => {
-                    activitySyncMutation.mutate();
-                  }}
-                />
-              </>
-            ) : null}
-
-            {activeView === "reporting" ? (
-              <ReportingCenter
-                capability={reportingQuery.data?.capability}
-                dashboards={reportingQuery.data?.dashboards.items ?? []}
-                reports={reportingQuery.data?.reports.items ?? []}
-                errors={
-                  reportingQuery.data?.errors ?? {
-                    dashboards: null,
-                    reports: null,
-                  }
-                }
-              />
-            ) : null}
-
-            {activeView === "identity" ? (
-              <IdentityLinksManager
-                links={identityLinksQuery.data?.items ?? []}
-                employees={employeesQuery.data?.items ?? []}
-                isSubmitting={
-                  createLinkMutation.isPending || deleteLinkMutation.isPending
-                }
-                onCreate={(payload) => {
-                  createLinkMutation.mutate(payload);
+              <SyncControlCenter
+                states={overviewQuery.data?.sync.states ?? []}
+                webhooks={overviewQuery.data?.sync.webhooks ?? []}
+                runningAction={runningAction}
+                onWorkspaceIndexSync={(forceFull) => {
+                  workspaceSyncMutation.mutate(forceFull);
                 }}
-                onDelete={(id) => {
-                  deleteLinkMutation.mutate(id);
+                onEmployeeSync={() => {
+                  employeeSyncMutation.mutate();
+                }}
+                onBlueActivitySync={() => {
+                  activitySyncMutation.mutate();
                 }}
               />
-            ) : null}
-          </div>
-        </section>
+            </section>
+          ) : null}
+        </>
       ) : null}
-
-      <Modal
-        open={Boolean(selectedLogId)}
-        title="Audit Log Detail"
-        onClose={() => setSelectedLogId(null)}
-      >
-        {logDetailQuery.isLoading ? (
-          <div className="loading-bar">Loading audit detail…</div>
-        ) : (
-          <div className="detail-grid">
-            <div className="detail-meta">
-              <div className="sync-meta-row">
-                <span>Created</span>
-                <span>
-                  {formatAdminTime(
-                    logDetailQuery.data?.item.created_at ?? null,
-                  )}
-                </span>
-              </div>
-              <div className="sync-meta-row">
-                <span>Employee</span>
-                <span>
-                  {logDetailQuery.data?.item.display_name ?? "Unknown"}
-                </span>
-              </div>
-              <div className="sync-meta-row">
-                <span>Intent</span>
-                <span>
-                  {logDetailQuery.data?.item.detected_intent ?? "unmatched"}
-                </span>
-              </div>
-              <div className="sync-meta-row">
-                <span>Adapter</span>
-                <span>{logDetailQuery.data?.item.adapter ?? "Unknown"}</span>
-              </div>
-              <div className="sync-meta-row">
-                <span>Outcome</span>
-                <span>{logDetailQuery.data?.item.outcome ?? "Unknown"}</span>
-              </div>
-            </div>
-            <div className="json-block">
-              <strong>Prompt JSON</strong>
-              <pre>
-                {JSON.stringify(
-                  logDetailQuery.data?.item.request_json ?? null,
-                  null,
-                  2,
-                )}
-              </pre>
-            </div>
-            <div className="json-block">
-              <strong>Response JSON</strong>
-              <pre>
-                {JSON.stringify(
-                  logDetailQuery.data?.item.response_json ?? null,
-                  null,
-                  2,
-                )}
-              </pre>
-            </div>
-          </div>
-        )}
-      </Modal>
     </main>
   );
 
@@ -1016,123 +512,46 @@ function MetricCard(input: { label: string; value: number | string }) {
   );
 }
 
-const ROLLOUT_STEPS = [
-  "Start with search, detail, comments, and workload.",
-  "Then allow comments, stage moves, and lead creation.",
-  "Review audit logs and failed matches every week.",
-];
-
-const ADOPTION_PRIORITIES = [
-  "Employees should talk to Aya like a coworker, not a command line.",
-  "Aya should ask one short follow-up instead of guessing.",
-  "Bad financial formula output should trigger clarification, not invention.",
-];
-
 function buildEmployeeDirectory(input: {
   employees: EmployeeRow[];
   activity: EmployeeActivityRow[];
-  logs: LogRow[];
-  transcripts: TranscriptRow[];
   search: string;
 }) {
-  const byId = new Map<string, DirectoryEmployee>();
-
-  const ensure = (employeeId: string, seed: Partial<DirectoryEmployee>) => {
-    const existing = byId.get(employeeId);
-    if (existing) {
-      byId.set(employeeId, {
-        ...existing,
-        ...seed,
-      });
-      return byId.get(employeeId)!;
-    }
-
-    const created: DirectoryEmployee = {
-      employeeId,
-      displayName: seed.displayName ?? "Unknown employee",
-      email: seed.email ?? null,
-      roleName: seed.roleName ?? null,
-      interactionCount: seed.interactionCount ?? 0,
-      successRate: seed.successRate ?? 0,
-      latestInteractionAt: seed.latestInteractionAt ?? null,
-      transcriptCount: seed.transcriptCount ?? 0,
-      logCount: seed.logCount ?? 0,
-    };
-    byId.set(employeeId, created);
-    return created;
-  };
+  const byId = new Map<string, TeamDirectoryEmployee>();
 
   for (const employee of input.employees) {
-    ensure(employee.id, {
+    byId.set(employee.id, {
+      employeeId: employee.id,
       displayName: employee.display_name,
       email: employee.email,
       roleName: employee.role_name,
+      interactionCount: 0,
+      successRate: 0,
+      latestInteractionAt: null,
     });
   }
 
   for (const activity of input.activity) {
-    ensure(activity.employee_id, {
+    const existing = byId.get(activity.employee_id);
+    byId.set(activity.employee_id, {
+      employeeId: activity.employee_id,
       displayName: activity.display_name,
-      roleName: activity.role_name,
+      email: existing?.email ?? null,
+      roleName: activity.role_name ?? existing?.roleName ?? null,
       interactionCount: activity.interaction_count ?? 0,
       successRate: Number(activity.success_rate ?? 0),
       latestInteractionAt: activity.latest_interaction_at,
     });
   }
 
-  for (const log of input.logs) {
-    if (!log.employee_id) {
-      continue;
-    }
-    const employee = ensure(log.employee_id, {
-      displayName: log.display_name ?? "Unknown employee",
-      roleName: log.role_name ?? null,
-    });
-    employee.logCount += 1;
-    employee.latestInteractionAt = latestTimestamp(
-      employee.latestInteractionAt,
-      log.created_at,
-    );
-  }
-
-  for (const transcript of input.transcripts) {
-    const matchedEmployee = input.employees.find((employee) =>
-      matchesTranscriptToEmployee(transcript, {
-        employeeId: employee.id,
-        displayName: employee.display_name,
-        email: employee.email,
-        roleName: employee.role_name,
-        interactionCount: 0,
-        successRate: 0,
-        latestInteractionAt: null,
-        transcriptCount: 0,
-        logCount: 0,
-      }),
-    );
-
-    if (!matchedEmployee) {
-      continue;
-    }
-
-    const employee = ensure(matchedEmployee.id, {
-      displayName: matchedEmployee.display_name,
-      email: matchedEmployee.email,
-      roleName: matchedEmployee.role_name,
-    });
-    employee.transcriptCount += 1;
-    employee.latestInteractionAt = latestTimestamp(
-      employee.latestInteractionAt,
-      transcript.updatedAt ?? transcript.createdAt,
-    );
-  }
-
   const search = input.search.trim().toLowerCase();
 
-  return [...byId.values()]
+  return Array.from(byId.values())
     .filter((employee) => {
       if (!search) {
         return true;
       }
+
       return `${employee.displayName} ${employee.email ?? ""}`
         .toLowerCase()
         .includes(search);
@@ -1144,33 +563,9 @@ function buildEmployeeDirectory(input: {
       if (latestDelta !== 0) {
         return latestDelta;
       }
+
       return left.displayName.localeCompare(right.displayName);
     });
-}
-
-function matchesTranscriptToEmployee(
-  transcript: TranscriptRow,
-  employee: Pick<DirectoryEmployee, "displayName" | "email">,
-) {
-  const transcriptName = transcript.employeeName.trim().toLowerCase();
-  const transcriptEmail = transcript.employeeEmail.trim().toLowerCase();
-  const employeeName = employee.displayName.trim().toLowerCase();
-  const employeeEmail = (employee.email ?? "").trim().toLowerCase();
-
-  return (
-    transcriptName === employeeName ||
-    Boolean(employeeEmail && transcriptEmail === employeeEmail)
-  );
-}
-
-function latestTimestamp(left: string | null, right: string | null) {
-  if (!left) {
-    return right;
-  }
-  if (!right) {
-    return left;
-  }
-  return new Date(left).getTime() >= new Date(right).getTime() ? left : right;
 }
 
 async function refreshAll(queryClient: QueryClient) {
@@ -1183,11 +578,9 @@ async function refreshAll(queryClient: QueryClient) {
 async function refreshAdminData(queryClient: QueryClient) {
   await Promise.all([
     queryClient.invalidateQueries({ queryKey: ["overview"] }),
-    queryClient.invalidateQueries({ queryKey: ["reporting"] }),
-    queryClient.invalidateQueries({ queryKey: ["logs"] }),
-    queryClient.invalidateQueries({ queryKey: ["transcripts"] }),
     queryClient.invalidateQueries({ queryKey: ["employee-activity"] }),
-    queryClient.invalidateQueries({ queryKey: ["identity-links"] }),
     queryClient.invalidateQueries({ queryKey: ["employees"] }),
+    queryClient.invalidateQueries({ queryKey: ["manager-report"] }),
+    queryClient.invalidateQueries({ queryKey: ["team-workload"] }),
   ]);
 }

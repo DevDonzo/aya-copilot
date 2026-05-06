@@ -88,7 +88,7 @@ export function useAyaRuntimeStatus(): AyaRuntimeStatus {
     };
   }
 
-  if (hasWriteCredentialFields && ayaToolServer.authenticated === false) {
+  if (hasWriteCredentialFields && ayaToolServer.authenticated !== true) {
     return {
       state: 'write_auth_needed',
       label: 'Aya read-only',

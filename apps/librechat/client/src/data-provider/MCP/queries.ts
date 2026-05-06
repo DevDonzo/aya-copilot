@@ -36,7 +36,7 @@ export const useMCPToolsQuery = <TData = t.MCPServersResponse>(
     {
       refetchOnWindowFocus: false,
       refetchOnReconnect: false,
-      refetchOnMount: false,
+      refetchOnMount: true,
       staleTime: 5 * 60 * 1000, // 5 minutes
       ...config,
     },

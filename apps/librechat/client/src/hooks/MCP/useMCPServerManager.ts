@@ -406,6 +406,30 @@ export function useMCPServerManager({
             queryClient.invalidateQueries([QueryKeys.mcpConnectionStatus]),
           ]);
 
+          await Promise.all([
+            queryClient.refetchQueries([QueryKeys.mcpServers], { type: 'active' }),
+            queryClient.refetchQueries([QueryKeys.mcpTools], { type: 'active' }),
+            queryClient.refetchQueries([QueryKeys.mcpAuthValues], { type: 'active' }),
+            queryClient.refetchQueries([QueryKeys.mcpConnectionStatus], { type: 'active' }),
+          ]);
+
+          const refreshedServers = queryClient.getQueryData<MCPServersListResponse | undefined>([
+            QueryKeys.mcpServers,
+          ]);
+          const refreshedTools = queryClient.getQueryData<MCPServersResponse | undefined>([
+            QueryKeys.mcpTools,
+          ]);
+          const refreshedServerConfig = refreshedServers?.[serverName];
+          const refreshedServerData = refreshedTools?.servers?.[serverName];
+          const hasCustomUserVars =
+            !!refreshedServerConfig?.customUserVars &&
+            Object.keys(refreshedServerConfig.customUserVars).length > 0;
+
+          if (hasCustomUserVars && refreshedServerData?.authenticated !== true) {
+            cleanupServerState(serverName);
+            return response;
+          }
+
           showToast({
             message: localize('com_ui_mcp_initialized_success', { 0: serverName }),
             status: 'success',
@@ -669,7 +693,7 @@ export function useMCPServerManager({
         QueryKeys.mcpTools,
       ]);
       const serverData = mcpData?.servers?.[serverName];
-      const serverStatus = connectionStatus?.[serverName];
+      const rawServerStatus = connectionStatus?.[serverName];
       const serverConfig = loadedServers?.[serverName];
 
       const handleConfigClick = (e: React.MouseEvent) => {
@@ -689,6 +713,13 @@ export function useMCPServerManager({
 
       const hasCustomUserVars =
         serverConfig?.customUserVars && Object.keys(serverConfig.customUserVars).length > 0;
+      const missingCustomUserAuth = hasCustomUserVars && serverData?.authenticated === false;
+      const serverStatus = missingCustomUserAuth
+        ? {
+            requiresOAuth: true,
+            connectionState: 'disconnected' as const,
+          }
+        : rawServerStatus;
 
       return {
         serverName,

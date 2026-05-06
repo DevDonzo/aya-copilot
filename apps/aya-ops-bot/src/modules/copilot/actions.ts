@@ -10,6 +10,8 @@ import {
   listCachedBlueRecordsForInspection,
   listEventsForEmployeeInRange,
   listMentionsForUser,
+  getEmployeeNotificationState,
+  upsertEmployeeNotificationState,
 } from "../../db.js";
 import {
   getIndexedRecord,
@@ -23,6 +25,7 @@ import type { BlueRequestAuth, EmployeeIdentity } from "../../domain/types.js";
 import type { BlueChecklistItem, BluePageInfo, BlueRecord } from "../../types/blue.js";
 import {
   createComment,
+  editChecklistItem,
   createLeadRecord,
   fetchRecordDetail,
   listAssignedChecklistItems,
@@ -30,6 +33,8 @@ import {
   moveRecord,
   setTodoAssignees,
   setChecklistItemAssignees,
+  updateChecklistItemDueDate,
+  updateTodoFields,
 } from "../blue/graphql/client.js";
 import { resolveBlueWriteAuth } from "../blue/request-auth.js";
 import {
@@ -43,6 +48,7 @@ import {
   resolvePendingRecordChoice,
 } from "../disambiguation/record-choices.js";
 import { resolveActorIdentity as resolveActorIdentityService } from "../identity/service.js";
+import { normalizeCacheQuery } from "../db/repositories/helpers.js";
 import { answerReportingQuestion, getReportingOverview } from "../../reporting/service.js";
 import { buildEmployeeDaySummary } from "../../summary/daily.js";
 import {
@@ -468,6 +474,145 @@ export async function getEmployeeFollowUpQueue(input: {
   };
 }
 
+export async function getEmployeeNotificationFeed(input: {
+  employeeId?: string;
+  employeeEmail?: string;
+  employeeName?: string;
+  date?: string;
+  transport?: string;
+}) {
+  const actor = await resolveActorOrThrow(input);
+  const referenceDate = normalizeDate(input.date);
+  const mentionWindowStart = shiftIsoDate(referenceDate, -30);
+  const [{ items: workload }, { items: assignments }, mentionState, recentMentions] =
+    await Promise.all([
+      loadAssignedOpenRecords(actor.employeeId),
+      loadAssignedChecklistItems(actor.employeeId, "open"),
+      getEmployeeNotificationState(actor.employeeId),
+      listMentionsForUser({
+        employeeName: actor.displayName,
+        dateStart: mentionWindowStart,
+        dateEnd: referenceDate,
+        limit: 25,
+      }),
+    ]);
+
+  const unreadMentions = recentMentions.filter((row) =>
+    mentionState?.mentions_seen_through
+      ? row.occurred_at > mentionState.mentions_seen_through
+      : true,
+  );
+  const staleAssignedFiles = workload
+    .filter((item) => {
+      const updatedDate = isoDay(item.updatedAt);
+      return Boolean(updatedDate && updatedDate <= shiftIsoDate(referenceDate, -5));
+    })
+    .sort((left, right) => sortByDate(left.updatedAt, right.updatedAt))
+    .slice(0, 8);
+  const overdueChecklistItems = assignments
+    .filter(
+      (item) =>
+        item.type === "checklist" &&
+        item.dueAt != null &&
+        isoDay(item.dueAt) != null &&
+        isoDay(item.dueAt)! < referenceDate &&
+        item.done === false,
+    )
+    .sort((left, right) => sortByDate(left.dueAt, right.dueAt))
+    .slice(0, 8);
+  const recentlyChangedAssignedFiles = [...workload]
+    .filter((item) => Boolean(item.updatedAt))
+    .sort((left, right) => sortByDate(right.updatedAt, left.updatedAt))
+    .slice(0, 8);
+
+  return {
+    employeeId: actor.employeeId,
+    employeeName: actor.displayName,
+    date: referenceDate,
+    lastMentionsReadAt: mentionState?.mentions_seen_through ?? null,
+    responseText: [
+      `Notifications for ${actor.displayName}:`,
+      `- Unread mentions: ${unreadMentions.length}`,
+      `- Stale assigned files: ${staleAssignedFiles.length}`,
+      `- Overdue checklist items: ${overdueChecklistItems.length}`,
+      `- Recently changed assigned files: ${recentlyChangedAssignedFiles.length}`,
+    ].join("\n"),
+    unreadMentions,
+    staleAssignedFiles,
+    overdueChecklistItems,
+    recentlyChangedAssignedFiles,
+  };
+}
+
+export async function getEmployeeDailyBrief(input: {
+  employeeId?: string;
+  employeeEmail?: string;
+  employeeName?: string;
+  date?: string;
+  mentionLookbackDays?: number;
+  transport?: string;
+}) {
+  const actor = await resolveActorOrThrow(input);
+  const date = normalizeDate(input.date);
+  const mentionLookbackDays = Math.max(1, Math.min(input.mentionLookbackDays ?? 7, 30));
+
+  const [workload, assignments, followUp, notifications, summary] = await Promise.all([
+    loadAssignedOpenRecords(actor.employeeId),
+    loadAssignedChecklistItems(actor.employeeId, "open"),
+    buildDailyBriefFollowUp(actor.employeeId, date),
+    getEmployeeNotificationFeed({
+      employeeId: actor.employeeId,
+      employeeName: actor.displayName,
+      date,
+      transport: input.transport,
+    }),
+    buildEmployeeDaySummary(actor.employeeId, date),
+  ]);
+
+  const workloadTotal = workload.pageInfo.totalItems ?? workload.items.length;
+  const assignmentTotal = assignments.pageInfo.totalItems ?? assignments.items.length;
+  const responseText = buildDailyBriefResponseText({
+    employeeName: actor.displayName,
+    date,
+    mentionLookbackDays,
+    workloadTotal,
+    assignmentTotal,
+    followUp,
+    mentions: notifications.unreadMentions,
+    summary,
+  });
+
+  return {
+    employeeId: actor.employeeId,
+    employeeName: actor.displayName,
+    date,
+    mentionLookbackDays,
+    responseText,
+    snapshot: {
+      openRecords: workloadTotal,
+      openAssignments: assignmentTotal,
+      priorityItems: followUp.prioritized.length,
+      mentions: notifications.unreadMentions.length,
+      activityEvents: summary.eventCount,
+    },
+    workload: {
+      items: workload.items,
+      pageInfo: workload.pageInfo,
+    },
+    assignments: {
+      status: "open" as const,
+      items: assignments.items,
+      pageInfo: assignments.pageInfo,
+    },
+    followUp,
+    mentions: {
+      rows: notifications.unreadMentions,
+    },
+    notifications,
+    summary,
+  };
+}
+
 export async function moveClientToStage(input: {
   recordId?: string;
   recordQuery?: string;
@@ -495,6 +640,7 @@ export async function moveClientToStage(input: {
             targetListQuery: input.targetListQuery,
           },
           useActiveRecordContext: input.useActiveRecordContext,
+          requireExactMatch: true,
         });
   const list = await resolveListOrThrow(input.targetListQuery);
   const indexedRecord = await getIndexedRecord(record.id);
@@ -573,6 +719,7 @@ export async function addCommentToClient(input: {
             text: input.text.trim(),
           },
           useActiveRecordContext: input.useActiveRecordContext,
+          requireExactMatch: true,
         });
   const comment = await executeBlueWrite(() =>
     createComment({
@@ -672,6 +819,7 @@ export async function assignRecord(input: {
       assigneeName: input.assigneeName,
     },
     useActiveRecordContext: input.useActiveRecordContext,
+    requireExactMatch: true,
   });
 
   const assignee = await resolveActorIdentityService({
@@ -718,6 +866,7 @@ export async function assignTask(input: {
       assigneeName: input.assigneeName,
     },
     useActiveRecordContext: input.useActiveRecordContext,
+    requireExactMatch: true,
   });
 
   const assignee = await resolveActorIdentityService({
@@ -766,6 +915,162 @@ export async function assignTask(input: {
     assigneeId: assignee.employeeId,
     assigneeName: assignee.displayName,
     responseText: `Assigned task "${targetItem.title}" to ${assignee.displayName}.`,
+  };
+}
+
+export async function completeRecordAssignment(input: {
+  entityQuery?: string;
+  useActiveRecordContext?: boolean;
+  actor?: EmployeeIdentity | null;
+  blueAuth?: BlueRequestAuth | null;
+  transport?: string;
+}) {
+  const writeAuth = resolveBlueWriteAuth(input.blueAuth);
+  const record = await resolveRecordOrThrow({
+    query: input.entityQuery,
+    fieldName: "entityQuery",
+    actor: input.actor ?? null,
+    transport: input.transport ?? "mcp",
+    continuationAction: "records.complete",
+    useActiveRecordContext: input.useActiveRecordContext,
+    requireExactMatch: true,
+  });
+
+  await executeBlueWrite(() =>
+    updateTodoFields({
+      workspaceId: config.BLUE_WORKSPACE_ID,
+      todoIds: [record.id],
+      done: true,
+      auth: writeAuth,
+    }),
+  );
+
+  return {
+    ok: true,
+    recordId: record.id,
+    recordTitle: record.title,
+    responseText: `Marked ${record.title} as done.`,
+  };
+}
+
+export async function completeTaskAssignment(input: {
+  recordQuery?: string;
+  taskQuery: string;
+  useActiveRecordContext?: boolean;
+  actor?: EmployeeIdentity | null;
+  blueAuth?: BlueRequestAuth | null;
+  transport?: string;
+}) {
+  const writeAuth = resolveBlueWriteAuth(input.blueAuth);
+  const { taskItem, record } = await resolveChecklistItemOrThrow({
+    recordQuery: input.recordQuery,
+    taskQuery: input.taskQuery,
+    actor: input.actor ?? null,
+    transport: input.transport ?? "mcp",
+    useActiveRecordContext: input.useActiveRecordContext,
+    continuationAction: "tasks.complete",
+  });
+
+  await executeBlueWrite(() =>
+    editChecklistItem({
+      workspaceId: config.BLUE_WORKSPACE_ID,
+      checklistItemId: taskItem.id,
+      done: true,
+      auth: writeAuth,
+    }),
+  );
+
+  return {
+    ok: true,
+    recordId: record.id,
+    recordTitle: record.title,
+    taskId: taskItem.id,
+    taskTitle: taskItem.title,
+    responseText: `Marked task "${taskItem.title}" as done on ${record.title}.`,
+  };
+}
+
+export async function setRecordDueDate(input: {
+  entityQuery?: string;
+  dueDate: string;
+  useActiveRecordContext?: boolean;
+  actor?: EmployeeIdentity | null;
+  blueAuth?: BlueRequestAuth | null;
+  transport?: string;
+}) {
+  const writeAuth = resolveBlueWriteAuth(input.blueAuth);
+  const record = await resolveRecordOrThrow({
+    query: input.entityQuery,
+    fieldName: "entityQuery",
+    actor: input.actor ?? null,
+    transport: input.transport ?? "mcp",
+    continuationAction: "records.set_due_date",
+    pendingParameters: {
+      dueDate: input.dueDate,
+    },
+    useActiveRecordContext: input.useActiveRecordContext,
+    requireExactMatch: true,
+  });
+  const dueAt = toDueDateIso(input.dueDate);
+
+  await executeBlueWrite(() =>
+    updateTodoFields({
+      workspaceId: config.BLUE_WORKSPACE_ID,
+      todoIds: [record.id],
+      duedAt: dueAt,
+      auth: writeAuth,
+    }),
+  );
+
+  return {
+    ok: true,
+    recordId: record.id,
+    recordTitle: record.title,
+    dueAt,
+    responseText: `Set the due date for ${record.title} to ${dueAt.slice(0, 10)}.`,
+  };
+}
+
+export async function setTaskDueDate(input: {
+  recordQuery?: string;
+  taskQuery: string;
+  dueDate: string;
+  useActiveRecordContext?: boolean;
+  actor?: EmployeeIdentity | null;
+  blueAuth?: BlueRequestAuth | null;
+  transport?: string;
+}) {
+  const writeAuth = resolveBlueWriteAuth(input.blueAuth);
+  const { taskItem, record } = await resolveChecklistItemOrThrow({
+    recordQuery: input.recordQuery,
+    taskQuery: input.taskQuery,
+    actor: input.actor ?? null,
+    transport: input.transport ?? "mcp",
+    useActiveRecordContext: input.useActiveRecordContext,
+    continuationAction: "tasks.set_due_date",
+    pendingParameters: {
+      dueDate: input.dueDate,
+    },
+  });
+  const dueAt = toDueDateIso(input.dueDate);
+
+  await executeBlueWrite(() =>
+    updateChecklistItemDueDate({
+      workspaceId: config.BLUE_WORKSPACE_ID,
+      checklistItemId: taskItem.id,
+      duedAt: dueAt,
+      auth: writeAuth,
+    }),
+  );
+
+  return {
+    ok: true,
+    recordId: record.id,
+    recordTitle: record.title,
+    taskId: taskItem.id,
+    taskTitle: taskItem.title,
+    dueAt,
+    responseText: `Set the due date for task "${taskItem.title}" on ${record.title} to ${dueAt.slice(0, 10)}.`,
   };
 }
 
@@ -820,6 +1125,20 @@ type FollowUpPriorityItem = WorkloadItem & {
   reason: string;
 };
 
+type ResolvedChecklistTask = {
+  record: {
+    id: string;
+    title: string;
+    listTitle: string;
+  };
+  taskItem: {
+    id: string;
+    title: string;
+    checklistId: string;
+    checklistTitle: string;
+  };
+};
+
 interface RecordResolutionInput {
   query?: string;
   fieldName: string;
@@ -828,6 +1147,7 @@ interface RecordResolutionInput {
   continuationAction: string;
   pendingParameters?: Record<string, unknown>;
   useActiveRecordContext?: boolean;
+  requireExactMatch?: boolean;
 }
 
 async function resolveRecordOrThrow(input: RecordResolutionInput) {
@@ -871,7 +1191,169 @@ async function resolveRecordOrThrow(input: RecordResolutionInput) {
     }
   }
 
-  const resolution = await resolveRecordQuery(input.query.trim());
+  const trimmedQuery = input.query.trim();
+  const normalizedQuery = normalizeCacheQuery(trimmedQuery);
+  if (input.actor) {
+    const assignedRecords = await loadAssignedOpenRecords(input.actor.employeeId);
+    const exactAssignedMatches = assignedRecords.items
+      .filter((candidate) => normalizeCacheQuery(candidate.title) === normalizedQuery)
+      .map((candidate) => ({
+        id: candidate.id,
+        title: candidate.title,
+        listTitle: candidate.listTitle,
+      }));
+
+    if (exactAssignedMatches.length === 1) {
+      const match = exactAssignedMatches[0];
+      await clearPendingRecordChoiceForActor(input.actor);
+      await rememberActiveRecordContext({
+        actor: input.actor,
+        transport: input.transport,
+        recordId: match.id,
+        recordTitle: match.title,
+        listTitle: match.listTitle,
+      });
+      return match;
+    }
+
+    if (exactAssignedMatches.length > 1) {
+      throw new ValidationError(
+        formatCandidates(
+          exactAssignedMatches.map((candidate) =>
+            candidate.listTitle
+              ? `${candidate.title} (${candidate.listTitle})`
+              : candidate.title,
+          ),
+          `Multiple assigned records matched "${input.query}". Be more specific.`,
+        ),
+      );
+    }
+  }
+
+  let exactMatches = (await searchRecordQuery(trimmedQuery, 20)).filter(
+    (candidate) => normalizeCacheQuery(candidate.title) === normalizedQuery,
+  );
+
+  if (exactMatches.length === 1) {
+    const match = exactMatches[0];
+
+    if (input.actor) {
+      await clearPendingRecordChoiceForActor(input.actor);
+      await rememberActiveRecordContext({
+        actor: input.actor,
+        transport: input.transport,
+        recordId: match.id,
+        recordTitle: match.title,
+        listTitle: match.listTitle,
+      });
+    }
+
+    return match;
+  }
+
+  if (exactMatches.length > 1) {
+    throw new ValidationError(
+      formatCandidates(
+        exactMatches.map((candidate) =>
+          candidate.listTitle
+            ? `${candidate.title} (${candidate.listTitle})`
+            : candidate.title,
+        ),
+        `Multiple exact records matched "${input.query}". Be more specific.`,
+      ),
+    );
+  }
+
+  if (input.requireExactMatch) {
+    await syncWorkspaceIndex();
+    exactMatches = (await searchRecordQuery(trimmedQuery, 20)).filter(
+      (candidate) => normalizeCacheQuery(candidate.title) === normalizedQuery,
+    );
+
+    if (exactMatches.length === 1) {
+      const match = exactMatches[0];
+
+      if (input.actor) {
+        await clearPendingRecordChoiceForActor(input.actor);
+        await rememberActiveRecordContext({
+          actor: input.actor,
+          transport: input.transport,
+          recordId: match.id,
+          recordTitle: match.title,
+          listTitle: match.listTitle,
+        });
+      }
+
+      return match;
+    }
+
+    if (exactMatches.length > 1) {
+      throw new ValidationError(
+        formatCandidates(
+          exactMatches.map((candidate) =>
+            candidate.listTitle
+              ? `${candidate.title} (${candidate.listTitle})`
+              : candidate.title,
+          ),
+          `Multiple exact records matched "${input.query}". Be more specific.`,
+        ),
+      );
+    }
+
+    const nearbyCandidates = await searchRecordQuery(trimmedQuery, 5);
+    throw new ValidationError(
+      nearbyCandidates.length
+        ? formatCandidates(
+            nearbyCandidates.map((candidate) =>
+              candidate.listTitle
+                ? `${candidate.title} (${candidate.listTitle})`
+                : candidate.title,
+            ),
+            `I could not find an exact record title match for "${input.query}". Re-run the command with one of these current titles:`,
+          )
+        : `I could not find an exact record title match for "${input.query}". Re-run the command with the full current client title.`,
+    );
+  }
+
+  let resolution = await resolveRecordQuery(trimmedQuery);
+  if (!resolution) {
+    await syncWorkspaceIndex();
+    exactMatches = (await searchRecordQuery(trimmedQuery, 20)).filter(
+      (candidate) => normalizeCacheQuery(candidate.title) === normalizedQuery,
+    );
+
+    if (exactMatches.length === 1) {
+      const match = exactMatches[0];
+
+      if (input.actor) {
+        await clearPendingRecordChoiceForActor(input.actor);
+        await rememberActiveRecordContext({
+          actor: input.actor,
+          transport: input.transport,
+          recordId: match.id,
+          recordTitle: match.title,
+          listTitle: match.listTitle,
+        });
+      }
+
+      return match;
+    }
+
+    if (exactMatches.length > 1) {
+      throw new ValidationError(
+        formatCandidates(
+          exactMatches.map((candidate) =>
+            candidate.listTitle
+              ? `${candidate.title} (${candidate.listTitle})`
+              : candidate.title,
+          ),
+          `Multiple exact records matched "${input.query}". Be more specific.`,
+        ),
+      );
+    }
+
+    resolution = await resolveRecordQuery(trimmedQuery);
+  }
   if (!resolution) {
     throw new ValidationError(
       `No cached Blue record matched "${input.query}". Sync the workspace index and try again.`,
@@ -955,6 +1437,54 @@ async function resolveActiveRecordContextOrThrow(
   }
 
   return active;
+}
+
+async function resolveChecklistItemOrThrow(input: {
+  recordQuery?: string;
+  taskQuery: string;
+  actor?: EmployeeIdentity | null;
+  transport: string;
+  continuationAction: string;
+  pendingParameters?: Record<string, unknown>;
+  useActiveRecordContext?: boolean;
+}): Promise<ResolvedChecklistTask> {
+  const record = await resolveRecordOrThrow({
+    query: input.recordQuery,
+    fieldName: "recordQuery",
+    actor: input.actor ?? null,
+    transport: input.transport,
+    continuationAction: input.continuationAction,
+    pendingParameters: {
+      taskQuery: input.taskQuery,
+      ...(input.pendingParameters ?? {}),
+    },
+    useActiveRecordContext: input.useActiveRecordContext,
+    requireExactMatch: true,
+  });
+
+  const detail = await fetchRecordDetail(config.BLUE_WORKSPACE_ID, record.id);
+  const normalizedTask = normalizeCacheQuery(input.taskQuery);
+
+  for (const checklist of detail.record?.checklists ?? []) {
+    for (const item of checklist.items) {
+      const normalizedTitle = normalizeCacheQuery(item.title);
+      if (normalizedTitle === normalizedTask || normalizedTitle.includes(normalizedTask)) {
+        return {
+          record,
+          taskItem: {
+            id: item.id,
+            title: item.title,
+            checklistId: checklist.id,
+            checklistTitle: checklist.title,
+          },
+        };
+      }
+    }
+  }
+
+  throw new ValidationError(
+    `Could not find a task matching "${input.taskQuery}" in ${record.title}.`,
+  );
 }
 
 async function resolveListOrThrow(query: string) {
@@ -1063,6 +1593,7 @@ async function loadAssignedChecklistItems(
 ): Promise<{ items: AssignmentItem[]; pageInfo: BluePageInfo }> {
   const [checklistResult, recordsResult] = await Promise.all([
     listAssignedChecklistItems({
+      workspaceId: config.BLUE_WORKSPACE_ID,
       assigneeId,
       done:
         status === "open"
@@ -1076,6 +1607,7 @@ async function loadAssignedChecklistItems(
     }),
     status !== "completed"
       ? listAssignedOpenRecords({
+          workspaceId: config.BLUE_WORKSPACE_ID,
           companyId: config.BLUE_COMPANY_ID,
           assigneeId,
           limit: 50,
@@ -1283,6 +1815,14 @@ function buildFollowUpPriorityQueue(
   };
 }
 
+async function buildDailyBriefFollowUp(employeeId: string, referenceDate: string) {
+  const { items, pageInfo } = await loadAssignedOpenRecords(employeeId);
+  return {
+    ...buildFollowUpPriorityQueue(items, referenceDate),
+    pageInfo,
+  };
+}
+
 function buildFollowUpQueueResponseText(
   employeeName: string,
   referenceDate: string,
@@ -1308,6 +1848,59 @@ function buildFollowUpQueueResponseText(
     hasMore
       ? "Showing the first priority files only. More open files are available."
       : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function buildDailyBriefResponseText(input: {
+  employeeName: string;
+  date: string;
+  mentionLookbackDays: number;
+  workloadTotal: number;
+  assignmentTotal: number;
+  followUp: {
+    overdue: FollowUpPriorityItem[];
+    dueToday: FollowUpPriorityItem[];
+    stale: FollowUpPriorityItem[];
+    prioritized: FollowUpPriorityItem[];
+  };
+  mentions: Array<{
+    occurred_at: string;
+    author_name: string | null;
+    entity_title: string | null;
+    summary: string;
+  }>;
+  summary: {
+    eventCount: number;
+    summaryText: string;
+  };
+}) {
+  const priorityPreview = input.followUp.prioritized
+    .slice(0, 3)
+    .map(
+      (item, index) =>
+        `${index + 1}. ${item.title} (${item.listTitle}) - ${item.reason}`,
+    );
+  const mentionPreview = input.mentions.slice(0, 3).map((row, index) => {
+    const date = row.occurred_at.slice(0, 10);
+    const author = row.author_name ?? "Someone";
+    const entityTitle = row.entity_title ?? "a client file";
+    return `${index + 1}. ${author} on ${entityTitle} (${date})`;
+  });
+
+  return [
+    `Daily brief for ${input.employeeName} on ${input.date}:`,
+    `- Open records: ${input.workloadTotal}`,
+    `- Open assignments: ${input.assignmentTotal}`,
+    `- Priority follow-ups: ${input.followUp.prioritized.length} (${input.followUp.overdue.length} overdue, ${input.followUp.dueToday.length} due today, ${input.followUp.stale.length} stale)`,
+    `- Mentions in the last ${input.mentionLookbackDays} day${input.mentionLookbackDays === 1 ? "" : "s"}: ${input.mentions.length}`,
+    `- Logged activity today: ${input.summary.eventCount}`,
+    input.followUp.prioritized.length > 0 ? "Top follow-up priorities:" : null,
+    ...priorityPreview,
+    input.mentions.length > 0 ? "Recent mentions:" : null,
+    ...mentionPreview,
+    `Activity summary: ${input.summary.summaryText}`,
   ]
     .filter(Boolean)
     .join("\n");
@@ -1351,6 +1944,20 @@ function sortByDate(left: string | null, right: string | null) {
   return 0;
 }
 
+function toDueDateIso(value: string) {
+  const trimmed = value.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return `${trimmed}T23:59:59.999Z`;
+  }
+
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new ValidationError(`Invalid due date: ${value}`);
+  }
+
+  return parsed.toISOString();
+}
+
 export async function getUserMentionsReport(input: {
   employeeName?: string;
   dateStart?: string;
@@ -1367,6 +1974,16 @@ export async function getUserMentionsReport(input: {
     dateStart: input.dateStart,
     dateEnd: input.dateEnd,
   });
+
+  if (
+    input.actor &&
+    targetName.trim().toLowerCase() === input.actor.displayName.trim().toLowerCase()
+  ) {
+    await upsertEmployeeNotificationState({
+      employeeId: input.actor.employeeId,
+      mentionsSeenThrough: rows[0]?.occurred_at ?? new Date().toISOString(),
+    });
+  }
 
   const responseText =
     rows.length === 0

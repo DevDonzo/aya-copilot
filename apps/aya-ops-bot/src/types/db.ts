@@ -161,6 +161,13 @@ export interface ActiveRecordContextTable {
   updated_at: Generated<string>;
 }
 
+export interface EmployeeNotificationStateTable {
+  employee_id: string;
+  mentions_seen_through: string | null;
+  created_at: Generated<string>;
+  updated_at: Generated<string>;
+}
+
 export interface AyaDatabase {
   employees: EmployeesTable;
   identity_links: IdentityLinksTable;
@@ -175,4 +182,5 @@ export interface AyaDatabase {
   blue_webhook_subscriptions: BlueWebhookSubscriptionsTable;
   pending_record_choices: PendingRecordChoicesTable;
   active_record_context: ActiveRecordContextTable;
+  employee_notification_state: EmployeeNotificationStateTable;
 }

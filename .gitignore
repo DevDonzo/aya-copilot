@@ -2,6 +2,8 @@
 .local/
 .git-backups/
 scripts/__pycache__/
+tmp_*.md
+tmp_*.txt
 
 # Transitional compatibility links at the workspace root
 /LibreChat

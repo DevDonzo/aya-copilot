@@ -4,9 +4,18 @@ import {
   removeNullishValues,
   normalizeEndpointName,
 } from 'librechat-data-provider';
-import type { TCustomConfig, TEndpoint, TTransactionsConfig } from 'librechat-data-provider';
+import type {
+  TCustomConfig,
+  TEndpoint,
+  TTransactionsConfig,
+  TCustomEndpoints,
+} from 'librechat-data-provider';
 import type { AppConfig } from '@librechat/data-schemas';
 import { isEnabled } from '~/utils';
+
+type TResolvedAppEndpoints = NonNullable<AppConfig['endpoints']> & {
+  custom?: TCustomEndpoints;
+};
 
 /**
  * Retrieves the balance configuration object
@@ -62,9 +71,10 @@ export const getCustomEndpointConfig = ({
     throw new Error(`Config not found for the ${endpoint} custom endpoint.`);
   }
 
-  const customEndpoints = appConfig.endpoints?.[EModelEndpoint.custom] ?? [];
+  const endpoints = appConfig.endpoints as TResolvedAppEndpoints | undefined;
+  const customEndpoints: TCustomEndpoints = endpoints?.custom ?? [];
   return customEndpoints.find(
-    (endpointConfig) =>
+    (endpointConfig: Partial<TEndpoint>) =>
       normalizeEndpointName(endpointConfig.name) === normalizeEndpointName(endpoint),
   );
 };

@@ -1,8 +1,54 @@
-# Project Rules
+# Blue Repository Agent Guide
 
-Always use the `blue` MCP server for Blue workspace access in this project when the task involves reading or changing Blue data.
+This repository is Aya Financial's workspace for the Blue CRM copilot stack.
 
-## Workspace Safety
+Use this file as the operating contract for any agent working in `/Users/hparacha/AyaFinancial/Blue`.
+
+## Primary Rule
+
+Always use the `blue` MCP server for Blue workspace access when the task involves reading or changing Blue data.
+
+## Repository Purpose
+
+This repo contains three main product surfaces:
+
+- `apps/librechat`: the employee-facing chat UI
+- `apps/aya-ops-bot`: the secured business-logic, MCP, audit, and admin layer
+- `tools/blue-cli`: low-level Blue CLI and API tooling
+
+It also contains deployment and reference material:
+
+- `docs/`: architecture, deployment, and product docs
+- `reference/`: exported schemas, API references, and research material
+- `scripts/`: workspace utilities and one-off repo automation
+- `.git-backups/`: archived nested git metadata from the repo flattening
+
+## Top-Level Folder Conventions
+
+- Keep product code in `apps/` and `tools/`.
+- Keep durable documentation in `docs/`.
+- Keep source-of-truth API/schema exports in `reference/`.
+- Keep operational or handoff notes in `docs/internal/`.
+- Do not leave temporary handoff files at the repository root.
+- Do not commit local runtime data, deployment secrets, or generated database state.
+
+## Deployment Layout
+
+The main VPS deployment bundle lives in:
+
+- `apps/aya-ops-bot/deploy/hostinger/`
+
+Important subpaths there:
+
+- `docker-compose.yml`: single-VPS compose stack
+- `env/`: local deployment environment files
+- `config/`: LibreChat runtime config
+- `cloudflared/`: tunnel example config
+- `data/`: local persistent runtime state, intended to stay untracked
+
+If deployment work is needed, prefer updating the checked-in examples and docs before editing live env files.
+
+## Blue Workspace Safety
 
 - Allowed workspace name: `03 - AYA x Hamza/ AI`
 - Allowed workspace ID: `cmn524yr800e101mh7kn44mhf`
@@ -16,3 +62,16 @@ Always use the `blue` MCP server for Blue workspace access in this project when 
 3. Before any write operation, confirm the target workspace ID is exactly `cmn524yr800e101mh7kn44mhf`.
 4. If a Blue request is ambiguous about workspace scope, stop and ask instead of acting.
 5. Prefer workspace IDs over names when a tool accepts both.
+
+## Hostinger / Infrastructure Rules
+
+- Treat Hostinger access as production-adjacent infrastructure access.
+- Default to read-only inspection unless the user explicitly asks for a change.
+- Prefer documented deployment assets in `apps/aya-ops-bot/deploy/hostinger/` over ad hoc commands.
+- If deployment status in Hostinger conflicts with local docs, update the docs after confirming the real state.
+
+## Documentation Maintenance Rules
+
+- Update `README.md` when the top-level repo map or deployment approach changes.
+- Update `docs/deployment-guide.md` when the Hostinger compose stack or rollout procedure changes.
+- Update this file when workspace safety, folder conventions, or operational boundaries change.

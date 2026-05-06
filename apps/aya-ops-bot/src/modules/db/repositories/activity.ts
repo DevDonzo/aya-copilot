@@ -48,6 +48,133 @@ export async function listEventsForEmployeeDay(employeeId: string, date: string)
     .execute();
 }
 
+export async function listWorkspaceEventsInRange(input: {
+  workspaceId: string;
+  dateStart?: string;
+  dateEnd?: string;
+  employeeId?: string;
+  limit?: number;
+}) {
+  let query = db
+    .selectFrom("activity_events as ae")
+    .leftJoin("employees as e", "e.id", "ae.employee_id")
+    .select([
+      "ae.id",
+      "ae.source",
+      "ae.action_type",
+      "ae.entity_type",
+      "ae.entity_id",
+      "ae.entity_title",
+      "ae.occurred_at",
+      "ae.summary",
+      "ae.project_name",
+      "e.id as employee_id",
+      "e.display_name as employee_name",
+    ])
+    .where("ae.workspace_id", "=", input.workspaceId);
+
+  if (input.employeeId) {
+    query = query.where("ae.employee_id", "=", input.employeeId);
+  }
+  if (input.dateStart) {
+    query = query.where("ae.occurred_at", ">=", `${input.dateStart}T00:00:00Z`);
+  }
+  if (input.dateEnd) {
+    query = query.where("ae.occurred_at", "<=", `${input.dateEnd}T23:59:59Z`);
+  }
+
+  return await query
+    .orderBy("ae.occurred_at", "desc")
+    .limit(input.limit ?? 5000)
+    .execute();
+}
+
+export async function getWorkspaceActivityOverview(input: {
+  workspaceId: string;
+  date: string;
+}) {
+  const counts = await db
+    .selectFrom("activity_events as ae")
+    .select([
+      sql<number>`count(*)`.as("total_interactions"),
+      sql<number>`count(distinct ae.employee_id)`.as("active_employees"),
+      sql<string | null>`max(ae.occurred_at)`.as("latest_interaction_at"),
+    ])
+    .where("ae.workspace_id", "=", input.workspaceId)
+    .where(sql`substr(ae.occurred_at, 1, 10)`, "=", input.date)
+    .executeTakeFirst();
+
+  return {
+    date: input.date,
+    totalInteractions: counts?.total_interactions ?? 0,
+    successCount: counts?.total_interactions ?? 0,
+    failureCount: 0,
+    activeEmployees: counts?.active_employees ?? 0,
+    latestInteractionAt: counts?.latest_interaction_at ?? null,
+    planner: {
+      plannedCount: 0,
+      averageConfidence: 0,
+      clarificationCount: 0,
+      unmatchedCount: 0,
+      lowConfidenceCount: 0,
+      activeRecordFollowUps: 0,
+      topIntents: [],
+    },
+  };
+}
+
+export async function listWorkspaceEmployeeActivity(input: {
+  workspaceId: string;
+  dateStart?: string;
+  dateEnd?: string;
+  limit?: number;
+}) {
+  let query = db
+    .selectFrom("employees as e")
+    .leftJoin("activity_events as ae", (join) =>
+      join
+        .onRef("ae.employee_id", "=", "e.id")
+        .on("ae.workspace_id", "=", input.workspaceId),
+    )
+    .select([
+      "e.id as employee_id",
+      "e.display_name",
+      "e.role_name",
+      sql<number>`count(ae.id)`.as("interaction_count"),
+      sql<number>`count(ae.id)`.as("success_count"),
+      sql<number>`0`.as("failure_count"),
+      sql<number>`case when count(ae.id) = 0 then 0 else 100 end`.as(
+        "success_rate",
+      ),
+      sql<string | null>`max(ae.occurred_at)`.as("latest_interaction_at"),
+    ])
+    .groupBy(["e.id", "e.display_name", "e.role_name"]);
+
+  if (input.dateStart) {
+    query = query.where((eb) =>
+      eb.or([
+        eb("ae.occurred_at", ">=", `${input.dateStart}T00:00:00Z`),
+        eb("ae.occurred_at", "is", null),
+      ]),
+    );
+  }
+  if (input.dateEnd) {
+    query = query.where((eb) =>
+      eb.or([
+        eb("ae.occurred_at", "<=", `${input.dateEnd}T23:59:59Z`),
+        eb("ae.occurred_at", "is", null),
+      ]),
+    );
+  }
+
+  return await query
+    .orderBy(sql`case when latest_interaction_at is null then 1 else 0 end`)
+    .orderBy("latest_interaction_at", "desc")
+    .orderBy("e.display_name", "asc")
+    .limit(input.limit ?? 100)
+    .execute();
+}
+
 export async function listEventsForEmployeeInRange(input: {
   employeeId: string;
   dateStart?: string;

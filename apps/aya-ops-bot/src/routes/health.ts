@@ -18,7 +18,7 @@ export const healthRoutes: FastifyPluginAsync = async (app) => {
     }
 
     try {
-      await checkBlueApiConnectivity(config.BLUE_WORKSPACE_ID);
+      await checkBlueApiConnectivity(config.BLUE_READ_WORKSPACE_ID);
       blueApi.ok = true;
     } catch {
       blueApi.ok = false;

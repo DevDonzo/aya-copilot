@@ -1,4 +1,4 @@
-interface EmployeeAuditLogRow {
+export interface EmployeeAuditLogRow {
   id: string;
   created_at: string;
   employee_id: string | null;
@@ -32,7 +32,7 @@ export type WorkspaceActivityFocus =
 
 export type RecordActivityFocus = "all" | "comments" | "moves" | "timeline";
 
-interface ParsedActivityItem {
+export interface ParsedActivityItem {
   kind: "comment" | "move" | "create" | "read" | "other";
   occurredAt: string;
   outcome: string;
@@ -616,7 +616,7 @@ function normalizeValue(value: string) {
   return value.trim().toLowerCase();
 }
 
-function parseAuditRow(row: EmployeeAuditLogRow): ParsedActivityItem {
+export function parseAuditRow(row: EmployeeAuditLogRow): ParsedActivityItem {
   const responseJson = safeParseJson(row.response_json);
   const data = isObject(responseJson) && isObject(responseJson.data)
     ? responseJson.data

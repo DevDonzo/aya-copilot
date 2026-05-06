@@ -21,13 +21,17 @@ import {
   answerReportingQuestion,
   assignRecord,
   assignTask,
+  completeRecordAssignment,
+  completeTaskAssignment,
   createClientRecord,
+  getEmployeeDailyBrief,
   getClientComments,
   getClientDetail,
   getEmployeeAssignmentReport,
   getEmployeeActivityReport,
   getEmployeeDaySummary,
   getEmployeeFollowUpQueue,
+  getEmployeeNotificationFeed,
   getEmployeeWorkload,
   getUserMentionsReport,
   getUserActivityHistory,
@@ -37,6 +41,8 @@ import {
   getTeamDaySummary,
   getWorkspaceActivityReport,
   moveClientToStage,
+  setRecordDueDate,
+  setTaskDueDate,
   searchClients,
 } from "./actions.js";
 import { planEmployeeIntent } from "./planner.js";
@@ -325,6 +331,15 @@ function enforceIntentPermissions(actor: EmployeeIdentity, plan: IntentPlan) {
   }
 
   if (
+    plan.intent === "notifications.feed" &&
+    typeof plan.parameters.employeeName === "string" &&
+    plan.parameters.employeeName.trim().toLowerCase() !==
+      actor.displayName.trim().toLowerCase()
+  ) {
+    throw new PermissionError();
+  }
+
+  if (
     plan.intent === "records.list_assigned" &&
     typeof plan.parameters.employeeName === "string" &&
     plan.parameters.employeeName.trim().toLowerCase() !==
@@ -356,9 +371,15 @@ async function executePlan(input: {
     case "help.overview": {
       return {
         responseText: [
-          "I can help with Aya/Blue work like client status, comments, assignments, follow-ups, activity, and reporting.",
+          "I can help with Aya/Blue work like daily briefs, notifications, client status, comments, assignments, follow-ups, activity, and reporting.",
           "Examples:",
+          "- start my day",
+          "- show my notifications",
           "- show my assignments",
+          "- show my mentions",
+          "- what needs my attention today?",
+          "- mark task income docs done",
+          "- set due date for John Smith to 2026-05-10",
           "- what assignments does Sarah have?",
           "- who moved clients today?",
           "- updates on Fatima Hammou",
@@ -369,6 +390,8 @@ async function executePlan(input: {
         ].join("\n"),
         data: {
           examples: [
+            "start my day",
+            "show my notifications",
             "show my assignments",
             "what assignments does Sarah have?",
             "who moved clients today?",
@@ -541,6 +564,54 @@ async function executePlan(input: {
           .filter(Boolean)
           .join("\n"),
         data,
+      };
+    }
+
+    case "brief.daily": {
+      const result = await getEmployeeDailyBrief({
+        employeeId:
+          typeof plan.parameters.employeeId === "string"
+            ? plan.parameters.employeeId
+            : undefined,
+        employeeEmail:
+          typeof plan.parameters.employeeEmail === "string"
+            ? plan.parameters.employeeEmail
+            : undefined,
+        employeeName:
+          typeof plan.parameters.employeeName === "string"
+            ? plan.parameters.employeeName
+            : actor.displayName,
+        date:
+          typeof plan.parameters.date === "string"
+            ? plan.parameters.date
+            : undefined,
+        transport,
+      });
+      return {
+        responseText: result.responseText,
+        data: result,
+      };
+    }
+
+    case "notifications.feed": {
+      const result = await getEmployeeNotificationFeed({
+        employeeId:
+          typeof plan.parameters.employeeId === "string"
+            ? plan.parameters.employeeId
+            : undefined,
+        employeeEmail:
+          typeof plan.parameters.employeeEmail === "string"
+            ? plan.parameters.employeeEmail
+            : undefined,
+        employeeName:
+          typeof plan.parameters.employeeName === "string"
+            ? plan.parameters.employeeName
+            : actor.displayName,
+        transport,
+      });
+      return {
+        responseText: result.responseText,
+        data: result,
       };
     }
 
@@ -726,6 +797,78 @@ async function executePlan(input: {
           typeof plan.parameters.employeeName === "string"
             ? plan.parameters.employeeName
             : actor.displayName,
+        transport,
+      });
+      return {
+        responseText: result.responseText,
+        data: result,
+      };
+    }
+
+    case "records.complete": {
+      const result = await completeRecordAssignment({
+        entityQuery:
+          typeof plan.parameters.entityQuery === "string"
+            ? plan.parameters.entityQuery
+            : undefined,
+        useActiveRecordContext: plan.parameters.useActiveRecordContext === true,
+        actor,
+        blueAuth,
+        transport,
+      });
+      return {
+        responseText: result.responseText,
+        data: result,
+      };
+    }
+
+    case "tasks.complete": {
+      const result = await completeTaskAssignment({
+        recordQuery:
+          typeof plan.parameters.recordQuery === "string"
+            ? plan.parameters.recordQuery
+            : undefined,
+        taskQuery: String(plan.parameters.taskQuery ?? ""),
+        useActiveRecordContext: plan.parameters.useActiveRecordContext === true,
+        actor,
+        blueAuth,
+        transport,
+      });
+      return {
+        responseText: result.responseText,
+        data: result,
+      };
+    }
+
+    case "records.set_due_date": {
+      const result = await setRecordDueDate({
+        entityQuery:
+          typeof plan.parameters.entityQuery === "string"
+            ? plan.parameters.entityQuery
+            : undefined,
+        dueDate: String(plan.parameters.dueDate ?? ""),
+        useActiveRecordContext: plan.parameters.useActiveRecordContext === true,
+        actor,
+        blueAuth,
+        transport,
+      });
+      return {
+        responseText: result.responseText,
+        data: result,
+      };
+    }
+
+    case "tasks.set_due_date": {
+      const result = await setTaskDueDate({
+        recordQuery:
+          typeof plan.parameters.recordQuery === "string"
+            ? plan.parameters.recordQuery
+            : undefined,
+        taskQuery: String(plan.parameters.taskQuery ?? ""),
+        dueDate: String(plan.parameters.dueDate ?? ""),
+        useActiveRecordContext: plan.parameters.useActiveRecordContext === true,
+        actor,
+        blueAuth,
         transport,
       });
       return {
@@ -1035,8 +1178,14 @@ function getAuditAdapter(intent: IntentName) {
   switch (intent) {
     case "help.overview":
     case "identity.self":
+    case "brief.daily":
+    case "notifications.feed":
     case "summary.employee_day":
     case "assignments.report":
+    case "records.complete":
+    case "tasks.complete":
+    case "records.set_due_date":
+    case "tasks.set_due_date":
     case "activity.employee_report":
     case "activity.record_report":
     case "activity.workspace_report":
@@ -1058,6 +1207,8 @@ function getAuditCommandName(intent: IntentName) {
   switch (intent) {
     case "help.overview":
       return "helpOverview";
+    case "brief.daily":
+      return "dailyBrief";
     case "records.move":
       return "moveTodo";
     case "records.create":
@@ -1070,8 +1221,16 @@ function getAuditCommandName(intent: IntentName) {
     case "records.list_assigned":
     case "records.follow_up":
       return "todoQueries.todos";
+    case "records.complete":
+      return "updateTodos";
     case "assignments.report":
       return "checklistItems";
+    case "tasks.complete":
+      return "editChecklistItem";
+    case "records.set_due_date":
+      return "updateTodos";
+    case "tasks.set_due_date":
+      return "updateChecklistItemDueDate";
     case "reporting.overview":
       return "getReportingOverview";
     case "reporting.question":

@@ -164,6 +164,82 @@ export type ReportingResponse = {
   };
 };
 
+export type ManagerReportResponse = {
+  range: {
+    dateStart: string;
+    dateEnd: string;
+  };
+  focus: "all" | "comments" | "moves" | "creates" | "reads" | "timeline";
+  filters: {
+    employeeId: string | null;
+    clientQuery: string | null;
+  };
+  totals: {
+    totalActions: number;
+    comments: number;
+    moves: number;
+    creates: number;
+    reads: number;
+    employeesActive: number;
+    clientsTouched: number;
+  };
+  employees: Array<{
+    employeeId: string | null;
+    employeeName: string;
+    totalActions: number;
+    comments: number;
+    moves: number;
+    creates: number;
+    reads: number;
+    lastActionAt: string;
+    clientsTouched: number;
+    clientTitles: string[];
+  }>;
+  clients: Array<{
+    recordId: string | null;
+    recordTitle: string;
+    totalActions: number;
+    comments: number;
+    moves: number;
+    creates: number;
+    reads: number;
+    lastActionAt: string;
+    employees: Array<{
+      employeeName: string;
+      count: number;
+    }>;
+  }>;
+  timeline: Array<{
+    kind: "comment" | "move" | "create" | "read" | "other";
+    occurredAt: string;
+    outcome: string;
+    intent: string | null;
+    employeeId: string | null;
+    employeeName: string;
+    summary: string;
+    inboundText: string;
+    recordId: string | null;
+    recordTitle: string | null;
+    targetListTitle: string | null;
+    text: string | null;
+    listTitle: string | null;
+  }>;
+};
+
+export type ChatMessageResponse = {
+  matched: boolean;
+  intent?: string;
+  actor: {
+    employeeId: string;
+    displayName: string;
+    roleName: "employee" | "admin";
+    email?: string | null;
+  };
+  responseText: string;
+  clarificationRequired?: boolean;
+  data?: unknown;
+};
+
 export type LogRow = {
   id: string;
   created_at: string;
@@ -221,6 +297,52 @@ export type EmployeeRow = {
   role_name: string | null;
 };
 
+export type TeamWorkloadRecord = {
+  id: string;
+  title: string;
+  listTitle: string;
+  dueAt: string | null;
+  updatedAt: string | null;
+  assigneeNames: string[];
+};
+
+export type TeamWorkloadChecklistItem = {
+  id: string;
+  title: string;
+  checklistTitle: string;
+  recordId: string;
+  recordTitle: string;
+  listTitle: string;
+  dueAt: string | null;
+  updatedAt: string | null;
+  assigneeNames: string[];
+};
+
+export type TeamWorkloadEmployee = {
+  employeeId: string;
+  displayName: string;
+  email: string | null;
+  roleName: string | null;
+  openRecordCount: number;
+  openChecklistCount: number;
+  overdueCount: number;
+  latestAssignedAt: string | null;
+  openRecords: TeamWorkloadRecord[];
+  checklistItems: TeamWorkloadChecklistItem[];
+};
+
+export type TeamWorkloadResponse = {
+  generatedAt: string;
+  totals: {
+    employees: number;
+    employeesWithOpenWork: number;
+    openRecords: number;
+    openChecklistItems: number;
+    overdue: number;
+  };
+  employees: TeamWorkloadEmployee[];
+};
+
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
     credentials: "same-origin",
@@ -249,6 +371,16 @@ export async function fetchAuthMe() {
   return await request<AuthMeResponse>("/auth/me");
 }
 
+export async function sendChatMessage(input: { message: string }) {
+  return await request<ChatMessageResponse>("/messages", {
+    method: "POST",
+    body: JSON.stringify({
+      transport: "web",
+      message: input.message,
+    }),
+  });
+}
+
 export async function login(input: { employeeName: string; password: string }) {
   return await request("/auth/login", {
     method: "POST",
@@ -268,6 +400,33 @@ export async function fetchOverview() {
 
 export async function fetchReporting() {
   return await request<ReportingResponse>("/admin/api/reporting");
+}
+
+export async function fetchManagerReport(params?: {
+  dateStart?: string;
+  dateEnd?: string;
+  employeeId?: string;
+  clientQuery?: string;
+  focus?: "all" | "comments" | "moves" | "creates" | "reads" | "timeline";
+}) {
+  const search = new URLSearchParams();
+  if (params?.dateStart) {
+    search.set("dateStart", params.dateStart);
+  }
+  if (params?.dateEnd) {
+    search.set("dateEnd", params.dateEnd);
+  }
+  if (params?.employeeId) {
+    search.set("employeeId", params.employeeId);
+  }
+  if (params?.clientQuery) {
+    search.set("clientQuery", params.clientQuery);
+  }
+  if (params?.focus) {
+    search.set("focus", params.focus);
+  }
+  const suffix = search.toString() ? `?${search.toString()}` : "";
+  return await request<ManagerReportResponse>(`/admin/api/manager-report${suffix}`);
 }
 
 export async function fetchLogs(params?: { employeeId?: string; limit?: number }) {
@@ -355,4 +514,8 @@ export async function deleteIdentityLink(id: string) {
 
 export async function fetchEmployees() {
   return await request<{ items: EmployeeRow[] }>("/employees");
+}
+
+export async function fetchTeamWorkload() {
+  return await request<TeamWorkloadResponse>("/admin/api/team-workload");
 }

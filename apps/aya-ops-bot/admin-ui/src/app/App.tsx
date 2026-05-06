@@ -47,16 +47,16 @@ const VIEW_COPY: Record<
   }
 > = {
   team: {
-    label: "Team",
-    title: "Employee work view",
+    label: "Dashboard",
+    title: "Team workload",
     description:
-      "See each employee, what they are assigned, what is overdue, and what they worked on most recently.",
+      "Open any employee to see their assigned files, tasks, overdue work, and recent activity.",
   },
   system: {
-    label: "Sync",
-    title: "Read-only sync control",
+    label: "Data refresh",
+    title: "Refresh dashboard data",
     description:
-      "Refresh local reporting data and inspect sync health without writing back to Blue.",
+      "Refresh reporting data from Blue when you need the latest assignment view.",
   },
 };
 
@@ -309,11 +309,16 @@ export function App() {
     <main className="shell dashboard-shell">
       <section className="dashboard-header panel">
         <div className="dashboard-header-copy">
-          <div className="eyebrow">Aya Operations</div>
-          <h1>Blue operations workspace</h1>
+          <div className="brand-lockup">
+            <img src="/aya-logo.jpeg" alt="Aya Financial" className="brand-mark" />
+            <div>
+              <div className="eyebrow">Aya Financial</div>
+              <h1>Team workload dashboard</h1>
+            </div>
+          </div>
           <p className="lede">
-            Open the employee workload dashboard directly. See who has work assigned, what is
-            overdue, and what each person has been working on.
+            Sign in to see each employee, what files and tasks are assigned to them, what is
+            overdue, and what they worked on most recently.
           </p>
         </div>
 
@@ -321,13 +326,13 @@ export function App() {
           <div className="header-stat-card">
             <span className="metric-label">Workspace</span>
             <strong>03 - AYA x Hamza/ AI</strong>
-            <span className="muted">read-only reporting</span>
+            <span className="muted">Assignment dashboard</span>
           </div>
           <div className="header-stat-card">
-            <span className="metric-label">Last sync</span>
+            <span className="metric-label">Last refreshed</span>
             <strong>{formatAdminTime(latestSyncAt ?? null)}</strong>
             <span className={`status-chip ${loading ? "warn" : "ok"}`}>
-              {loading ? "refreshing" : "live"}
+              {loading ? "updating" : "current"}
             </span>
           </div>
           <div className="header-button-row">
@@ -359,12 +364,19 @@ export function App() {
       {!isAdmin ? (
         <section className="panel login-panel">
           <div className="panel-head">
+              <div>
+                <div className="eyebrow">Private Access</div>
+                <h2>Open the dashboard</h2>
+                <p className="muted">
+                  Sign in with your manager credentials to view team assignments and recent work.
+                </p>
+              </div>
+          </div>
+          <div className="login-brand">
+            <img src="/aya-logo.jpeg" alt="Aya Financial" className="brand-mark small" />
             <div>
-              <div className="eyebrow">Private Access</div>
-              <h2>Manager sign-in</h2>
-              <p className="muted">
-                Sign in to open the local operations dashboard for the Aya team.
-              </p>
+              <div className="eyebrow">Aya Financial</div>
+              <p className="muted">Internal manager dashboard</p>
             </div>
           </div>
           <form
@@ -416,12 +428,12 @@ export function App() {
             </div>
             <nav className="view-tabs top-nav-tabs">
               <ViewTab
-                label="Team"
+                label="Dashboard"
                 active={activeView === "team"}
                 onClick={() => setActiveView("team")}
               />
               <ViewTab
-                label="Sync"
+                label="Refresh"
                 active={activeView === "system"}
                 onClick={() => setActiveView("system")}
               />
@@ -436,6 +448,7 @@ export function App() {
               selectedEmployeeId={selectedEmployeeId}
               onSelectEmployee={setSelectedEmployeeId}
               selectedEmployee={selectedEmployee ?? null}
+              teamWorkloadById={teamWorkloadById}
               selectedEmployeeWorkload={selectedEmployeeWorkload}
               selectedEmployeeReport={selectedEmployeeReport}
               employeeTimeline={employeeTimeline}

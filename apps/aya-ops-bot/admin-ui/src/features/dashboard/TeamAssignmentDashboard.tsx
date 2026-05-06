@@ -21,6 +21,7 @@ type Props = {
   selectedEmployeeId: string;
   onSelectEmployee: (employeeId: string) => void;
   selectedEmployee: DirectoryEmployee | null;
+  teamWorkloadById: Map<string, TeamWorkloadEmployee>;
   selectedEmployeeWorkload: TeamWorkloadEmployee | null;
   selectedEmployeeReport: ManagerReportResponse["employees"][number] | null;
   employeeTimeline: ManagerReportResponse["timeline"];
@@ -36,32 +37,32 @@ type Props = {
 };
 
 export function TeamAssignmentDashboard(props: Props) {
-  const totalOpenWork =
-    (props.selectedEmployeeWorkload?.openRecordCount ?? 0) +
-    (props.selectedEmployeeWorkload?.openChecklistCount ?? 0);
+  const workload = props.selectedEmployeeWorkload;
+  const totalOpenWork = (workload?.openRecordCount ?? 0) + (workload?.openChecklistCount ?? 0);
+  const nextDueRecord = [...(workload?.openRecords ?? [])]
+    .filter((record) => record.dueAt)
+    .sort((left, right) => left.dueAt!.localeCompare(right.dueAt!))[0];
+  const nextDueTask = [...(workload?.checklistItems ?? [])]
+    .filter((item) => item.dueAt)
+    .sort((left, right) => left.dueAt!.localeCompare(right.dueAt!))[0];
+  const nextDueLabel = nextDueTask?.dueAt ?? nextDueRecord?.dueAt;
 
   return (
     <section className="team-dashboard-stack">
       <section className="team-dashboard-summary">
-        <SummaryCard label="Employees" value={props.totals?.employees ?? 0} />
-        <SummaryCard
-          label="With open work"
-          value={props.totals?.employeesWithOpenWork ?? 0}
-        />
-        <SummaryCard label="Open records" value={props.totals?.openRecords ?? 0} />
-        <SummaryCard
-          label="Checklist items"
-          value={props.totals?.openChecklistItems ?? 0}
-        />
-        <SummaryCard label="Overdue" value={props.totals?.overdue ?? 0} tone="warn" />
+        <SummaryCard label="Team members" value={props.totals?.employees ?? 0} />
+        <SummaryCard label="People with work" value={props.totals?.employeesWithOpenWork ?? 0} />
+        <SummaryCard label="Open files" value={props.totals?.openRecords ?? 0} />
+        <SummaryCard label="Open tasks" value={props.totals?.openChecklistItems ?? 0} />
+        <SummaryCard label="Overdue items" value={props.totals?.overdue ?? 0} tone="warn" />
       </section>
 
       <section className="detail-layout">
         <section className="panel detail-list-panel">
-          <div className="panel-head">
+          <div className="panel-head compact-panel-head">
             <div>
-              <div className="eyebrow">Employees</div>
-              <h2>Assignments by employee</h2>
+              <div className="eyebrow">Team</div>
+              <h2>Workload by employee</h2>
             </div>
             <input
               value={props.employeeSearch}
@@ -70,35 +71,43 @@ export function TeamAssignmentDashboard(props: Props) {
               className="employee-search"
             />
           </div>
-          <div className="detail-list">
+
+          <div className="employee-roster-head">
+            <span>Employee</span>
+            <span>Open work</span>
+            <span>Overdue</span>
+          </div>
+
+          <div className="detail-list employee-roster">
             {props.employees.map((employee) => {
               const selected = employee.employeeId === props.selectedEmployeeId;
-              const workload =
-                employee.employeeId === props.selectedEmployeeWorkload?.employeeId
-                  ? props.selectedEmployeeWorkload
-                  : null;
+              const employeeWorkload = props.teamWorkloadById.get(employee.employeeId) ?? null;
               const openCount =
-                (workload?.openRecordCount ?? 0) + (workload?.openChecklistCount ?? 0);
+                (employeeWorkload?.openRecordCount ?? 0) +
+                (employeeWorkload?.openChecklistCount ?? 0);
+              const overdue = employeeWorkload?.overdueCount ?? 0;
+              const loadPercent = Math.min(100, openCount * 10 + overdue * 18);
+
               return (
                 <button
                   key={employee.employeeId}
                   type="button"
-                  className={`detail-list-item ${selected ? "selected" : ""}`}
+                  className={`detail-list-item employee-row ${selected ? "selected" : ""}`}
                   onClick={() => props.onSelectEmployee(employee.employeeId)}
                 >
-                  <div className="detail-list-head">
+                  <div className="employee-main">
                     <strong>{employee.displayName}</strong>
-                    <span className="status-chip neutral">
-                      {employee.roleName ?? "employee"}
-                    </span>
+                    <div className="employee-subline">
+                      {employee.roleName ?? "employee"} · last worked {formatAdminTime(employee.latestInteractionAt)}
+                    </div>
                   </div>
-                  <div className="detail-list-meta">
-                    <span>{openCount} open items</span>
-                    <span>{employee.interactionCount} actions</span>
+                  <div className="employee-load-cell">
+                    <span className="metric-inline">{openCount}</span>
+                    <div className="load-meter" aria-hidden="true">
+                      <span style={{ width: `${loadPercent}%` }} />
+                    </div>
                   </div>
-                  <div className="detail-list-foot">
-                    Last activity {formatAdminTime(employee.latestInteractionAt)}
-                  </div>
+                  <div className={`employee-overdue-cell ${overdue > 0 ? "warn" : "ok"}`}>{overdue}</div>
                 </button>
               );
             })}
@@ -107,133 +116,123 @@ export function TeamAssignmentDashboard(props: Props) {
 
         <section className="detail-main team-detail-stack">
           <section className="panel detail-hero-panel">
-            <div className="detail-hero">
+            <div className="selected-employee-bar">
               <div>
                 <div className="eyebrow">Selected employee</div>
                 <h2>{props.selectedEmployee?.displayName ?? "Select an employee"}</h2>
-                <p className="muted">
-                  {props.selectedEmployee?.email ?? "No synced email available"}
-                </p>
+                <p className="muted">{props.selectedEmployee?.email ?? "No synced email available"}</p>
               </div>
               <div className="detail-kpi-grid">
-                <SummaryCard label="Open work" value={totalOpenWork} compact />
-                <SummaryCard
-                  label="Open records"
-                  value={props.selectedEmployeeWorkload?.openRecordCount ?? 0}
-                  compact
-                />
-                <SummaryCard
-                  label="Checklist items"
-                  value={props.selectedEmployeeWorkload?.openChecklistCount ?? 0}
-                  compact
-                />
-                <SummaryCard
-                  label="Overdue"
-                  value={props.selectedEmployeeWorkload?.overdueCount ?? 0}
-                  compact
-                  tone="warn"
-                />
+                <SummaryCard label="Assigned now" value={totalOpenWork} compact />
+                <SummaryCard label="Files" value={workload?.openRecordCount ?? 0} compact />
+                <SummaryCard label="Tasks" value={workload?.openChecklistCount ?? 0} compact />
+                <SummaryCard label="Overdue" value={workload?.overdueCount ?? 0} compact tone="warn" />
               </div>
             </div>
 
-            <div className="chip-row">
-              <span className="report-chip">
-                Actions: {props.selectedEmployeeReport?.totalActions ?? 0}
-              </span>
-              <span className="report-chip">
-                Clients touched: {props.selectedEmployeeReport?.clientsTouched ?? 0}
-              </span>
-              <span className="report-chip">
-                Comments: {props.selectedEmployeeReport?.comments ?? 0}
-              </span>
-              <span className="report-chip">
-                Moves: {props.selectedEmployeeReport?.moves ?? 0}
-              </span>
+            <div className="detail-summary-bar">
+              <SummaryLine label="Actions" value={props.selectedEmployeeReport?.totalActions ?? 0} />
+              <SummaryLine label="Files touched" value={props.selectedEmployeeReport?.clientsTouched ?? 0} />
+              <SummaryLine label="Notes added" value={props.selectedEmployeeReport?.comments ?? 0} />
+              <SummaryLine label="Moved" value={props.selectedEmployeeReport?.moves ?? 0} />
+              <SummaryLine label="Next due" value={nextDueLabel ? nextDueLabel.slice(0, 10) : "Nothing due"} />
             </div>
           </section>
 
           <section className="assignment-grid">
             <section className="panel assignment-panel">
-              <div className="panel-head">
+              <div className="panel-head compact-panel-head">
                 <div>
-                  <div className="eyebrow">Open records</div>
-                  <h2>Current assigned files</h2>
+                  <div className="eyebrow">Files</div>
+                  <h2>Assigned files</h2>
                 </div>
               </div>
+              <div className="worksheet-head worksheet-three-col">
+                <span>File</span>
+                <span>Stage</span>
+                <span>Due date</span>
+              </div>
               <div className="assignment-stack">
-                {props.selectedEmployeeWorkload?.openRecords.length ? (
-                  props.selectedEmployeeWorkload.openRecords.map((record) => (
-                    <article key={record.id} className="assignment-card">
-                      <strong>{record.title}</strong>
-                      <div className="detail-list-meta">
-                        <span>{record.listTitle}</span>
-                        <span>
-                          {record.dueAt ? `Due ${record.dueAt.slice(0, 10)}` : "No due date"}
-                        </span>
+                {workload?.openRecords.length ? (
+                  workload.openRecords.map((record) => (
+                    <article key={record.id} className="worksheet-row worksheet-three-col">
+                      <div className="worksheet-primary">
+                        <strong>{record.title}</strong>
+                      </div>
+                      <div className="worksheet-muted">{record.listTitle}</div>
+                      <div className="worksheet-muted">
+                        {record.dueAt ? record.dueAt.slice(0, 10) : "No due date"}
                       </div>
                     </article>
                   ))
                 ) : (
-                  <div className="empty-state">No open records assigned.</div>
+                  <div className="empty-state">No files are assigned right now.</div>
                 )}
               </div>
             </section>
 
             <section className="panel assignment-panel">
-              <div className="panel-head">
+              <div className="panel-head compact-panel-head">
                 <div>
-                  <div className="eyebrow">Checklist work</div>
-                  <h2>Assigned tasks</h2>
+                  <div className="eyebrow">Tasks</div>
+                  <h2>Assigned checklist tasks</h2>
                 </div>
               </div>
+              <div className="worksheet-head worksheet-three-col">
+                <span>Task</span>
+                <span>Source</span>
+                <span>Due date</span>
+              </div>
               <div className="assignment-stack">
-                {props.selectedEmployeeWorkload?.checklistItems.length ? (
-                  props.selectedEmployeeWorkload.checklistItems.map((item) => (
-                    <article key={item.id} className="assignment-card">
-                      <strong>{item.title}</strong>
-                      <div className="detail-list-meta">
-                        <span>{item.recordTitle}</span>
-                        <span>
-                          {item.dueAt ? `Due ${item.dueAt.slice(0, 10)}` : "No due date"}
-                        </span>
+                {workload?.checklistItems.length ? (
+                  workload.checklistItems.map((item) => (
+                    <article key={item.id} className="worksheet-row worksheet-three-col">
+                      <div className="worksheet-primary">
+                        <strong>{item.title}</strong>
+                        <div className="worksheet-subcopy">{item.listTitle} · {item.checklistTitle}</div>
                       </div>
-                      <div className="detail-list-foot">
-                        {item.listTitle} · {item.checklistTitle}
+                      <div className="worksheet-muted">{item.recordTitle}</div>
+                      <div className="worksheet-muted">
+                        {item.dueAt ? item.dueAt.slice(0, 10) : "No due date"}
                       </div>
                     </article>
                   ))
                 ) : (
-                  <div className="empty-state">No open checklist items assigned.</div>
+                  <div className="empty-state">No checklist tasks are assigned right now.</div>
                 )}
               </div>
             </section>
           </section>
 
-          <section className="panel">
-            <div className="panel-head">
+          <section className="panel assignment-panel">
+            <div className="panel-head compact-panel-head">
               <div>
-                <div className="eyebrow">Recent work</div>
-                <h2>What they did</h2>
-                <p className="muted">Latest recorded actions for the selected employee.</p>
+                <div className="eyebrow">Recent activity</div>
+                <h2>Latest work log</h2>
               </div>
+            </div>
+            <div className="worksheet-head worksheet-activity-col">
+              <span>Activity</span>
+              <span>Record</span>
+              <span>When</span>
             </div>
             <div className="assignment-stack">
               {props.employeeTimeline.length ? (
                 props.employeeTimeline.map((item, index) => (
-                  <article key={`${item.occurredAt}-${index}`} className="assignment-card">
-                    <strong>{item.summary}</strong>
-                    <div className="detail-list-meta">
+                  <article key={`${item.occurredAt}-${index}`} className="worksheet-row worksheet-activity-col">
+                    <div className="worksheet-primary">
+                      <strong>{item.summary}</strong>
+                      {item.text ? <div className="worksheet-subcopy">{item.text}</div> : null}
+                    </div>
+                    <div className="worksheet-muted">{item.recordTitle ?? "No record"}</div>
+                    <div className="worksheet-muted activity-meta">
                       <span>{item.kind}</span>
                       <span>{formatAdminTime(item.occurredAt)}</span>
-                    </div>
-                    <div className="detail-list-foot">
-                      {item.recordTitle ?? "No record"}
-                      {item.text ? ` · ${item.text}` : ""}
                     </div>
                   </article>
                 ))
               ) : (
-                <div className="empty-state">No recent actions for this employee.</div>
+                <div className="empty-state">No recent activity has been recorded for this employee.</div>
               )}
             </div>
           </section>
@@ -250,12 +249,17 @@ function SummaryCard(input: {
   tone?: "default" | "warn";
 }) {
   return (
-    <div
-      className={`team-summary-card ${input.compact ? "compact" : ""} ${
-        input.tone === "warn" ? "warn" : ""
-      }`}
-    >
+    <div className={`team-summary-card ${input.compact ? "compact" : ""} ${input.tone === "warn" ? "warn" : ""}`}>
       <span className="metric-label">{input.label}</span>
+      <strong>{input.value}</strong>
+    </div>
+  );
+}
+
+function SummaryLine(input: { label: string; value: number | string }) {
+  return (
+    <div className="summary-inline-block">
+      <span className="summary-inline-label">{input.label}</span>
       <strong>{input.value}</strong>
     </div>
   );

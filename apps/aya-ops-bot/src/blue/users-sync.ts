@@ -12,6 +12,11 @@ import {
 } from "../modules/blue/graphql/client.js";
 import { config } from "../config.js";
 
+const knownAyaEmployeeEmailsByName = new Map([
+  ["rehan s", "rsaeed@ayafinancial.com"],
+  ["sarah khan", "skhan@ayafinancial.com"],
+]);
+
 export async function syncWorkspaceEmployees() {
   const workspaceUsers = await fetchWorkspaceUsers(config.BLUE_READ_WORKSPACE_ID);
   let users = workspaceUsers;
@@ -48,6 +53,8 @@ export async function syncWorkspaceEmployees() {
       );
     }
   }
+
+  users = applyKnownAyaEmployeeEmails(users);
 
   const missingEmailCount = countUsersMissingEmail(users);
   if (missingEmailCount > 0) {
@@ -99,6 +106,24 @@ export async function syncWorkspaceEmployees() {
 
 export async function resolveEmployeeName(name: string) {
   return await findEmployeeByName(name);
+}
+
+export function applyKnownAyaEmployeeEmails(users: BlueUser[]) {
+  return users.map((user) => {
+    if (user.email?.trim()) {
+      return user;
+    }
+
+    const knownEmail = knownAyaEmployeeEmailsByName.get(normalizeName(user.fullName));
+    if (!knownEmail) {
+      return user;
+    }
+
+    return {
+      ...user,
+      email: knownEmail,
+    };
+  });
 }
 
 export function enrichWorkspaceUsersWithCompanyDirectory(

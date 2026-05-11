@@ -7,10 +7,11 @@ export async function ensureEmployee(input: {
   roleName?: string;
   timezone?: string;
 }) {
+  const normalizedEmail = input.email?.trim().toLowerCase() || undefined;
   const values = {
     id: input.employeeId,
     display_name: input.displayName,
-    email: input.email?.trim().toLowerCase() ?? null,
+    email: normalizedEmail ?? null,
     role_name: input.roleName ?? null,
     timezone: input.timezone ?? "America/Toronto",
     active: 1 as const,
@@ -18,9 +19,9 @@ export async function ensureEmployee(input: {
 
   const updateValues = {
     display_name: input.displayName,
-    email: input.email?.trim().toLowerCase() ?? null,
     timezone: input.timezone ?? "America/Toronto",
     active: 1 as const,
+    ...(normalizedEmail ? { email: normalizedEmail } : {}),
     ...(input.roleName != null ? { role_name: input.roleName } : {}),
   };
 

@@ -107,4 +107,41 @@ describe("users sync", () => {
       timezone: "America/Toronto",
     });
   });
+
+  it("fills known Aya admin emails when Blue does not expose them", async () => {
+    const { applyKnownAyaEmployeeEmails } = await import("../../src/blue/users-sync.js");
+
+    const result = applyKnownAyaEmployeeEmails([
+      {
+        id: "emp_rehan",
+        email: "",
+        firstName: "Rehan",
+        lastName: "S",
+        fullName: "Rehan S",
+        timezone: null,
+      } as BlueUser,
+      {
+        id: "emp_sarah",
+        email: "",
+        firstName: "Sarah",
+        lastName: "Khan",
+        fullName: "Sarah Khan",
+        timezone: null,
+      } as BlueUser,
+      {
+        id: "emp_existing",
+        email: "existing@ayafinancial.com",
+        firstName: "Existing",
+        lastName: "Person",
+        fullName: "Sarah Khan",
+        timezone: null,
+      } as BlueUser,
+    ]);
+
+    expect(result).toMatchObject([
+      { email: "rsaeed@ayafinancial.com" },
+      { email: "skhan@ayafinancial.com" },
+      { email: "existing@ayafinancial.com" },
+    ]);
+  });
 });

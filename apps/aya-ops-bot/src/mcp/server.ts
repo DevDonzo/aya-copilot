@@ -738,7 +738,7 @@ function createAyaMcpServer() {
     {
       title: "Employee Workload",
       description:
-        "Show the current open Blue workload assigned to one internal employee in the allowed workspace. Use this only when the user explicitly asks what someone is working on, asks for open files, or asks for workload. Do not use this for CRM clients, client emails, or ambiguous requests like 'show me Hamza' or 'open Hamza'.",
+        "Show the current open Blue workload assigned to one internal employee in the allowed workspace. Use this only when the user explicitly asks what someone is working on, asks for open files, or asks for workload. If the user names a person, such as Sarah or Rehan, you must pass that exact name as employeeName on the first call. Only omit employeeName/employeeEmail/employeeId for clear self requests like 'what am I working on' or 'my workload'. Do not narrate failed/retried calls; answer only with the final workload result. Do not use this for CRM clients, client emails, or ambiguous requests like 'show me Hamza' or 'open Hamza'.",
       inputSchema: {
         employeeId: z.string().optional(),
         employeeEmail: z.string().email().optional(),

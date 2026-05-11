@@ -359,6 +359,10 @@ function createAyaMcpServer() {
     },
   );
 
+  if (process.env.AYA_MCP_EXPOSE_SPECIALIST_TOOLS !== "true") {
+    return server;
+  }
+
   server.registerTool(
     "aya_get_daily_brief",
     {

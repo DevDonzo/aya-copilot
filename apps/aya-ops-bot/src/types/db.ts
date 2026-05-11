@@ -161,6 +161,22 @@ export interface ActiveRecordContextTable {
   updated_at: Generated<string>;
 }
 
+export interface CopilotMemoryTable {
+  employee_id: string;
+  transport: string;
+  conversation_key: string | null;
+  current_record_id: string | null;
+  current_record_title: string | null;
+  current_list_title: string | null;
+  recent_records_json: string;
+  last_intent: string | null;
+  last_message_text: string | null;
+  last_response_text: string | null;
+  expires_at: string | null;
+  created_at: Generated<string>;
+  updated_at: Generated<string>;
+}
+
 export interface EmployeeNotificationStateTable {
   employee_id: string;
   mentions_seen_through: string | null;
@@ -182,5 +198,6 @@ export interface AyaDatabase {
   blue_webhook_subscriptions: BlueWebhookSubscriptionsTable;
   pending_record_choices: PendingRecordChoicesTable;
   active_record_context: ActiveRecordContextTable;
+  copilot_memory: CopilotMemoryTable;
   employee_notification_state: EmployeeNotificationStateTable;
 }

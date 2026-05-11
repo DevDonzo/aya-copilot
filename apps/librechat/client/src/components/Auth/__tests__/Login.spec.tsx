@@ -120,37 +120,17 @@ jest.mock('react-router-dom', () => ({
 }));
 
 test('renders login form', () => {
-  const { getByLabelText, getByRole } = setup();
+  const { getByLabelText, getByRole, queryByRole } = setup();
   expect(getByLabelText(/email/i)).toBeInTheDocument();
   expect(getByLabelText(/password/i)).toBeInTheDocument();
   expect(getByTestId(document.body, 'login-button')).toBeInTheDocument();
   expect(getByRole('link', { name: /Sign up/i })).toBeInTheDocument();
   expect(getByRole('link', { name: /Sign up/i })).toHaveAttribute('href', '/register');
-  expect(getByRole('link', { name: /Continue with Google/i })).toBeInTheDocument();
-  expect(getByRole('link', { name: /Continue with Google/i })).toHaveAttribute(
-    'href',
-    'mock-server/oauth/google',
-  );
-  expect(getByRole('link', { name: /Continue with Facebook/i })).toBeInTheDocument();
-  expect(getByRole('link', { name: /Continue with Facebook/i })).toHaveAttribute(
-    'href',
-    'mock-server/oauth/facebook',
-  );
-  expect(getByRole('link', { name: /Continue with Github/i })).toBeInTheDocument();
-  expect(getByRole('link', { name: /Continue with Github/i })).toHaveAttribute(
-    'href',
-    'mock-server/oauth/github',
-  );
-  expect(getByRole('link', { name: /Continue with Discord/i })).toBeInTheDocument();
-  expect(getByRole('link', { name: /Continue with Discord/i })).toHaveAttribute(
-    'href',
-    'mock-server/oauth/discord',
-  );
-  expect(getByRole('link', { name: /Test SAML/i })).toBeInTheDocument();
-  expect(getByRole('link', { name: /Test SAML/i })).toHaveAttribute(
-    'href',
-    'mock-server/oauth/saml',
-  );
+  expect(queryByRole('link', { name: /Continue with Google/i })).not.toBeInTheDocument();
+  expect(queryByRole('link', { name: /Continue with Facebook/i })).not.toBeInTheDocument();
+  expect(queryByRole('link', { name: /Continue with Github/i })).not.toBeInTheDocument();
+  expect(queryByRole('link', { name: /Continue with Discord/i })).not.toBeInTheDocument();
+  expect(queryByRole('link', { name: /Test SAML/i })).not.toBeInTheDocument();
 });
 
 test('calls loginUser.mutate on login', async () => {

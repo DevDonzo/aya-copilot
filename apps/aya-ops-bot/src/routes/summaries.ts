@@ -11,7 +11,9 @@ import { buildEmployeeDaySummary } from "../summary/daily.js";
 import { buildNoActivitySummary, buildTeamDaySummary } from "../summary/team.js";
 
 export const summaryRoutes: FastifyPluginAsync = async (app) => {
-  app.get("/summary/day", async (request) => {
+  const protectedRoute = { preHandler: [app.authenticateRequired] };
+
+  app.get("/summary/day", protectedRoute, async (request) => {
     const query = parseWithSchema(employeeSummaryQuerySchema, request.query);
     let employeeId = query.employeeId;
 
@@ -29,7 +31,7 @@ export const summaryRoutes: FastifyPluginAsync = async (app) => {
     );
   });
 
-  app.get("/summary/team", async (request) => {
+  app.get("/summary/team", protectedRoute, async (request) => {
     const query = parseWithSchema(teamSummaryQuerySchema, request.query);
     const date = query.date ?? getTorontoDateString();
     if (query.inactiveOnly) {

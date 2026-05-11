@@ -4,19 +4,16 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "npm run build:server && npm run build:admin-ui",
+    "build": "npm run build:server",
     "build:server": "tsc -p tsconfig.json",
-    "build:admin-ui": "npm --prefix admin-ui run build",
     "check": "tsc -p tsconfig.json --noEmit",
     "dev": "tsx src/server.ts",
-    "dev:admin-ui": "npm --prefix admin-ui run dev",
     "dev:mcp": "tsx src/server.ts",
     "start": "node dist/server.js",
     "test": "vitest run"
   },
   "dependencies": {
     "@fastify/cookie": "^11.0.2",
-    "@fastify/static": "^8.3.0",
     "@modelcontextprotocol/sdk": "^1.28.0",
     "@types/mongodb": "^4.0.6",
     "better-sqlite3": "^12.4.1",

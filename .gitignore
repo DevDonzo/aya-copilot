@@ -4,6 +4,7 @@
 scripts/__pycache__/
 tmp_*.md
 tmp_*.txt
+docs/internal/ops/**/run-*/
 
 # Transitional compatibility links at the workspace root
 /LibreChat
@@ -32,3 +33,4 @@ apps/librechat/logs/
 apps/librechat/uploads/
 apps/librechat/meili_data*/
 apps/librechat/node_modules/
+apps/librechat/.blue-local.env

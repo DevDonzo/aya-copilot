@@ -341,7 +341,7 @@ Before deployment, have the following ready:
 - Docker Compose plugin installed
 - `git` and `curl`
 - a Cloudflare account with the Aya domain managed there
-- `chat.ayafinancial.com` and, if used, `ops-admin.ayafinancial.com`
+- `copilot.ayafinancial.com`
 - Blue API credentials for the allowed Aya workspace only
 - an operator access path to the VM
 
@@ -494,8 +494,7 @@ Then run:
 ```bash
 cloudflared tunnel login
 cloudflared tunnel create aya-pilot
-cloudflared tunnel route dns aya-pilot chat.ayafinancial.com
-cloudflared tunnel route dns aya-pilot ops-admin.ayafinancial.com
+cloudflared tunnel route dns aya-pilot copilot.ayafinancial.com
 ```
 
 Update `/etc/cloudflared/config.yml` with:
@@ -515,10 +514,8 @@ sudo systemctl enable --now cloudflared
 
 In Cloudflare Zero Trust:
 
-1. Create an Access app for `chat.ayafinancial.com`
+1. Create an Access app for `copilot.ayafinancial.com`
 2. Limit it to `@ayafinancial.com` users or a strict tester allow-list
-3. Create a second Access app for `ops-admin.ayafinancial.com`
-4. Make the admin route stricter than the chat route
 
 This is the main external access control layer for the deployment.
 

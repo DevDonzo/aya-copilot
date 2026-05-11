@@ -56,6 +56,11 @@ async function configureOpenId(app) {
 const configureSocialLogins = async (app) => {
   logger.info('Configuring social logins...');
 
+  if (!isEnabled(process.env.ALLOW_SOCIAL_LOGIN)) {
+    logger.info('Social logins disabled by ALLOW_SOCIAL_LOGIN.');
+    return;
+  }
+
   if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
     passport.use(googleLogin());
   }

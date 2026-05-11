@@ -10,6 +10,7 @@ const router = express.Router();
 const emailLoginEnabled =
   process.env.ALLOW_EMAIL_LOGIN === undefined || isEnabled(process.env.ALLOW_EMAIL_LOGIN);
 const passwordResetEnabled = isEnabled(process.env.ALLOW_PASSWORD_RESET);
+const socialLoginEnabled = isEnabled(process.env.ALLOW_SOCIAL_LOGIN);
 
 const sharedLinksEnabled =
   process.env.ALLOW_SHARED_LINKS === undefined || isEnabled(process.env.ALLOW_SHARED_LINKS);
@@ -57,27 +58,33 @@ router.get('/', async function (req, res) {
     const payload = {
       appTitle: process.env.APP_TITLE || 'AYA Copilot',
       socialLogins: appConfig?.registration?.socialLogins ?? defaultSocialLogins,
-      discordLoginEnabled: !!process.env.DISCORD_CLIENT_ID && !!process.env.DISCORD_CLIENT_SECRET,
+      discordLoginEnabled:
+        socialLoginEnabled && !!process.env.DISCORD_CLIENT_ID && !!process.env.DISCORD_CLIENT_SECRET,
       facebookLoginEnabled:
-        !!process.env.FACEBOOK_CLIENT_ID && !!process.env.FACEBOOK_CLIENT_SECRET,
-      githubLoginEnabled: !!process.env.GITHUB_CLIENT_ID && !!process.env.GITHUB_CLIENT_SECRET,
-      googleLoginEnabled: !!process.env.GOOGLE_CLIENT_ID && !!process.env.GOOGLE_CLIENT_SECRET,
+        socialLoginEnabled &&
+        !!process.env.FACEBOOK_CLIENT_ID &&
+        !!process.env.FACEBOOK_CLIENT_SECRET,
+      githubLoginEnabled:
+        socialLoginEnabled && !!process.env.GITHUB_CLIENT_ID && !!process.env.GITHUB_CLIENT_SECRET,
+      googleLoginEnabled:
+        socialLoginEnabled && !!process.env.GOOGLE_CLIENT_ID && !!process.env.GOOGLE_CLIENT_SECRET,
       appleLoginEnabled:
+        socialLoginEnabled &&
         !!process.env.APPLE_CLIENT_ID &&
         !!process.env.APPLE_TEAM_ID &&
         !!process.env.APPLE_KEY_ID &&
         !!process.env.APPLE_PRIVATE_KEY_PATH,
-      openidLoginEnabled: isOpenIdEnabled,
+      openidLoginEnabled: socialLoginEnabled && isOpenIdEnabled,
       openidLabel: process.env.OPENID_BUTTON_LABEL || 'Continue with OpenID',
       openidImageUrl: process.env.OPENID_IMAGE_URL,
       openidAutoRedirect: isEnabled(process.env.OPENID_AUTO_REDIRECT),
-      samlLoginEnabled: !isOpenIdEnabled && isSamlEnabled,
+      samlLoginEnabled: socialLoginEnabled && !isOpenIdEnabled && isSamlEnabled,
       samlLabel: process.env.SAML_BUTTON_LABEL,
       samlImageUrl: process.env.SAML_IMAGE_URL,
       serverDomain: process.env.DOMAIN_SERVER || 'http://localhost:3080',
       emailLoginEnabled,
       registrationEnabled: !ldap?.enabled && isEnabled(process.env.ALLOW_REGISTRATION),
-      socialLoginEnabled: isEnabled(process.env.ALLOW_SOCIAL_LOGIN),
+      socialLoginEnabled,
       emailEnabled:
         (!!process.env.EMAIL_SERVICE || !!process.env.EMAIL_HOST) &&
         !!process.env.EMAIL_USERNAME &&

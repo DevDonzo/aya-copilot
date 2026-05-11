@@ -11,48 +11,55 @@ describe("Aya copilot message flow", () => {
     const env = createTestEnvironment();
 
     try {
-      vi.doMock("../../src/blue/record-detail.js", () => ({
-        getBlueRecordDetail: vi.fn().mockResolvedValue({
-          id: "record_1",
-          title: "Hamza Client",
-          list: "Leads",
-          status: "Active",
-          description: "",
-          startedAt: null,
-          dueAt: null,
-          commentsCount: 2,
-          createdAt: "2026-04-01T00:00:00.000Z",
-          updatedAt: "2026-04-02T00:00:00.000Z",
-          customFields: [],
-          assignees: [],
-          tags: [],
-          contact: {
-            firstName: "Hamza",
-            lastName: "Client",
-            phone: "4165550123",
-            email: "hamza.client@example.com",
-            uniqueId: "",
-          },
-          recentActivity: [
-            {
-              id: "comment_2",
-              category: "COMMENT_CREATED",
-              occurredAt: "2026-04-02T10:00:00.000Z",
-              actor: "Aya Ops",
-              commentText: "Docs received and ready for underwriting.",
-              summary: "Docs received and ready for underwriting.",
+      vi.doMock("../../src/modules/blue/graphql/client.js", async () => {
+        const actual =
+          await vi.importActual<
+            typeof import("../../src/modules/blue/graphql/client.js")
+          >("../../src/modules/blue/graphql/client.js");
+
+        return {
+          ...actual,
+          fetchRecordDetail: vi.fn().mockResolvedValue({
+            record: {
+              id: "record_1",
+              title: "Hamza Client",
+              archived: false,
+              done: false,
+              text: "",
+              startedAt: null,
+              duedAt: null,
+              commentCount: 2,
+              createdAt: "2026-04-01T00:00:00.000Z",
+              updatedAt: "2026-04-02T00:00:00.000Z",
+              customFields: [],
+              users: [],
+              tags: [],
+              todoList: {
+                id: "list_leads",
+                title: "Leads",
+                position: 1,
+                updatedAt: "2026-04-02T00:00:00.000Z",
+              },
             },
-            {
-              id: "comment_1",
-              category: "COMMENT_CREATED",
-              occurredAt: "2026-04-01T09:00:00.000Z",
-              actor: "Aya Ops",
-              commentText: "Client called to confirm income details.",
-              summary: "Client called to confirm income details.",
-            },
-          ],
-        }),
-      }));
+            comments: [
+              {
+                id: "comment_2",
+                text: "Docs received and ready for underwriting.",
+                createdAt: "2026-04-02T10:00:00.000Z",
+                updatedAt: "2026-04-02T10:00:00.000Z",
+                user: { fullName: "Aya Ops" },
+              },
+              {
+                id: "comment_1",
+                text: "Client called to confirm income details.",
+                createdAt: "2026-04-01T09:00:00.000Z",
+                updatedAt: "2026-04-01T09:00:00.000Z",
+                user: { fullName: "Aya Ops" },
+              },
+            ],
+          }),
+        };
+      });
 
       const {
         ensureEmployee,
@@ -127,54 +134,63 @@ describe("Aya copilot message flow", () => {
     const env = createTestEnvironment();
 
     try {
-      vi.doMock("../../src/blue/record-detail.js", () => ({
-        getBlueRecordDetail: vi.fn().mockResolvedValue({
-          id: "record_1",
-          title: "Hamza Client",
-          list: "Underwriting",
-          status: "Active",
-          description: "",
-          startedAt: null,
-          dueAt: null,
-          commentsCount: 2,
-          createdAt: "2026-04-01T00:00:00.000Z",
-          updatedAt: "2026-04-02T00:00:00.000Z",
-          customFields: [],
-          assignees: [
-            {
-              id: "employee_1",
-              name: "Hamza Paracha",
-              email: "hamza@ayafinancial.com",
+      vi.doMock("../../src/modules/blue/graphql/client.js", async () => {
+        const actual =
+          await vi.importActual<
+            typeof import("../../src/modules/blue/graphql/client.js")
+          >("../../src/modules/blue/graphql/client.js");
+
+        return {
+          ...actual,
+          fetchRecordDetail: vi.fn().mockResolvedValue({
+            record: {
+              id: "record_1",
+              title: "Hamza Client",
+              archived: false,
+              done: false,
+              text: "",
+              startedAt: null,
+              duedAt: null,
+              commentCount: 2,
+              createdAt: "2026-04-01T00:00:00.000Z",
+              updatedAt: "2026-04-02T00:00:00.000Z",
+              customFields: [],
+              users: [
+                {
+                  id: "employee_1",
+                  fullName: "Hamza Paracha",
+                  email: "hamza@ayafinancial.com",
+                  firstName: "Hamza",
+                  lastName: "Paracha",
+                },
+              ],
+              tags: [{ id: "tag_1", title: "Priority" }],
+              todoList: {
+                id: "list_underwriting",
+                title: "Underwriting",
+                position: 2,
+                updatedAt: "2026-04-02T00:00:00.000Z",
+              },
             },
-          ],
-          tags: ["Priority"],
-          contact: {
-            firstName: "Hamza",
-            lastName: "Client",
-            phone: "4165550123",
-            email: "hamza.client@example.com",
-            uniqueId: "",
-          },
-          recentActivity: [
-            {
-              id: "comment_2",
-              category: "COMMENT_CREATED",
-              occurredAt: "2026-04-02T10:00:00.000Z",
-              actor: "Aya Ops",
-              commentText: "Client confirmed employment letter is ready.",
-              summary: "Client confirmed employment letter is ready.",
-            },
-            {
-              id: "comment_1",
-              category: "COMMENT_CREATED",
-              occurredAt: "2026-04-01T09:00:00.000Z",
-              actor: "Aya Ops",
-              commentText: "Waiting on updated bank statements.",
-              summary: "Waiting on updated bank statements.",
-            },
-          ],
-        }),
-      }));
+            comments: [
+              {
+                id: "comment_2",
+                text: "Client confirmed employment letter is ready.",
+                createdAt: "2026-04-02T10:00:00.000Z",
+                updatedAt: "2026-04-02T10:00:00.000Z",
+                user: { fullName: "Aya Ops" },
+              },
+              {
+                id: "comment_1",
+                text: "Waiting on updated bank statements.",
+                createdAt: "2026-04-01T09:00:00.000Z",
+                updatedAt: "2026-04-01T09:00:00.000Z",
+                user: { fullName: "Aya Ops" },
+              },
+            ],
+          }),
+        };
+      });
 
       const {
         ensureEmployee,
@@ -236,68 +252,76 @@ describe("Aya copilot message flow", () => {
     const env = createTestEnvironment();
 
     try {
-      vi.doMock("../../src/blue/record-detail.js", () => ({
-        getBlueRecordDetail: vi.fn().mockResolvedValue({
-          id: "record_1",
-          title: "Hamza Client",
-          list: "Underwriting",
-          status: "Active",
-          description:
-            "Awaiting updated bank statements and employment letter from client.",
-          startedAt: null,
-          dueAt: "2026-04-10T00:00:00.000Z",
-          commentsCount: 2,
-          createdAt: "2026-04-01T00:00:00.000Z",
-          updatedAt: "2026-04-09T10:00:00.000Z",
-          customFields: [
-            {
-              id: "field_1",
-              label: "Employment letter",
-              type: "text",
-              value: "pending",
+      vi.doMock("../../src/modules/blue/graphql/client.js", async () => {
+        const actual =
+          await vi.importActual<
+            typeof import("../../src/modules/blue/graphql/client.js")
+          >("../../src/modules/blue/graphql/client.js");
+
+        return {
+          ...actual,
+          fetchRecordDetail: vi.fn().mockResolvedValue({
+            record: {
+              id: "record_1",
+              title: "Hamza Client",
+              archived: false,
+              done: false,
+              text: "Awaiting updated bank statements and employment letter from client.",
+              startedAt: null,
+              duedAt: "2026-04-10T00:00:00.000Z",
+              commentCount: 2,
+              createdAt: "2026-04-01T00:00:00.000Z",
+              updatedAt: "2026-04-09T10:00:00.000Z",
+              customFields: [
+                {
+                  id: "field_1",
+                  name: "Employment letter",
+                  type: "text",
+                  value: "pending",
+                },
+                {
+                  id: "field_2",
+                  name: "Bank statements",
+                  type: "text",
+                  value: "missing",
+                },
+              ],
+              users: [
+                {
+                  id: "employee_1",
+                  fullName: "Hamza Paracha",
+                  email: "hamza@ayafinancial.com",
+                  firstName: "Hamza",
+                  lastName: "Paracha",
+                },
+              ],
+              tags: [{ id: "tag_1", title: "Urgent" }],
+              todoList: {
+                id: "list_underwriting",
+                title: "Underwriting",
+                position: 2,
+                updatedAt: "2026-04-09T10:00:00.000Z",
+              },
             },
-            {
-              id: "field_2",
-              label: "Bank statements",
-              type: "text",
-              value: "missing",
-            },
-          ],
-          assignees: [
-            {
-              id: "employee_1",
-              name: "Hamza Paracha",
-              email: "hamza@ayafinancial.com",
-            },
-          ],
-          tags: ["Urgent"],
-          contact: {
-            firstName: "Hamza",
-            lastName: "Client",
-            phone: "4165550123",
-            email: "hamza.client@example.com",
-            uniqueId: "",
-          },
-          recentActivity: [
-            {
-              id: "comment_2",
-              category: "COMMENT_CREATED",
-              occurredAt: "2026-04-09T10:00:00.000Z",
-              actor: "Aya Ops",
-              commentText: "Waiting on updated bank statements from client.",
-              summary: "Waiting on updated bank statements from client.",
-            },
-            {
-              id: "comment_1",
-              category: "COMMENT_CREATED",
-              occurredAt: "2026-04-08T09:00:00.000Z",
-              actor: "Aya Ops",
-              commentText: "Employment letter still needed before we can proceed.",
-              summary: "Employment letter still needed before we can proceed.",
-            },
-          ],
-        }),
-      }));
+            comments: [
+              {
+                id: "comment_2",
+                text: "Waiting on updated bank statements from client.",
+                createdAt: "2026-04-09T10:00:00.000Z",
+                updatedAt: "2026-04-09T10:00:00.000Z",
+                user: { fullName: "Aya Ops" },
+              },
+              {
+                id: "comment_1",
+                text: "Employment letter still needed before we can proceed.",
+                createdAt: "2026-04-08T09:00:00.000Z",
+                updatedAt: "2026-04-08T09:00:00.000Z",
+                user: { fullName: "Aya Ops" },
+              },
+            ],
+          }),
+        };
+      });
 
       const {
         ensureEmployee,
@@ -1265,34 +1289,46 @@ describe("Aya copilot message flow", () => {
   });
 
   it("moves the active client context through the shared execution service", async () => {
-    const env = createTestEnvironment();
+    const env = createTestEnvironment({
+      ALLOW_SYSTEM_BLUE_WRITE_FALLBACK: "true",
+    });
 
     try {
-      vi.doMock("../../src/blue/record-detail.js", () => ({
-        getBlueRecordDetail: vi.fn().mockResolvedValue({
-          id: "record_1",
-          title: "Hamza Client",
-          list: "Leads",
-          status: "Active",
-          description: "",
-          startedAt: null,
-          dueAt: null,
-          commentsCount: 0,
-          createdAt: "2026-04-01T00:00:00.000Z",
-          updatedAt: "2026-04-02T00:00:00.000Z",
-          customFields: [],
-          assignees: [],
-          tags: [],
-          contact: {
-            firstName: "Hamza",
-            lastName: "Client",
-            phone: "",
-            email: "",
-            uniqueId: "",
-          },
-          recentActivity: [],
-        }),
-      }));
+      vi.doMock("../../src/modules/blue/graphql/client.js", async () => {
+        const actual =
+          await vi.importActual<
+            typeof import("../../src/modules/blue/graphql/client.js")
+          >("../../src/modules/blue/graphql/client.js");
+
+        return {
+          ...actual,
+          fetchRecordDetail: vi.fn().mockResolvedValue({
+            record: {
+              id: "record_1",
+              title: "Hamza Client",
+              archived: false,
+              done: false,
+              text: "",
+              startedAt: null,
+              duedAt: null,
+              commentCount: 0,
+              createdAt: "2026-04-01T00:00:00.000Z",
+              updatedAt: "2026-04-02T00:00:00.000Z",
+              customFields: [],
+              users: [],
+              tags: [],
+              todoList: {
+                id: "list_leads",
+                title: "Leads",
+                position: 1,
+                updatedAt: "2026-04-02T00:00:00.000Z",
+              },
+            },
+            comments: [],
+          }),
+          moveRecord: vi.fn().mockResolvedValue({ ok: true }),
+        };
+      });
 
       vi.doMock("../../src/blue/workspace-index.js", async () => {
         const actual =
@@ -1311,19 +1347,6 @@ describe("Aya copilot message flow", () => {
           }),
         };
       });
-
-      vi.doMock("../../src/modules/blue/graphql/client.js", async () => {
-        const actual =
-          await vi.importActual<
-            typeof import("../../src/modules/blue/graphql/client.js")
-          >("../../src/modules/blue/graphql/client.js");
-
-        return {
-          ...actual,
-          moveRecord: vi.fn().mockResolvedValue({ ok: true }),
-        };
-      });
-
       const {
         ensureEmployee,
         initializeDatabase,

@@ -73,11 +73,11 @@ Aya should provide:
 - audit logs
 - Blue-safe action execution
 - team summaries
-- a separate admin dashboard
+- manager/admin chat reporting
 
 ### Secondary interface
 
-Keep a private Aya admin dashboard separate from LibreChat.
+Keep manager/admin reporting inside the chatbot and MCP layer instead of a separate dashboard.
 
 Use it for:
 
@@ -87,7 +87,7 @@ Use it for:
 - team activity rollups
 - operational troubleshooting
 
-The admin dashboard should not be linked from the employee chat UI.
+Manager-only reporting tools should remain role-gated inside the chatbot.
 
 ### Optional interfaces
 
@@ -104,7 +104,7 @@ Add more transports only if they create real operational value:
 Build this in phases:
 
 1. LibreChat as the private employee chat UI
-2. Aya admin dashboard as a separate private admin surface
+2. manager/admin chat reporting through role-gated chatbot tools
 3. optional WhatsApp, Slack, or Teams transports later
 
 ### Why LibreChat first
@@ -143,7 +143,7 @@ Even if LibreChat is the main product, WhatsApp can still be valuable for:
 Possible clients:
 
 - LibreChat
-- private Aya admin dashboard
+- role-gated manager/admin chatbot reporting
 - WhatsApp webhook integration
 - optional Slack app
 - optional Teams bot
@@ -275,7 +275,7 @@ This layer should answer from the local event store and cache where possible, no
 
 ### Identity
 
-Use company-backed auth for LibreChat and the admin dashboard:
+Use company-backed auth for LibreChat and manager/admin chatbot tools:
 
 - Google Workspace SSO or Microsoft Entra ID if available
 
@@ -336,7 +336,7 @@ Deliver:
 - company email identity bridge
 - clean employee-safe tool exposure
 
-### Phase 3: admin dashboard and client drill-down
+### Phase 3: manager reporting and client drill-down
 
 Goal:
 
@@ -344,7 +344,7 @@ make the assistant operationally useful beyond quick chat commands
 
 Deliver:
 
-- separate private admin dashboard
+- role-gated manager/admin chatbot reporting
 - employee audit/history page
 - manager timeline views
 - client search by name/email/phone
@@ -423,7 +423,7 @@ Recommended shape:
 
 - one LibreChat container or compose stack for employee chat
 - one Aya backend container
-- one Aya admin dashboard route served by the Aya backend
+- role-gated manager/admin reporting served through Aya MCP tools
 - one database for LibreChat
 - one database for Aya
 - private internal networking between LibreChat and Aya
@@ -432,13 +432,13 @@ Network model:
 
 - LibreChat is reachable only by employees
 - Aya backend is not directly public
-- Aya admin dashboard is on a separate private admin hostname or VPN-only route
+- manager/admin reporting is available through role-gated chatbot tools
 - Blue credentials live only in Aya, never in LibreChat or the browser
 
 Suggested hostnames:
 
 - employee chat: `chat-internal.ayafinancial.com`
-- admin dashboard: `ops-admin.ayafinancial.com`
+- manager reporting: role-gated prompts inside LibreChat
 - Aya backend: internal-only, no public hostname required
 
 Cost-effective first production setup:

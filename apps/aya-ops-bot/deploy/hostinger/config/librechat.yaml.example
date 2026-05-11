@@ -162,6 +162,7 @@ mcpServers:
     serverInstructions: |
       Aya Ops tools back the Aya Financial Assistant. Keep the experience business-facing and internal-only. Use these tools for workflow lookups, summaries, recent comments, approved CRM actions, workload questions, and reporting. For relative-date admin questions like "who did what today?", "what happened yesterday?", or "what changed this week?", prefer aya_message first so Aya computes the date range from the server clock. Use dedicated report tools only when the user typed an exact YYYY-MM-DD date or explicit date range, or when all date fields can be safely omitted. Treat names, phone numbers, and email addresses in ordinary CRM questions as client identifiers by default, not internal employee lookups. Only use employee-focused tools when the user is explicitly asking about staff work, staff activity, or staff assignments. Prefer explicit firstName and lastName arguments for lead creation, normalize human names and obvious amount shorthand, and ask a short follow-up instead of guessing when a request is ambiguous.
     headers:
+      x-aya-internal-key: "{{AYA_MCP_API_KEY}}"
       x-aya-employee-email: "{{LIBRECHAT_USER_EMAIL}}"
       x-aya-employee-name: "{{LIBRECHAT_USER_NAME}}"
       x-aya-blue-token-id: "{{AYA_BLUE_TOKEN_ID}}"

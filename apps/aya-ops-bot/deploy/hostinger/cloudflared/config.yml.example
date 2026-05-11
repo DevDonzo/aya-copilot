@@ -2,8 +2,6 @@ tunnel: replace-with-your-tunnel-id
 credentials-file: /etc/cloudflared/replace-with-your-tunnel-id.json
 
 ingress:
-  - hostname: chat.ayafinancial.com
+  - hostname: copilot.ayafinancial.com
     service: http://127.0.0.1:3080
-  - hostname: ops-admin.ayafinancial.com
-    service: http://127.0.0.1:3010
   - service: http_status:404

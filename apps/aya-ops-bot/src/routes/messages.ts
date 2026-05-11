@@ -11,11 +11,11 @@ import { AuthError } from "../app/errors.js";
 import { normalizeBlueRequestAuth } from "../modules/blue/request-auth.js";
 
 export const messageRoutes: FastifyPluginAsync = async (app) => {
-  app.post("/intent-test", async (request) => {
+  app.post("/intent-test", { preHandler: [app.requireRoles(["admin"])] }, async (request) => {
     const payload = applyHeadersToPayload(
       parseWithSchema(messageBodySchema, request.body),
       request.headers,
-      null,
+      request.employee,
       "/intent-test",
     );
     return await handleInboundMessage(payload);
@@ -23,7 +23,7 @@ export const messageRoutes: FastifyPluginAsync = async (app) => {
 
   app.post(
     "/messages/plan",
-    { preHandler: [app.authenticateOptionalSession] },
+    { preHandler: [app.authenticateRequired] },
     async (request) => {
       const payload = applyHeadersToPayload(
         parseWithSchema(messageBodySchema, request.body),
@@ -37,7 +37,7 @@ export const messageRoutes: FastifyPluginAsync = async (app) => {
 
   app.post(
     "/messages",
-    { preHandler: [app.authenticateOptionalSession] },
+    { preHandler: [app.authenticateRequired] },
     async (request) => {
       const payload = applyHeadersToPayload(
         parseWithSchema(messageBodySchema, request.body),
@@ -45,15 +45,6 @@ export const messageRoutes: FastifyPluginAsync = async (app) => {
         request.employee,
         "/messages",
       );
-      if (
-        !request.employee &&
-        !payload.actorEmployeeId &&
-        !payload.actorEmployeeEmail &&
-        !payload.actorEmployeeName &&
-        !payload.senderId
-      ) {
-        throw new AuthError();
-      }
       return await handleInboundMessage(payload);
     },
   );
@@ -76,19 +67,16 @@ function applyHeadersToPayload(
       readHeader(headers, "x-blue-token-secret"),
   });
 
+  if (!actor) {
+    throw new AuthError();
+  }
+
   return {
     ...payload,
     transport: payload.transport ?? (path === "/messages" ? "web" : "http"),
-    actorEmployeeId:
-      payload.actorEmployeeId ??
-      actor?.employeeId ??
-      readHeader(headers, "x-employee-id"),
-    actorEmployeeEmail:
-      payload.actorEmployeeEmail ?? readHeader(headers, "x-employee-email"),
-    actorEmployeeName:
-      payload.actorEmployeeName ??
-      actor?.displayName ??
-      readHeader(headers, "x-employee-name"),
+    actorEmployeeId: actor.employeeId,
+    actorEmployeeEmail: undefined,
+    actorEmployeeName: actor.displayName,
     actorBlueTokenId: blueAuth?.tokenId,
     actorBlueTokenSecret: blueAuth?.tokenSecret,
     senderId: payload.senderId ?? readHeader(headers, "x-sender-id"),

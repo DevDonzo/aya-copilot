@@ -1193,7 +1193,7 @@ async function resolveRecordOrThrow(input: RecordResolutionInput) {
 
   const trimmedQuery = input.query.trim();
   const normalizedQuery = normalizeCacheQuery(trimmedQuery);
-  if (input.actor) {
+  if (input.actor && input.requireExactMatch) {
     const assignedRecords = await loadAssignedOpenRecords(input.actor.employeeId);
     const exactAssignedMatches = assignedRecords.items
       .filter((candidate) => normalizeCacheQuery(candidate.title) === normalizedQuery)

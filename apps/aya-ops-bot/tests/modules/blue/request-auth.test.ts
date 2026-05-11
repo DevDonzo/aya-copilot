@@ -49,6 +49,7 @@ describe("blue request auth helpers", () => {
     const env = createTestEnvironment({
       NODE_ENV: "production",
       ALLOW_SYSTEM_BLUE_WRITE_FALLBACK: "false",
+      AYA_MCP_API_KEY: "test-mcp-key",
     });
     try {
       const { resolveBlueWriteAuth } = await import(

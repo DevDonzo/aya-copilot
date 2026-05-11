@@ -95,4 +95,4 @@ The next high-value steps are:
 - add a bounded model-assisted planner behind the same typed contract as an optional fallback
 - introduce richer client context summaries for call prep and manager rollups
 - add an Aya-native employee UI that consumes `/messages/plan` and `/messages`
-- extend audit/admin views to surface planner confidence, clarification rate, and intent mix directly
+- extend chatbot-based manager reporting to surface planner confidence, clarification rate, and intent mix

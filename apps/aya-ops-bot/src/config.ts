@@ -64,10 +64,12 @@ const runtimeEnv = {
   ALLOW_SYSTEM_BLUE_WRITE_FALLBACK:
     process.env.ALLOW_SYSTEM_BLUE_WRITE_FALLBACK ??
     blueConfigEnv.ALLOW_SYSTEM_BLUE_WRITE_FALLBACK ??
-    (detectedNodeEnv === "production" ? "false" : "true"),
+    "false",
   BLUE_REPORT_FALLBACK_IDS:
     process.env.BLUE_REPORT_FALLBACK_IDS ?? defaultDemoReportFallbackIds,
   HOSTINGER_API_KEY: process.env.HOSTINGER_API_KEY,
+  AYA_MCP_API_KEY: process.env.AYA_MCP_API_KEY,
+  AYA_HOSTINGER_MCP_API_KEY: process.env.AYA_HOSTINGER_MCP_API_KEY,
 };
 
 const configSchema = z.object({
@@ -80,7 +82,7 @@ const configSchema = z.object({
   HOSTINGER_API_KEY: z.string().optional(),
   ALLOW_SYSTEM_BLUE_WRITE_FALLBACK: z
     .string()
-    .default(detectedNodeEnv === "production" ? "false" : "true")
+    .default("false")
     .transform((value) => value.toLowerCase() === "true"),
   BLUE_INGEST_INTERVAL_MS: z.coerce.number().default(60_000),
   BLUE_RECORD_SYNC_LIMIT_PER_LIST: z.coerce.number().default(500),
@@ -99,9 +101,15 @@ const configSchema = z.object({
     ),
   BLUE_WEBHOOK_PUBLIC_URL: z.string().optional(),
   BLUE_WEBHOOK_SECRET: z.string().optional(),
+  AYA_MCP_API_KEY: z.string().optional(),
+  AYA_HOSTINGER_MCP_API_KEY: z.string().optional(),
   WORKSPACE_FULL_RECONCILE_HOURS: z.coerce.number().default(6),
   AUTH_SESSION_TTL_HOURS: z.coerce.number().default(12),
-  AUTH_BOOTSTRAP_KEY: z.string().default("aya-dev-bootstrap-key"),
+  AUTH_BOOTSTRAP_KEY: z.string().optional(),
+  ALLOW_BOOTSTRAP_PROVISIONING: z
+    .string()
+    .default("false")
+    .transform((value) => value.toLowerCase() === "true"),
   AYA_DATA_DIR: z.string().optional(),
   AYA_DB_PATH: z.string().optional(),
   AUDIT_STDOUT_MODE: z.enum(["metadata", "full"]).optional(),
@@ -124,7 +132,7 @@ const configSchema = z.object({
   PORT: z.coerce.number().default(3010),
 });
 
-export const config = configSchema.parse(runtimeEnv);
+export const config = assertConfigSafety(configSchema.parse(runtimeEnv));
 export const resolvedAuditStdoutMode =
   config.AUDIT_STDOUT_MODE ??
   (config.NODE_ENV === "production" ? "metadata" : "full");
@@ -168,4 +176,37 @@ function readLocalBlueToken(filePath: string) {
   } catch {
     return {} as { tokenId?: string; secret?: string };
   }
+}
+
+function assertConfigSafety<T extends {
+  BLUE_WORKSPACE_ID: string;
+  BLUE_READ_WORKSPACE_ID: string;
+  NODE_ENV: string;
+  AUTH_BOOTSTRAP_KEY?: string;
+  ALLOW_BOOTSTRAP_PROVISIONING: boolean;
+  AYA_MCP_API_KEY?: string;
+}>(parsed: T) {
+  if (parsed.BLUE_WORKSPACE_ID === forbiddenBlueWorkspaceId) {
+    throw new Error(
+      `Refusing to boot with forbidden BLUE_WORKSPACE_ID ${forbiddenBlueWorkspaceId}`,
+    );
+  }
+
+  if (parsed.BLUE_READ_WORKSPACE_ID === forbiddenBlueWorkspaceId) {
+    throw new Error(
+      `Refusing to boot with forbidden BLUE_READ_WORKSPACE_ID ${forbiddenBlueWorkspaceId}`,
+    );
+  }
+
+  if (parsed.ALLOW_BOOTSTRAP_PROVISIONING && !parsed.AUTH_BOOTSTRAP_KEY) {
+    throw new Error(
+      "ALLOW_BOOTSTRAP_PROVISIONING requires AUTH_BOOTSTRAP_KEY to be set",
+    );
+  }
+
+  if (parsed.NODE_ENV === "production" && !parsed.AYA_MCP_API_KEY) {
+    throw new Error("AYA_MCP_API_KEY must be set in production");
+  }
+
+  return parsed;
 }

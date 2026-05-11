@@ -1,6 +1,6 @@
 const defaults = {
   ayaBaseUrl: "http://127.0.0.1:3010",
-  bootstrapKey: process.env.AUTH_BOOTSTRAP_KEY ?? "aya-dev-bootstrap-key",
+  bootstrapKey: process.env.AUTH_BOOTSTRAP_KEY ?? "",
   employeeName: "Hamza Paracha",
   librechatEmail: "hamza.test@ayafinancial.com",
   ayaPassword: "AyaTemp123!",
@@ -33,6 +33,12 @@ console.log(
 );
 
 async function provisionAdmin(options) {
+  if (!options.bootstrapKey) {
+    throw new Error(
+      "Provisioning requires AUTH_BOOTSTRAP_KEY or --bootstrap-key to be set explicitly.",
+    );
+  }
+
   await apiRequest(options.ayaBaseUrl, "/auth/provision", {
     method: "POST",
     headers: {

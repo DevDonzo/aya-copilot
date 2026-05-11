@@ -1,14 +1,9 @@
-import fs from "node:fs";
-import path from "node:path";
-
 import cookie from "@fastify/cookie";
-import fastifyStatic from "@fastify/static";
 import Fastify from "fastify";
 import rawBody from "fastify-raw-body";
 
 import { initializeDatabase } from "../db.js";
 import { authRoutes } from "../routes/auth.js";
-import { adminRoutes } from "../routes/admin.js";
 import { healthRoutes } from "../routes/health.js";
 import { identityLinkRoutes } from "../routes/identity-links.js";
 import { mcpRoutes } from "../routes/mcp.js";
@@ -29,15 +24,6 @@ export async function buildAyaApp() {
     loggerInstance: logger,
   });
 
-  const adminUiAssetsDir = path.resolve(
-    import.meta.dirname,
-    "..",
-    "..",
-    "admin-ui",
-    "dist",
-    "assets",
-  );
-
   await app.register(cookie);
   await app.register(rawBody, {
     field: "rawBody",
@@ -49,14 +35,6 @@ export async function buildAyaApp() {
   await app.register(requestContextPlugin);
   await app.register(authPlugin);
   await app.register(errorHandlerPlugin);
-
-  if (pathExists(adminUiAssetsDir)) {
-    await app.register(fastifyStatic, {
-      root: adminUiAssetsDir,
-      prefix: "/admin/assets/",
-      decorateReply: false,
-    });
-  }
 
   app.get("/", async (_request, reply) => {
     return reply.status(404).send({
@@ -76,13 +54,8 @@ export async function buildAyaApp() {
   await app.register(summaryRoutes);
   await app.register(syncRoutes);
   await app.register(messageRoutes);
-  await app.register(adminRoutes);
   await app.register(mcpRoutes);
   await app.register(webhookRoutes);
 
   return app;
-}
-
-function pathExists(targetPath: string) {
-  return fs.existsSync(targetPath);
 }

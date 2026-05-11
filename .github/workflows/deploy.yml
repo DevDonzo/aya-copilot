@@ -25,21 +25,44 @@ jobs:
           cache: npm
           cache-dependency-path: |
             apps/aya-ops-bot/package-lock.json
-            apps/aya-ops-bot/admin-ui/package-lock.json
+            apps/librechat/package-lock.json
 
       - name: Install Aya dependencies
         working-directory: apps/aya-ops-bot
-        run: |
-          npm ci
-          npm --prefix admin-ui ci
+        run: npm ci
 
       - name: Test Aya backend
         working-directory: apps/aya-ops-bot
         run: npm test
 
-      - name: Build Aya backend and admin UI
+      - name: Build Aya backend
         working-directory: apps/aya-ops-bot
         run: npm run build
+
+      - name: Install LibreChat dependencies
+        working-directory: apps/librechat
+        run: npm ci
+
+      - name: Build LibreChat integration packages
+        working-directory: apps/librechat
+        run: |
+          npm run build:data-provider
+          npm run build:client-package
+          npm run build:api
+          npm run build:client
+          npm run test:api
+          npm run test:client
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.21"
+
+      - name: Test blue-cli
+        working-directory: tools/blue-cli
+        run: |
+          go test ./...
+          go build ./...
 
       - name: Deploy to VPS
         uses: appleboy/ssh-action@v1.0.3

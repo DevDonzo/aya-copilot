@@ -57,7 +57,7 @@ Those headers are the current bridge between the chat UI and Aya's permission mo
 1. Host LibreChat in the cloud at a private employee-facing domain.
 2. Host Aya on the same private network as LibreChat.
 3. Do not expose Aya publicly unless there is a clear operational reason.
-4. Keep the Aya admin dashboard on a separate private admin route.
+4. Keep manager/admin reporting role-gated inside the chatbot/MCP layer.
 5. Configure LibreChat to use Aya as an MCP server over the private network.
 6. Pass the signed-in employee identity to Aya in request headers.
 
@@ -88,13 +88,13 @@ The exact LibreChat config format should follow the current LibreChat MCP docs, 
 Recommended internal access pattern:
 
 - employees use LibreChat only
-- admins use the Aya admin dashboard separately
+- admins use manager/admin chatbot tools separately
 - Aya MCP and Blue credentials stay private
 
 Suggested hostnames:
 
 - employee chat: `chat-internal.ayafinancial.com`
-- admin dashboard: `ops-admin.ayafinancial.com`
+- manager reporting: role-gated prompts inside LibreChat
 
 Aya itself can stay on an internal Docker network and only be reachable by:
 

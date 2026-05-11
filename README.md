@@ -21,7 +21,7 @@ The operational backend.
 - Fastify + TypeScript service
 - MCP server for LibreChat
 - Blue integration, identity resolution, and write guardrails
-- audit logging, sync jobs, and admin UI
+- audit logging, sync jobs, and manager/admin chat tools
 
 ### `tools/blue-cli`
 
@@ -43,7 +43,6 @@ Employee
     -> Aya MCP / HTTP
       -> Blue GraphQL
       -> SQLite
-      -> Admin UI
 
 LibreChat
   -> MongoDB
@@ -93,6 +92,7 @@ Any Blue write path should stay pinned to the allowed workspace only.
 - [apps/aya-ops-bot/docs/system-design.md](/Users/hparacha/AyaFinancial/Blue/apps/aya-ops-bot/docs/system-design.md)
 - [apps/librechat/docs/AYA_SETUP.md](/Users/hparacha/AyaFinancial/Blue/apps/librechat/docs/AYA_SETUP.md)
 - [docs/deployment-guide.md](/Users/hparacha/AyaFinancial/Blue/docs/deployment-guide.md)
+- [docs/internal/handoff.md](/Users/hparacha/AyaFinancial/Blue/docs/internal/handoff.md)
 - [tools/blue-cli/README.md](/Users/hparacha/AyaFinancial/Blue/tools/blue-cli/README.md)
 - [docs/internal/README.md](/Users/hparacha/AyaFinancial/Blue/docs/internal/README.md)
 
@@ -101,13 +101,13 @@ Any Blue write path should stay pinned to the allowed workspace only.
 ### Production URLs
 
 - chat: `https://copilot.ayafinancial.com`
-- admin: `https://copilot.ayafinancial.com/admin`
 
 ### Production State
 
 - LibreChat is live and serving the Aya employee chat flow.
 - Aya Ops is live behind LibreChat and Blue health checks are passing.
-- The admin surface is focused on employee workload, assigned files, checklist work, overdue counts, and recent employee activity.
+- The separate visual admin dashboard has been removed.
+- Managers should ask workload, assignment, and activity questions directly in LibreChat.
 - Blue writes are constrained to the allowed workspace only:
   - `03 - AYA x Hamza/ AI`
   - `cmn524yr800e101mh7kn44mhf`
@@ -123,12 +123,15 @@ Any Blue write path should stay pinned to the allowed workspace only.
 - LibreChat identifies the signed-in employee
 - Aya uses per-user Blue credentials for attributable Blue write actions
 - Blue token values should be entered by the employee in the Aya MCP connection flow and must not be committed to the repository
+- `AYA_MCP_API_KEY` is an internal shared secret between LibreChat and Aya Ops
+- it should exist in local untracked `.env` files and in production deployment env/secrets
+- it must not be hardcoded in application code or committed to git
 
-### Admin Access
+### Manager/Admin Use
 
-- manager/admin access uses the Aya Ops auth layer
-- do not store or commit live admin passwords in this repository
-- distribute live credentials through a separate secure channel
+- manager/admin reporting is available through the chatbot tools, not a separate dashboard
+- manager/admin permissions should be assigned through the Aya Ops auth/role layer
+- do not store or commit live passwords in this repository
 
 ### Known Issues / Caveats
 

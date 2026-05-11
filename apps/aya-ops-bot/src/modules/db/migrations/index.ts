@@ -175,6 +175,23 @@ export async function runMigrations() {
       FOREIGN KEY(employee_id) REFERENCES employees(id)
     );
 
+    CREATE TABLE IF NOT EXISTS copilot_memory (
+      employee_id TEXT PRIMARY KEY,
+      transport TEXT NOT NULL,
+      conversation_key TEXT,
+      current_record_id TEXT,
+      current_record_title TEXT,
+      current_list_title TEXT,
+      recent_records_json TEXT NOT NULL DEFAULT '[]',
+      last_intent TEXT,
+      last_message_text TEXT,
+      last_response_text TEXT,
+      expires_at TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(employee_id) REFERENCES employees(id)
+    );
+
     CREATE TABLE IF NOT EXISTS employee_notification_state (
       employee_id TEXT PRIMARY KEY,
       mentions_seen_through TEXT,
@@ -201,6 +218,8 @@ export async function runMigrations() {
       ON pending_record_choices(expires_at);
     CREATE INDEX IF NOT EXISTS idx_active_record_context_expires_at
       ON active_record_context(expires_at);
+    CREATE INDEX IF NOT EXISTS idx_copilot_memory_expires_at
+      ON copilot_memory(expires_at);
   `);
 
   ensureColumn("employees", "email", "TEXT");

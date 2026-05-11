@@ -34,6 +34,7 @@ export const identityLinkBodySchema = z
 
 export const messageBodySchema = z.object({
   transport: z.string().trim().min(1).optional(),
+  conversationKey: z.string().trim().min(1).optional(),
   senderId: z.string().trim().min(1).optional(),
   senderLabel: z.string().trim().min(1).optional(),
   actorEmployeeId: z.string().trim().min(1).optional(),

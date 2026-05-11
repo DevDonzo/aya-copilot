@@ -9,7 +9,9 @@ import {
 } from "../blue/workspace-index.js";
 
 export const recordRoutes: FastifyPluginAsync = async (app) => {
-  app.get("/records/search", async (request) => {
+  const protectedRoute = { preHandler: [app.authenticateRequired] };
+
+  app.get("/records/search", protectedRoute, async (request) => {
     const query = ((request.query as { q?: string; limit?: string } | undefined)?.q ?? "").trim();
     const limit = Number(
       (request.query as { q?: string; limit?: string } | undefined)?.limit ?? "12",
@@ -20,7 +22,7 @@ export const recordRoutes: FastifyPluginAsync = async (app) => {
     return { items, query };
   });
 
-  app.get("/records/:recordId", async (request) => {
+  app.get("/records/:recordId", protectedRoute, async (request) => {
     const recordId = decodeURIComponent(
       (request.params as { recordId: string }).recordId,
     );
@@ -33,7 +35,7 @@ export const recordRoutes: FastifyPluginAsync = async (app) => {
     return { item: record };
   });
 
-  app.get("/records/:recordId/detail", async (request) => {
+  app.get("/records/:recordId/detail", protectedRoute, async (request) => {
     const recordId = decodeURIComponent(
       (request.params as { recordId: string }).recordId,
     );

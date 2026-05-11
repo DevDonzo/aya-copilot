@@ -118,7 +118,7 @@ jest.mock('react-router-dom', () => ({
 }));
 
 test('renders registration form', () => {
-  const { getByText, getByTestId, getByRole } = setup();
+  const { getByText, getByTestId, getByRole, queryByRole } = setup();
   expect(getByText(/Create your account/i)).toBeInTheDocument();
   expect(getByRole('textbox', { name: /Full name/i })).toBeInTheDocument();
   expect(getByRole('form', { name: /Registration form/i })).toBeVisible();
@@ -129,31 +129,11 @@ test('renders registration form', () => {
   expect(getByRole('button', { name: /Submit registration/i })).toBeInTheDocument();
   expect(getByRole('link', { name: 'Login' })).toBeInTheDocument();
   expect(getByRole('link', { name: 'Login' })).toHaveAttribute('href', '/login');
-  expect(getByRole('link', { name: /Continue with Google/i })).toBeInTheDocument();
-  expect(getByRole('link', { name: /Continue with Google/i })).toHaveAttribute(
-    'href',
-    'mock-server/oauth/google',
-  );
-  expect(getByRole('link', { name: /Continue with Facebook/i })).toBeInTheDocument();
-  expect(getByRole('link', { name: /Continue with Facebook/i })).toHaveAttribute(
-    'href',
-    'mock-server/oauth/facebook',
-  );
-  expect(getByRole('link', { name: /Continue with Github/i })).toBeInTheDocument();
-  expect(getByRole('link', { name: /Continue with Github/i })).toHaveAttribute(
-    'href',
-    'mock-server/oauth/github',
-  );
-  expect(getByRole('link', { name: /Continue with Discord/i })).toBeInTheDocument();
-  expect(getByRole('link', { name: /Continue with Discord/i })).toHaveAttribute(
-    'href',
-    'mock-server/oauth/discord',
-  );
-  expect(getByRole('link', { name: /Test SAML/i })).toBeInTheDocument();
-  expect(getByRole('link', { name: /Test SAML/i })).toHaveAttribute(
-    'href',
-    'mock-server/oauth/saml',
-  );
+  expect(queryByRole('link', { name: /Continue with Google/i })).not.toBeInTheDocument();
+  expect(queryByRole('link', { name: /Continue with Facebook/i })).not.toBeInTheDocument();
+  expect(queryByRole('link', { name: /Continue with Github/i })).not.toBeInTheDocument();
+  expect(queryByRole('link', { name: /Continue with Discord/i })).not.toBeInTheDocument();
+  expect(queryByRole('link', { name: /Test SAML/i })).not.toBeInTheDocument();
 });
 
 // test('calls registerUser.mutate on registration', async () => {

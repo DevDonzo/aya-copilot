@@ -52,7 +52,7 @@ export async function verifyAndProcessBlueWebhook(input: {
   const signature = Array.isArray(input.signature)
     ? input.signature[0]
     : input.signature;
-  const secret = config.BLUE_WEBHOOK_SECRET;
+  const secret = await resolveWebhookSecret();
   if (!secret) {
     throw new AuthError("BLUE_WEBHOOK_SECRET is not configured");
   }
@@ -101,12 +101,23 @@ export async function verifyAndProcessBlueWebhook(input: {
     rawPayload: payload,
   });
 
-  await upsertBlueSyncState({
-    workspaceId: config.BLUE_WORKSPACE_ID,
-    entityType: "webhooks",
-    lastWebhookEventAt: eventMeta.occurredAt,
-    lastSeenUpdatedAt: eventMeta.occurredAt,
-  });
+  const syncTimestamp = new Date().toISOString();
+  await Promise.all([
+    upsertBlueSyncState({
+      workspaceId: config.BLUE_WORKSPACE_ID,
+      entityType: "activity",
+      lastIncrementalSyncAt: syncTimestamp,
+      lastWebhookEventAt: eventMeta.occurredAt,
+      lastSeenUpdatedAt: eventMeta.occurredAt,
+    }),
+    upsertBlueSyncState({
+      workspaceId: config.BLUE_WORKSPACE_ID,
+      entityType: "webhooks",
+      lastIncrementalSyncAt: syncTimestamp,
+      lastWebhookEventAt: eventMeta.occurredAt,
+      lastSeenUpdatedAt: eventMeta.occurredAt,
+    }),
+  ]);
 
   return {
     ok: true,
@@ -142,6 +153,19 @@ export async function registerBlueWebhookIfConfigured() {
   });
 
   return webhook;
+}
+
+async function resolveWebhookSecret() {
+  if (config.BLUE_WEBHOOK_SECRET) {
+    return config.BLUE_WEBHOOK_SECRET;
+  }
+
+  const subscriptions = await listBlueWebhookSubscriptions(config.BLUE_WORKSPACE_ID);
+  return (
+    subscriptions.find((item) => item.enabled && item.secret_ref)?.secret_ref ??
+    subscriptions[0]?.secret_ref ??
+    null
+  );
 }
 
 async function repairTodoCacheFromWebhook(

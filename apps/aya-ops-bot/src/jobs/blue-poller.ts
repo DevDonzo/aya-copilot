@@ -16,14 +16,39 @@ export async function runBlueIngestionOnce() {
 
   inFlight = true;
   try {
-    const [activity, index] = await Promise.all([
+    const [activityResult, indexResult] = await Promise.allSettled([
       ingestBlueActivity(),
       syncWorkspaceIndex(),
     ]);
 
+    if (
+      activityResult.status === "rejected" &&
+      indexResult.status === "rejected"
+    ) {
+      throw activityResult.reason;
+    }
+
     return {
-      activity,
-      index,
+      activity:
+        activityResult.status === "fulfilled"
+          ? activityResult.value
+          : {
+              ok: false,
+              error:
+                activityResult.reason instanceof Error
+                  ? activityResult.reason.message
+                  : "Blue activity ingest failed",
+            },
+      index:
+        indexResult.status === "fulfilled"
+          ? indexResult.value
+          : {
+              ok: false,
+              error:
+                indexResult.reason instanceof Error
+                  ? indexResult.reason.message
+                  : "Workspace index sync failed",
+            },
     };
   } finally {
     inFlight = false;

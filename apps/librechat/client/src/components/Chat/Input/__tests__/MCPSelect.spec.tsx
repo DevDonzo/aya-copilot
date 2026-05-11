@@ -10,6 +10,10 @@ const defaultMcpServerManager = {
   isPinned: true,
   mcpValues: [] as string[],
   placeholderText: 'MCP Servers',
+  availableMCPServers: [
+    { serverName: 'server-a', config: { title: 'Server A' } },
+    { serverName: 'server-b', config: { title: 'Server B' } },
+  ],
   selectableServers: [
     { serverName: 'server-a', config: { title: 'Server A' } },
     { serverName: 'server-b', config: { title: 'Server B' } },
@@ -129,7 +133,11 @@ describe('MCPSelect', () => {
   });
 
   it('renders nothing when selectableServers is empty', () => {
-    mockMcpServerManager = { ...defaultMcpServerManager, selectableServers: [] };
+    mockMcpServerManager = {
+      ...defaultMcpServerManager,
+      availableMCPServers: [],
+      selectableServers: [],
+    };
     const { container } = render(<MCPSelect />);
     expect(container.firstChild).toBeNull();
   });

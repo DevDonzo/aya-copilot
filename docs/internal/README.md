@@ -14,4 +14,10 @@ Suggested structure:
 - `communications/`: emails, handoffs, stakeholder drafts
 - `ops/`: runbooks, checklists, temporary operating notes that should be retained
 
+Current ops notes:
+
+- [handoff.md](/Users/hparacha/AyaFinancial/Blue/docs/internal/handoff.md)
+- [local-demo-runbook.md](/Users/hparacha/AyaFinancial/Blue/docs/internal/local-demo-runbook.md)
+- [ops/README.md](/Users/hparacha/AyaFinancial/Blue/docs/internal/ops/README.md)
+
 Do not store secrets here. Deployment secrets belong in local env files that stay untracked.

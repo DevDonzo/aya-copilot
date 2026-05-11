@@ -4,6 +4,7 @@ import * as activeRecordContextRepo from "./modules/db/repositories/active-recor
 import * as auditRepo from "./modules/db/repositories/audit.js";
 import * as authRepo from "./modules/db/repositories/auth.js";
 import * as blueCacheRepo from "./modules/db/repositories/blue-cache.js";
+import * as copilotMemoryRepo from "./modules/db/repositories/copilot-memory.js";
 import * as employeesRepo from "./modules/db/repositories/employees.js";
 import * as identityRepo from "./modules/db/repositories/identity-links.js";
 import * as notificationStateRepo from "./modules/db/repositories/notification-state.js";
@@ -39,6 +40,9 @@ export const upsertActiveRecordContext =
 export const getActiveRecordContext = activeRecordContextRepo.getActiveRecordContext;
 export const deleteActiveRecordContext =
   activeRecordContextRepo.deleteActiveRecordContext;
+export const getCopilotMemory = copilotMemoryRepo.getCopilotMemory;
+export const upsertCopilotMemory = copilotMemoryRepo.upsertCopilotMemory;
+export const deleteCopilotMemory = copilotMemoryRepo.deleteCopilotMemory;
 export const getEmployeeNotificationState =
   notificationStateRepo.getEmployeeNotificationState;
 export const upsertEmployeeNotificationState =

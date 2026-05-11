@@ -7,6 +7,7 @@ import {
   provisionEmployeeAccess,
   requireRole,
 } from "../auth/service.js";
+import { AuthError } from "../app/errors.js";
 import { config } from "../config.js";
 import { loginBodySchema, provisionBodySchema } from "../types/api.js";
 import { parseWithSchema } from "../app/plugins/zod.js";
@@ -56,7 +57,18 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     { preHandler: [app.authenticateOptionalSession] },
     async (request) => {
       const bootstrapKey = request.headers["x-bootstrap-key"];
-      if (bootstrapKey !== config.AUTH_BOOTSTRAP_KEY) {
+      const canUseBootstrap =
+        config.ALLOW_BOOTSTRAP_PROVISIONING &&
+        config.NODE_ENV !== "production" &&
+        typeof bootstrapKey === "string" &&
+        Boolean(config.AUTH_BOOTSTRAP_KEY) &&
+        bootstrapKey === config.AUTH_BOOTSTRAP_KEY;
+
+      if (!canUseBootstrap && bootstrapKey) {
+        throw new AuthError();
+      }
+
+      if (!canUseBootstrap) {
         requireRole(request.employee, ["admin"]);
       }
 

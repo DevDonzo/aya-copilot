@@ -5,6 +5,10 @@ import {
 } from "../../db.js";
 import type { EmployeeIdentity } from "../../domain/types.js";
 import { normalizeCacheQuery } from "../db/repositories/helpers.js";
+import {
+  getCopilotMemoryForActor,
+  rememberCopilotRecordContext,
+} from "../copilot/memory.js";
 
 const ACTIVE_RECORD_CONTEXT_TTL_MS = 2 * 60 * 60 * 1000;
 
@@ -33,6 +37,14 @@ export async function rememberActiveRecordContext(input: {
     recordTitle: input.recordTitle,
     listTitle: input.listTitle ?? null,
     expiresAt: new Date(Date.now() + ACTIVE_RECORD_CONTEXT_TTL_MS).toISOString(),
+  });
+
+  await rememberCopilotRecordContext({
+    actor: input.actor,
+    transport: input.transport,
+    recordId: input.recordId,
+    recordTitle: input.recordTitle,
+    listTitle: input.listTitle ?? null,
   });
 }
 
@@ -63,7 +75,16 @@ export async function getActiveRecordContextForActor(
   }
 
   if (transport && row.transport !== transport) {
-    return null;
+    const memory = await getCopilotMemoryForActor(actor, transport);
+    if (!memory?.currentRecordId || !memory.currentRecordTitle) {
+      return null;
+    }
+    return {
+      transport: memory.transport,
+      recordId: memory.currentRecordId,
+      recordTitle: memory.currentRecordTitle,
+      listTitle: memory.currentListTitle ?? null,
+    };
   }
 
   return {
@@ -91,4 +112,12 @@ const ACTIVE_RECORD_POINTERS = new Set([
   "that file",
   "that lead",
   "that record",
+  "this one",
+  "that one",
+  "the client",
+  "the file",
+  "the lead",
+  "the record",
+  "current client",
+  "current file",
 ]);

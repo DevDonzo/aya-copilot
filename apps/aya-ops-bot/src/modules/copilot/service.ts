@@ -11,6 +11,7 @@ import {
 import {
   getActiveRecordContextForActor,
 } from "../disambiguation/active-record-context.js";
+import { rememberCopilotTurnMemory } from "./memory.js";
 import {
   clearPendingRecordChoiceForActor,
   resolvePendingRecordChoice,
@@ -194,6 +195,14 @@ export async function handleInboundMessage(
         },
       });
 
+      await rememberCopilotTurnMemory({
+        actor,
+        transport,
+        intent: pending.intent,
+        message: payload.message,
+        responseText: pending.responseText,
+      });
+
       return {
         matched: true,
         intent: pending.intent,
@@ -251,6 +260,14 @@ export async function handleInboundMessage(
       },
     });
 
+    await rememberCopilotTurnMemory({
+      actor,
+      transport,
+      intent: plan.intent,
+      message: payload.message,
+      responseText,
+    });
+
     return {
       matched: true,
       intent: plan.intent,
@@ -288,6 +305,14 @@ export async function handleInboundMessage(
       plan,
       data: execution.data,
     },
+  });
+
+  await rememberCopilotTurnMemory({
+    actor,
+    transport,
+    intent: plan.intent,
+    message: payload.message,
+    responseText: execution.responseText,
   });
 
   return {

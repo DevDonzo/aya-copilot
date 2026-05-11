@@ -146,6 +146,18 @@ function getHeaderBlueAuth(
   });
 }
 
+function getHeaderConversationKey(
+  headers: Record<string, string | string[] | undefined> | undefined,
+) {
+  return (
+    getHeaderValue(headers, "x-aya-conversation-id") ??
+    getHeaderValue(headers, "x-librechat-conversation-id") ??
+    getHeaderValue(headers, "x-conversation-id") ??
+    getHeaderValue(headers, "mcp-session-id") ??
+    undefined
+  );
+}
+
 function resolveRequestedEmployeeName(
   employeeName: string | undefined,
   actor?: EmployeeIdentity | null,
@@ -314,12 +326,14 @@ function createAyaMcpServer() {
     async ({ message }, extra) => {
       const actor = await getHeaderActor(extra.requestInfo?.headers);
       const blueAuth = getHeaderBlueAuth(extra.requestInfo?.headers);
+      const conversationKey = getHeaderConversationKey(extra.requestInfo?.headers);
       const result = await runAyaMessageTool({
         message,
         actorEmployeeId: actor?.employeeId,
         actorEmployeeEmail: actor?.email,
         actorEmployeeName: actor?.displayName,
         blueAuth,
+        conversationKey,
       });
 
       return {

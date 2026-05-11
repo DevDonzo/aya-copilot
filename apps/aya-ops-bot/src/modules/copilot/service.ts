@@ -53,6 +53,7 @@ import { PermissionError } from "../../app/errors.js";
 
 export interface InboundMessagePayload {
   transport?: string;
+  conversationKey?: string;
   senderId?: string;
   senderLabel?: string;
   actorEmployeeId?: string;
@@ -118,7 +119,7 @@ export async function resolveActorFromPayload(
 
 export async function planInboundMessage(payload: InboundMessagePayload) {
   const actor = await resolveActorFromPayload(payload);
-  const transport = payload.transport ?? "http";
+  const transport = scopedTransport(payload.transport ?? "http", payload.conversationKey);
   const activeRecordContext = await getActiveRecordContextForActor(
     actor,
     transport,
@@ -144,7 +145,7 @@ export async function handleInboundMessage(
   payload: InboundMessagePayload,
 ): Promise<MessageResponse> {
   const actor = await resolveActorFromPayload(payload);
-  const transport = payload.transport ?? "http";
+  const transport = scopedTransport(payload.transport ?? "http", payload.conversationKey);
   const blueAuth = resolvePayloadBlueAuth(payload);
   const auditPayload = redactPayloadForAudit(payload);
   const activeRecordContext = await getActiveRecordContextForActor(
@@ -324,6 +325,19 @@ export async function handleInboundMessage(
     plan,
     data: execution.data,
   };
+}
+
+function scopedTransport(transport: string, conversationKey?: string) {
+  if (!conversationKey || /^\{\{.+\}\}$/.test(conversationKey.trim())) {
+    return transport;
+  }
+
+  const normalized = conversationKey
+    .trim()
+    .replace(/[^\w:.-]+/g, "-")
+    .slice(0, 120);
+
+  return normalized ? `${transport}:${normalized}` : transport;
 }
 
 function enforceIntentPermissions(actor: EmployeeIdentity, plan: IntentPlan) {
@@ -1095,7 +1109,7 @@ async function continuePendingRecordChoice(
     return null;
   }
 
-  await clearPendingRecordChoiceForActor(actor);
+  await clearPendingRecordChoiceForActor(actor, transport);
 
   switch (pendingSelection.context.continuationAction) {
     case "get_client_detail":

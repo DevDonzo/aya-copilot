@@ -79,6 +79,11 @@ function applyHeadersToPayload(
     actorEmployeeName: actor.displayName,
     actorBlueTokenId: blueAuth?.tokenId,
     actorBlueTokenSecret: blueAuth?.tokenSecret,
+    conversationKey:
+      payload.conversationKey ??
+      readHeader(headers, "x-aya-conversation-id") ??
+      readHeader(headers, "x-librechat-conversation-id") ??
+      readHeader(headers, "x-conversation-id"),
     senderId: payload.senderId ?? readHeader(headers, "x-sender-id"),
     senderLabel: payload.senderLabel ?? readHeader(headers, "x-sender-label"),
   } satisfies InboundMessagePayload;

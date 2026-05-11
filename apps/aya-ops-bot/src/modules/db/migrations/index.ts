@@ -151,7 +151,7 @@ export async function runMigrations() {
     );
 
     CREATE TABLE IF NOT EXISTS pending_record_choices (
-      employee_id TEXT PRIMARY KEY,
+      employee_id TEXT NOT NULL,
       transport TEXT NOT NULL,
       continuation_action TEXT NOT NULL,
       original_query TEXT,
@@ -160,11 +160,12 @@ export async function runMigrations() {
       expires_at TEXT NOT NULL,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (employee_id, transport),
       FOREIGN KEY(employee_id) REFERENCES employees(id)
     );
 
     CREATE TABLE IF NOT EXISTS active_record_context (
-      employee_id TEXT PRIMARY KEY,
+      employee_id TEXT NOT NULL,
       transport TEXT NOT NULL,
       record_id TEXT NOT NULL,
       record_title TEXT NOT NULL,
@@ -172,11 +173,12 @@ export async function runMigrations() {
       expires_at TEXT NOT NULL,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (employee_id, transport),
       FOREIGN KEY(employee_id) REFERENCES employees(id)
     );
 
     CREATE TABLE IF NOT EXISTS copilot_memory (
-      employee_id TEXT PRIMARY KEY,
+      employee_id TEXT NOT NULL,
       transport TEXT NOT NULL,
       conversation_key TEXT,
       current_record_id TEXT,
@@ -189,6 +191,7 @@ export async function runMigrations() {
       expires_at TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (employee_id, transport),
       FOREIGN KEY(employee_id) REFERENCES employees(id)
     );
 
@@ -238,13 +241,191 @@ export async function runMigrations() {
   ensureColumn("bot_audit_logs", "response_json", "TEXT");
   ensureColumn("activity_events", "workspace_id", "TEXT");
   ensureColumn("activity_events", "project_name", "TEXT");
+  ensureScopedContextTables();
 
   sqlite.exec(`
     CREATE INDEX IF NOT EXISTS idx_blue_records_cache_contact_email
       ON blue_records_cache(workspace_id, normalized_contact_email);
     CREATE INDEX IF NOT EXISTS idx_blue_records_cache_contact_phone
       ON blue_records_cache(workspace_id, normalized_contact_phone);
+    CREATE INDEX IF NOT EXISTS idx_pending_record_choices_expires_at
+      ON pending_record_choices(expires_at);
+    CREATE INDEX IF NOT EXISTS idx_active_record_context_expires_at
+      ON active_record_context(expires_at);
+    CREATE INDEX IF NOT EXISTS idx_copilot_memory_expires_at
+      ON copilot_memory(expires_at);
   `);
+}
+
+function ensureScopedContextTables() {
+  ensurePendingRecordChoicesScoped();
+  ensureActiveRecordContextScoped();
+  ensureCopilotMemoryScoped();
+}
+
+function ensurePendingRecordChoicesScoped() {
+  if (hasCompositePrimaryKey("pending_record_choices", ["employee_id", "transport"])) {
+    return;
+  }
+
+  sqlite.exec(`
+    DROP TABLE IF EXISTS pending_record_choices_old_migration;
+    ALTER TABLE pending_record_choices RENAME TO pending_record_choices_old_migration;
+    CREATE TABLE pending_record_choices (
+      employee_id TEXT NOT NULL,
+      transport TEXT NOT NULL,
+      continuation_action TEXT NOT NULL,
+      original_query TEXT,
+      pending_parameters_json TEXT,
+      candidates_json TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (employee_id, transport),
+      FOREIGN KEY(employee_id) REFERENCES employees(id)
+    );
+    INSERT OR REPLACE INTO pending_record_choices (
+      employee_id,
+      transport,
+      continuation_action,
+      original_query,
+      pending_parameters_json,
+      candidates_json,
+      expires_at,
+      created_at,
+      updated_at
+    )
+    SELECT
+      employee_id,
+      transport,
+      continuation_action,
+      original_query,
+      pending_parameters_json,
+      candidates_json,
+      expires_at,
+      created_at,
+      updated_at
+    FROM pending_record_choices_old_migration;
+    DROP TABLE pending_record_choices_old_migration;
+  `);
+}
+
+function ensureActiveRecordContextScoped() {
+  if (hasCompositePrimaryKey("active_record_context", ["employee_id", "transport"])) {
+    return;
+  }
+
+  sqlite.exec(`
+    DROP TABLE IF EXISTS active_record_context_old_migration;
+    ALTER TABLE active_record_context RENAME TO active_record_context_old_migration;
+    CREATE TABLE active_record_context (
+      employee_id TEXT NOT NULL,
+      transport TEXT NOT NULL,
+      record_id TEXT NOT NULL,
+      record_title TEXT NOT NULL,
+      list_title TEXT,
+      expires_at TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (employee_id, transport),
+      FOREIGN KEY(employee_id) REFERENCES employees(id)
+    );
+    INSERT OR REPLACE INTO active_record_context (
+      employee_id,
+      transport,
+      record_id,
+      record_title,
+      list_title,
+      expires_at,
+      created_at,
+      updated_at
+    )
+    SELECT
+      employee_id,
+      transport,
+      record_id,
+      record_title,
+      list_title,
+      expires_at,
+      created_at,
+      updated_at
+    FROM active_record_context_old_migration;
+    DROP TABLE active_record_context_old_migration;
+  `);
+}
+
+function ensureCopilotMemoryScoped() {
+  if (hasCompositePrimaryKey("copilot_memory", ["employee_id", "transport"])) {
+    return;
+  }
+
+  sqlite.exec(`
+    DROP TABLE IF EXISTS copilot_memory_old_migration;
+    ALTER TABLE copilot_memory RENAME TO copilot_memory_old_migration;
+    CREATE TABLE copilot_memory (
+      employee_id TEXT NOT NULL,
+      transport TEXT NOT NULL,
+      conversation_key TEXT,
+      current_record_id TEXT,
+      current_record_title TEXT,
+      current_list_title TEXT,
+      recent_records_json TEXT NOT NULL DEFAULT '[]',
+      last_intent TEXT,
+      last_message_text TEXT,
+      last_response_text TEXT,
+      expires_at TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (employee_id, transport),
+      FOREIGN KEY(employee_id) REFERENCES employees(id)
+    );
+    INSERT OR REPLACE INTO copilot_memory (
+      employee_id,
+      transport,
+      conversation_key,
+      current_record_id,
+      current_record_title,
+      current_list_title,
+      recent_records_json,
+      last_intent,
+      last_message_text,
+      last_response_text,
+      expires_at,
+      created_at,
+      updated_at
+    )
+    SELECT
+      employee_id,
+      transport,
+      conversation_key,
+      current_record_id,
+      current_record_title,
+      current_list_title,
+      recent_records_json,
+      last_intent,
+      last_message_text,
+      last_response_text,
+      expires_at,
+      created_at,
+      updated_at
+    FROM copilot_memory_old_migration;
+    DROP TABLE copilot_memory_old_migration;
+  `);
+}
+
+function hasCompositePrimaryKey(tableName: string, columns: string[]) {
+  const rows = sqlite
+    .prepare(`PRAGMA table_info(${tableName})`)
+    .all() as Array<{ name: string; pk: number }>;
+  const primaryKeyColumns = rows
+    .filter((row) => row.pk > 0)
+    .sort((left, right) => left.pk - right.pk)
+    .map((row) => row.name);
+
+  return (
+    primaryKeyColumns.length === columns.length &&
+    primaryKeyColumns.every((column, index) => column === columns[index])
+  );
 }
 
 function ensureColumn(

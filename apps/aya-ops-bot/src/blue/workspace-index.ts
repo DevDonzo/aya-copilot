@@ -47,7 +47,30 @@ interface ParsedBlueRecord {
   rawJson?: string | null;
 }
 
+let activeWorkspaceSync: Promise<{
+  workspaceId: string;
+  mode: string;
+  listsSynced: number;
+  recordsSynced: number;
+  lastSeenUpdatedAt: string | null;
+}> | null = null;
+
 export async function syncWorkspaceIndex(input?: {
+  forceFull?: boolean;
+  auth?: BlueRequestAuth | null;
+}) {
+  if (activeWorkspaceSync) {
+    return await activeWorkspaceSync;
+  }
+
+  activeWorkspaceSync = syncWorkspaceIndexInternal(input).finally(() => {
+    activeWorkspaceSync = null;
+  });
+
+  return await activeWorkspaceSync;
+}
+
+async function syncWorkspaceIndexInternal(input?: {
   forceFull?: boolean;
   auth?: BlueRequestAuth | null;
 }) {
@@ -232,7 +255,7 @@ export async function resolveRecordQuery(query: string) {
     return null;
   }
 
-  if (filtered.length > 1 && filtered[0].score === filtered[1].score) {
+  if (shouldAskForRecordClarification(filtered)) {
     return {
       match: null,
       candidates: filtered.slice(0, 5).map((item) => ({
@@ -252,6 +275,31 @@ export async function resolveRecordQuery(query: string) {
     },
     candidates: [],
   };
+}
+
+function shouldAskForRecordClarification(
+  filtered: Array<{ score: number; title: string; list_title: string }>,
+) {
+  if (filtered.length <= 1) {
+    return false;
+  }
+
+  const top = filtered[0];
+  const second = filtered[1];
+  if (!top || !second) {
+    return false;
+  }
+
+  if (top.score === second.score) {
+    return true;
+  }
+
+  const confidentExactOrContactMatch = top.score >= 94 && top.score - second.score >= 5;
+  if (confidentExactOrContactMatch) {
+    return false;
+  }
+
+  return top.score < 94 || top.score - second.score < 10;
 }
 
 export async function searchRecordQuery(query: string, limit = 5) {

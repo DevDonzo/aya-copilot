@@ -165,5 +165,6 @@ mcpServers:
       x-aya-internal-key: "{{AYA_MCP_API_KEY}}"
       x-aya-employee-email: "{{LIBRECHAT_USER_EMAIL}}"
       x-aya-employee-name: "{{LIBRECHAT_USER_NAME}}"
+      x-aya-conversation-id: "{{LIBRECHAT_BODY_CONVERSATIONID}}"
       x-aya-blue-token-id: "{{AYA_BLUE_TOKEN_ID}}"
       x-aya-blue-token-secret: "{{AYA_BLUE_TOKEN_SECRET}}"

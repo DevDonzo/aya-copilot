@@ -63,6 +63,17 @@ async function checkConfig() {
   assert(config.registrationEnabled === true, 'self registration must be enabled');
   assert(config.socialLoginEnabled === false, 'social login must be disabled');
   assert(config.googleLoginEnabled === false, 'Google login must be disabled');
+  const allowedDomains =
+    config.registration?.allowedDomains ??
+    config.registrationAllowedDomains ??
+    config.allowedDomains;
+  if (allowedDomains !== undefined) {
+    assert(Array.isArray(allowedDomains), 'allowed registration domains must be a list');
+    assert(
+      allowedDomains.length === 1 && allowedDomains[0] === 'ayafinancial.com',
+      'registration must be restricted to ayafinancial.com',
+    );
+  }
   assert(
     config.interface?.mcpServers?.use === true || config.mcpServers?.use === true,
     'MCP server UI must be enabled',
@@ -92,6 +103,20 @@ async function checkAdminRemoved() {
   assert(response.status === 404, `/admin must return 404, got HTTP ${response.status}`);
 }
 
+async function checkMcpProtected() {
+  for (const path of ['/mcp', '/mcp/hostinger']) {
+    const { response } = await request(path, {
+      headers: {
+        accept: 'application/json',
+      },
+    });
+    assert(
+      response.status === 401 || response.status === 403,
+      `${path} must reject unauthenticated requests, got HTTP ${response.status}`,
+    );
+  }
+}
+
 async function checkHomePage() {
   const { response, text } = await request('/');
   assert(response.ok, `/ returned HTTP ${response.status}`);
@@ -104,6 +129,7 @@ const checks = [
   ['LibreChat config', checkConfig],
   ['login page auth surface', checkLoginPage],
   ['admin surface removed', checkAdminRemoved],
+  ['MCP endpoints protected', checkMcpProtected],
 ];
 
 const failures = [];

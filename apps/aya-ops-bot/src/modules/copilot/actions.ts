@@ -100,7 +100,7 @@ export async function searchClients(
       })),
     });
   } else if (input.actor && items.length === 1) {
-    await clearPendingRecordChoiceForActor(input.actor);
+    await clearPendingRecordChoiceForActor(input.actor, input.transport);
     await rememberActiveRecordContext({
       actor: input.actor,
       transport: input.transport ?? "mcp",
@@ -109,8 +109,8 @@ export async function searchClients(
       listTitle: items[0].listTitle,
     });
   } else if (input.actor) {
-    await clearPendingRecordChoiceForActor(input.actor);
-    await clearActiveRecordContextForActor(input.actor);
+    await clearPendingRecordChoiceForActor(input.actor, input.transport);
+    await clearActiveRecordContextForActor(input.actor, input.transport);
   }
 
   return {
@@ -1246,7 +1246,7 @@ async function resolveRecordOrThrow(input: RecordResolutionInput) {
       message: input.query.trim(),
     });
     if (pendingSelection) {
-      await clearPendingRecordChoiceForActor(input.actor);
+      await clearPendingRecordChoiceForActor(input.actor, input.transport);
       await rememberActiveRecordContext({
         actor: input.actor,
         transport: input.transport,
@@ -1276,7 +1276,7 @@ async function resolveRecordOrThrow(input: RecordResolutionInput) {
 
     if (exactAssignedMatches.length === 1) {
       const match = exactAssignedMatches[0];
-      await clearPendingRecordChoiceForActor(input.actor);
+      await clearPendingRecordChoiceForActor(input.actor, input.transport);
       await rememberActiveRecordContext({
         actor: input.actor,
         transport: input.transport,
@@ -1309,7 +1309,7 @@ async function resolveRecordOrThrow(input: RecordResolutionInput) {
     const match = exactMatches[0];
 
     if (input.actor) {
-      await clearPendingRecordChoiceForActor(input.actor);
+      await clearPendingRecordChoiceForActor(input.actor, input.transport);
       await rememberActiveRecordContext({
         actor: input.actor,
         transport: input.transport,
@@ -1345,7 +1345,7 @@ async function resolveRecordOrThrow(input: RecordResolutionInput) {
       const match = exactMatches[0];
 
       if (input.actor) {
-        await clearPendingRecordChoiceForActor(input.actor);
+        await clearPendingRecordChoiceForActor(input.actor, input.transport);
         await rememberActiveRecordContext({
           actor: input.actor,
           transport: input.transport,
@@ -1397,7 +1397,7 @@ async function resolveRecordOrThrow(input: RecordResolutionInput) {
       const match = exactMatches[0];
 
       if (input.actor) {
-        await clearPendingRecordChoiceForActor(input.actor);
+        await clearPendingRecordChoiceForActor(input.actor, input.transport);
         await rememberActiveRecordContext({
           actor: input.actor,
           transport: input.transport,
@@ -1455,7 +1455,7 @@ async function resolveRecordOrThrow(input: RecordResolutionInput) {
   }
 
   if (input.actor) {
-    await clearPendingRecordChoiceForActor(input.actor);
+    await clearPendingRecordChoiceForActor(input.actor, input.transport);
     await rememberActiveRecordContext({
       actor: input.actor,
       transport: input.transport,

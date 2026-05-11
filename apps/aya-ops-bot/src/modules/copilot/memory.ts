@@ -36,13 +36,13 @@ export async function getCopilotMemoryForActor(
     return null;
   }
 
-  const row = await getCopilotMemory(actor.employeeId);
+  const row = await getCopilotMemory(actor.employeeId, transport);
   if (!row) {
     return null;
   }
 
   if (row.expires_at && new Date(row.expires_at).getTime() <= Date.now()) {
-    await deleteCopilotMemory(actor.employeeId);
+    await deleteCopilotMemory(actor.employeeId, transport);
     return null;
   }
 
@@ -74,7 +74,7 @@ export async function rememberCopilotRecordContext(input: {
     return;
   }
 
-  const current = await getCopilotMemoryForActor(input.actor);
+  const current = await getCopilotMemoryForActor(input.actor, input.transport);
   const nextRecentRecords = mergeRecentRecords(current?.recentRecords ?? [], {
     recordId: input.recordId,
     recordTitle: input.recordTitle,
@@ -85,6 +85,7 @@ export async function rememberCopilotRecordContext(input: {
   await upsertCopilotMemory({
     employeeId: input.actor.employeeId,
     transport: input.transport,
+    conversationKey: input.transport,
     currentRecordId: input.recordId,
     currentRecordTitle: input.recordTitle,
     currentListTitle: input.listTitle ?? null,
@@ -107,10 +108,11 @@ export async function rememberCopilotTurnMemory(input: {
     return;
   }
 
-  const current = await getCopilotMemoryForActor(input.actor);
+  const current = await getCopilotMemoryForActor(input.actor, input.transport);
   await upsertCopilotMemory({
     employeeId: input.actor.employeeId,
     transport: input.transport,
+    conversationKey: input.transport,
     currentRecordId: current?.currentRecordId ?? null,
     currentRecordTitle: current?.currentRecordTitle ?? null,
     currentListTitle: current?.currentListTitle ?? null,

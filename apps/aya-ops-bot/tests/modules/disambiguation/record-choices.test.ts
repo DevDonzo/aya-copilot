@@ -54,11 +54,9 @@ describe("selectCandidateFromMessage", () => {
     ).toBe("rec_3");
   });
 
-  it("falls back to the first candidate for generic pointer phrases", () => {
-    expect(selectCandidateFromMessage("that one", candidates)?.id).toBe("rec_1");
-    expect(selectCandidateFromMessage("this client", candidates)?.id).toBe(
-      "rec_1",
-    );
+  it("does not guess the first candidate for generic pointer phrases", () => {
+    expect(selectCandidateFromMessage("that one", candidates)).toBeNull();
+    expect(selectCandidateFromMessage("this client", candidates)).toBeNull();
   });
 
   it("returns null when there is no reliable match", () => {

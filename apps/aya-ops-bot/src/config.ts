@@ -181,8 +181,14 @@ function readLocalBlueToken(filePath: string) {
 function assertConfigSafety<T extends {
   BLUE_WORKSPACE_ID: string;
   BLUE_READ_WORKSPACE_ID: string;
+  BLUE_AUTH_TOKEN?: string;
+  BLUE_CLIENT_ID?: string;
+  BLUE_COMPANY_ID?: string;
   NODE_ENV: string;
+  AUDIT_STDOUT_MODE?: string;
   AUTH_BOOTSTRAP_KEY?: string;
+  ALLOW_DEV_DEFAULT_ACTOR: boolean;
+  ALLOW_SYSTEM_BLUE_WRITE_FALLBACK: boolean;
   ALLOW_BOOTSTRAP_PROVISIONING: boolean;
   AYA_MCP_API_KEY?: string;
 }>(parsed: T) {
@@ -206,6 +212,32 @@ function assertConfigSafety<T extends {
 
   if (parsed.NODE_ENV === "production" && !parsed.AYA_MCP_API_KEY) {
     throw new Error("AYA_MCP_API_KEY must be set in production");
+  }
+
+  if (parsed.NODE_ENV === "production") {
+    if (!parsed.BLUE_COMPANY_ID || !parsed.BLUE_CLIENT_ID || !parsed.BLUE_AUTH_TOKEN) {
+      throw new Error(
+        "BLUE_COMPANY_ID, BLUE_CLIENT_ID, and BLUE_AUTH_TOKEN must be set in production",
+      );
+    }
+
+    if (parsed.ALLOW_SYSTEM_BLUE_WRITE_FALLBACK) {
+      throw new Error(
+        "ALLOW_SYSTEM_BLUE_WRITE_FALLBACK must be false in production",
+      );
+    }
+
+    if (parsed.ALLOW_DEV_DEFAULT_ACTOR) {
+      throw new Error("ALLOW_DEV_DEFAULT_ACTOR must be false in production");
+    }
+
+    if (parsed.ALLOW_BOOTSTRAP_PROVISIONING) {
+      throw new Error("ALLOW_BOOTSTRAP_PROVISIONING must be false in production");
+    }
+
+    if (parsed.AUDIT_STDOUT_MODE === "full") {
+      throw new Error("AUDIT_STDOUT_MODE=full is not allowed in production");
+    }
   }
 
   return parsed;

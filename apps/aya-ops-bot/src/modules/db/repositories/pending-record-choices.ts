@@ -24,7 +24,7 @@ export async function upsertPendingRecordChoice(input: {
       updated_at: nowIso,
     })
     .onConflict((oc) =>
-      oc.column("employee_id").doUpdateSet({
+      oc.columns(["employee_id", "transport"]).doUpdateSet({
         transport: input.transport,
         continuation_action: input.continuationAction,
         original_query: input.originalQuery ?? null,
@@ -37,17 +37,29 @@ export async function upsertPendingRecordChoice(input: {
     .execute();
 }
 
-export async function getPendingRecordChoice(employeeId: string) {
-  return await db
+export async function getPendingRecordChoice(employeeId: string, transport?: string) {
+  let query = db
     .selectFrom("pending_record_choices")
     .selectAll()
-    .where("employee_id", "=", employeeId)
+    .where("employee_id", "=", employeeId);
+
+  if (transport) {
+    query = query.where("transport", "=", transport);
+  }
+
+  return await query
+    .orderBy("updated_at", "desc")
     .executeTakeFirst();
 }
 
-export async function deletePendingRecordChoice(employeeId: string) {
-  await db
+export async function deletePendingRecordChoice(employeeId: string, transport?: string) {
+  let query = db
     .deleteFrom("pending_record_choices")
-    .where("employee_id", "=", employeeId)
-    .execute();
+    .where("employee_id", "=", employeeId);
+
+  if (transport) {
+    query = query.where("transport", "=", transport);
+  }
+
+  await query.execute();
 }

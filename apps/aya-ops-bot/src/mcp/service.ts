@@ -71,9 +71,11 @@ export async function runAyaMessageTool(input: {
   actorEmployeeEmail?: string;
   actorEmployeeName?: string;
   blueAuth?: BlueRequestAuth | null;
+  conversationKey?: string;
 }) {
   const payload: InboundMessagePayload = {
     transport: "mcp",
+    conversationKey: input.conversationKey,
     actorEmployeeId: input.actorEmployeeId,
     actorEmployeeEmail: input.actorEmployeeEmail,
     actorEmployeeName: input.actorEmployeeName,

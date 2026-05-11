@@ -45,12 +45,15 @@ export async function rememberPendingRecordChoice(input: {
   });
 }
 
-export async function clearPendingRecordChoiceForActor(actor: EmployeeIdentity) {
+export async function clearPendingRecordChoiceForActor(
+  actor: EmployeeIdentity,
+  transport?: string,
+) {
   if (!actor.employeeId) {
     return;
   }
 
-  await deletePendingRecordChoice(actor.employeeId);
+  await deletePendingRecordChoice(actor.employeeId, transport);
 }
 
 export async function getPendingRecordChoiceForActor(
@@ -61,7 +64,7 @@ export async function getPendingRecordChoiceForActor(
     return null;
   }
 
-  const row = await getPendingRecordChoice(actor.employeeId);
+  const row = await getPendingRecordChoice(actor.employeeId, transport);
   if (!row) {
     return null;
   }
@@ -135,7 +138,7 @@ export function selectCandidateFromMessage(
   }
 
   if (isGenericPointer(normalizedMessage)) {
-    return candidates[0] ?? null;
+    return null;
   }
 
   const tokens = normalizedMessage

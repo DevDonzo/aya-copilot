@@ -23,7 +23,7 @@ export async function upsertActiveRecordContext(input: {
       updated_at: nowIso,
     })
     .onConflict((oc) =>
-      oc.column("employee_id").doUpdateSet({
+      oc.columns(["employee_id", "transport"]).doUpdateSet({
         transport: input.transport,
         record_id: input.recordId,
         record_title: input.recordTitle,
@@ -35,17 +35,29 @@ export async function upsertActiveRecordContext(input: {
     .execute();
 }
 
-export async function getActiveRecordContext(employeeId: string) {
-  return await db
+export async function getActiveRecordContext(employeeId: string, transport?: string) {
+  let query = db
     .selectFrom("active_record_context")
     .selectAll()
-    .where("employee_id", "=", employeeId)
+    .where("employee_id", "=", employeeId);
+
+  if (transport) {
+    query = query.where("transport", "=", transport);
+  }
+
+  return await query
+    .orderBy("updated_at", "desc")
     .executeTakeFirst();
 }
 
-export async function deleteActiveRecordContext(employeeId: string) {
-  await db
+export async function deleteActiveRecordContext(employeeId: string, transport?: string) {
+  let query = db
     .deleteFrom("active_record_context")
-    .where("employee_id", "=", employeeId)
-    .execute();
+    .where("employee_id", "=", employeeId);
+
+  if (transport) {
+    query = query.where("transport", "=", transport);
+  }
+
+  await query.execute();
 }

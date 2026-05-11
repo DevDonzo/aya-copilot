@@ -48,12 +48,15 @@ export async function rememberActiveRecordContext(input: {
   });
 }
 
-export async function clearActiveRecordContextForActor(actor: EmployeeIdentity) {
+export async function clearActiveRecordContextForActor(
+  actor: EmployeeIdentity,
+  transport?: string,
+) {
   if (!actor.employeeId) {
     return;
   }
 
-  await deleteActiveRecordContext(actor.employeeId);
+  await deleteActiveRecordContext(actor.employeeId, transport);
 }
 
 export async function getActiveRecordContextForActor(
@@ -64,7 +67,7 @@ export async function getActiveRecordContextForActor(
     return null;
   }
 
-  const row = await getActiveRecordContext(actor.employeeId);
+  const row = await getActiveRecordContext(actor.employeeId, transport);
   if (!row) {
     return null;
   }

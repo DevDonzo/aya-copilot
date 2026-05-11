@@ -1,10 +1,17 @@
 import { db } from "../kysely.js";
 
-export async function getCopilotMemory(employeeId: string) {
-  return await db
+export async function getCopilotMemory(employeeId: string, transport?: string) {
+  let query = db
     .selectFrom("copilot_memory")
     .selectAll()
-    .where("employee_id", "=", employeeId)
+    .where("employee_id", "=", employeeId);
+
+  if (transport) {
+    query = query.where("transport", "=", transport);
+  }
+
+  return await query
+    .orderBy("updated_at", "desc")
     .executeTakeFirst();
 }
 
@@ -41,7 +48,7 @@ export async function upsertCopilotMemory(input: {
       updated_at: nowIso,
     })
     .onConflict((oc) =>
-      oc.column("employee_id").doUpdateSet({
+      oc.columns(["employee_id", "transport"]).doUpdateSet({
         transport: input.transport,
         conversation_key: input.conversationKey ?? null,
         current_record_id: input.currentRecordId ?? null,
@@ -58,9 +65,14 @@ export async function upsertCopilotMemory(input: {
     .execute();
 }
 
-export async function deleteCopilotMemory(employeeId: string) {
-  await db
+export async function deleteCopilotMemory(employeeId: string, transport?: string) {
+  let query = db
     .deleteFrom("copilot_memory")
-    .where("employee_id", "=", employeeId)
-    .execute();
+    .where("employee_id", "=", employeeId);
+
+  if (transport) {
+    query = query.where("transport", "=", transport);
+  }
+
+  await query.execute();
 }

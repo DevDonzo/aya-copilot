@@ -47,6 +47,7 @@ jobs:
         working-directory: apps/librechat
         run: |
           npm run build:data-provider
+          npm run build:data-schemas
           npm run build:client-package
           npm run build:api
           npm run build:client

@@ -253,10 +253,6 @@ function scoreCandidate(
     return 80 + tokens.length + densityBonus + originalQueryBonus;
   }
 
-  if (matchCount > 0) {
-    return 40 + matchCount + densityBonus + originalQueryBonus;
-  }
-
   return 0;
 }
 

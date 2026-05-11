@@ -1168,7 +1168,7 @@ async function resolveRecordOrThrow(input: RecordResolutionInput) {
     throw new ValidationError(`Missing required parameter: ${input.fieldName}`);
   }
 
-  if (input.actor) {
+  if (input.actor && !input.requireExactMatch) {
     const pendingSelection = await resolvePendingRecordChoice({
       actor: input.actor,
       transport: input.transport,

@@ -132,10 +132,17 @@ async function startGeneration({
 }) {
   const payload = {
     text: prompt,
+    endpoint,
     conversationId,
     parentMessageId,
-    endpoint,
     spec: "aya-ops-assistant",
+    ephemeralAgent: {
+      mcp: ["aya_ops"],
+      web_search: false,
+      file_search: false,
+      execute_code: false,
+      artifacts: "",
+    },
   };
 
   if (endpointType) {

@@ -64,4 +64,27 @@ describe("selectCandidateFromMessage", () => {
   it("returns null when there is no reliable match", () => {
     expect(selectCandidateFromMessage("the other lender", candidates)).toBeNull();
   });
+
+  it("does not treat unrelated commands as pending-record selections", () => {
+    const hamzaCandidates: PendingRecordCandidate[] = [
+      {
+        id: "rec_hamza_juma",
+        title: "Hamza Juma",
+        listTitle: "11 - Closed won / Done",
+      },
+      {
+        id: "rec_hamza_paracha",
+        title: "Hamza Paracha",
+        listTitle: "1 - Underwriting",
+      },
+    ];
+
+    expect(
+      selectCandidateFromMessage(
+        "add follow-up note to AYA SMOKE TEST - OpenAI gpt-4o-mini - 2026-05-11: automated handoff smoke note from Codex",
+        hamzaCandidates,
+        "hamza",
+      ),
+    ).toBeNull();
+  });
 });

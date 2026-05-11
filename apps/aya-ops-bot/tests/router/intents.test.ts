@@ -278,6 +278,39 @@ describe("detectIntent", () => {
     });
   });
 
+  it("maps summarize requests to client briefing detail", () => {
+    const result = planEmployeeIntent({
+      actor,
+      message: "summarize AYA SMOKE TEST - OpenAI gpt-4o-mini",
+      nowIso: fixedNowIso,
+    });
+
+    expect(result).toMatchObject({
+      intent: "records.detail",
+      parameters: {
+        recordQuery: "AYA SMOKE TEST - OpenAI gpt-4o-mini",
+        detailMode: "briefing",
+        briefingFocus: "general",
+      },
+    });
+  });
+
+  it("does not include recently in record activity search queries", () => {
+    const result = planEmployeeIntent({
+      actor: adminActor,
+      message: "who touched AYA SMOKE TEST - OpenAI gpt-4o-mini recently?",
+      nowIso: fixedNowIso,
+    });
+
+    expect(result).toMatchObject({
+      intent: "activity.record_report",
+      parameters: {
+        recordQuery: "AYA SMOKE TEST - OpenAI gpt-4o-mini",
+        activityFocus: "all",
+      },
+    });
+  });
+
   it("maps status-style requests to the detail intent", () => {
     const result = planEmployeeIntent({
       actor,

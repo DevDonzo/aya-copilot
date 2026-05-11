@@ -1522,6 +1522,7 @@ function resolveDetailIntent(
         /^(?:what(?:'s| is)\s+(?:going on|up)\s+with|status of|what(?:'s| is) the status of|updates? on|tell me about)\s+(.+?)[.?!]?$/i,
       )?.[1]
       ?.trim() ??
+    rawMessage.match(/^(?:summarize|summary of)\s+(.+?)[.?!]?$/i)?.[1]?.trim() ??
     rawMessage
       .match(
         /^(?:give me )?(?:a )?(?:summary|context)\s+(?:for|on)\s+(.+?)[.?!]?$/i,
@@ -1900,7 +1901,8 @@ function buildRecordActivityCandidate(
   signal: string,
   dateRange: { dateStart: string; dateEnd: string; dateLabel: string },
 ) {
-  const useActiveRecordContext = isContextPointer(value);
+  const recordQuery = value.replace(/\s+(?:recently|lately)$/i, "").trim();
+  const useActiveRecordContext = isContextPointer(recordQuery);
   if (useActiveRecordContext && !request.hasActiveRecordContext) {
     return candidate(
       "activity.record_report",
@@ -1927,7 +1929,7 @@ function buildRecordActivityCandidate(
           ...dateRange,
         }
       : {
-          recordQuery: value.trim(),
+          recordQuery,
           activityFocus: focus,
           ...dateRange,
         },

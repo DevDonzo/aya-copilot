@@ -249,6 +249,15 @@ curl -fsS https://copilot.ayafinancial.com/api/config
 curl -fsSI https://copilot.ayafinancial.com/login
 ```
 
+Full production verification:
+
+```bash
+cd /Users/hparacha/AyaFinancial/Blue
+node scripts/verify_production.mjs
+```
+
+This same public verification runs automatically in GitHub Actions after each production deploy. It fails the deploy run if health, Blue API connectivity, MCP configuration, email signup, Google-login removal, or `/admin` removal regresses.
+
 Expected production health:
 
 ```json
@@ -467,4 +476,3 @@ Target future workflow:
 - Never demo writes on real customer records.
 - Keep Google/social login disabled unless someone intentionally reconfigures OAuth.
 - Keep production secrets out of git.
-

@@ -101,3 +101,6 @@ jobs:
               sleep 2
             done
             docker compose ps
+
+      - name: Verify public production surface
+        run: node scripts/verify_production.mjs

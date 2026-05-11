@@ -109,11 +109,11 @@ It is better described as reliable and practical for a small team, not "enterpri
 
 The deployment assets already live here:
 
-- `Blue/apps/aya-ops-bot/deploy/hostinger/docker-compose.yml`
-- `Blue/apps/aya-ops-bot/deploy/hostinger/env/aya.env.example`
-- `Blue/apps/aya-ops-bot/deploy/hostinger/env/librechat.env.example`
-- `Blue/apps/aya-ops-bot/deploy/hostinger/config/librechat.yaml.example`
-- `Blue/apps/aya-ops-bot/deploy/hostinger/cloudflared/config.yml.example`
+- `Blue/apps/copilot/deploy/hostinger/docker-compose.yml`
+- `Blue/apps/copilot/deploy/hostinger/env/aya.env.example`
+- `Blue/apps/copilot/deploy/hostinger/env/librechat.env.example`
+- `Blue/apps/copilot/deploy/hostinger/config/librechat.yaml.example`
+- `Blue/apps/copilot/deploy/hostinger/cloudflared/config.yml.example`
 
 This guide should match those files. If the compose stack changes, update this document with it.
 
@@ -147,7 +147,7 @@ Aya performs three different local syncs. These are not duplicates of Blue. They
 1. Employee sync
 
 - Source: Blue workspace members for `BLUE_WORKSPACE_ID`
-- Code: [users-sync.ts](/Users/hparacha/AyaFinancial/Blue/apps/aya-ops-bot/src/blue/users-sync.ts)
+- Code: [users-sync.ts](/Users/hparacha/AyaFinancial/Blue/apps/copilot/src/blue/users-sync.ts)
 - Purpose:
   - create Aya's local employee directory
   - create identity links
@@ -156,7 +156,7 @@ Aya performs three different local syncs. These are not duplicates of Blue. They
 2. Workspace index sync
 
 - Source: Blue lists and records for `BLUE_WORKSPACE_ID`
-- Code: [workspace-index.ts](/Users/hparacha/AyaFinancial/Blue/apps/aya-ops-bot/src/blue/workspace-index.ts)
+- Code: [workspace-index.ts](/Users/hparacha/AyaFinancial/Blue/apps/copilot/src/blue/workspace-index.ts)
 - Purpose:
   - fast search by client name, email, phone, and stage
   - disambiguation and follow-up context
@@ -165,13 +165,13 @@ Aya performs three different local syncs. These are not duplicates of Blue. They
 3. Activity ingest
 
 - Source: Blue activity feed for `BLUE_WORKSPACE_ID`
-- Code: [blue-ingest.ts](/Users/hparacha/AyaFinancial/Blue/apps/aya-ops-bot/src/activity/blue-ingest.ts)
+- Code: [blue-ingest.ts](/Users/hparacha/AyaFinancial/Blue/apps/copilot/src/activity/blue-ingest.ts)
 - Purpose:
   - normalized local activity history
   - employee/admin reporting
   - timeline and audit-style questions over time ranges
 
-These syncs start automatically on boot in [server.ts](/Users/hparacha/AyaFinancial/Blue/apps/aya-ops-bot/src/server.ts) and continue via polling in [blue-poller.ts](/Users/hparacha/AyaFinancial/Blue/apps/aya-ops-bot/src/jobs/blue-poller.ts).
+These syncs start automatically on boot in [server.ts](/Users/hparacha/AyaFinancial/Blue/apps/copilot/src/server.ts) and continue via polling in [blue-poller.ts](/Users/hparacha/AyaFinancial/Blue/apps/copilot/src/jobs/blue-poller.ts).
 
 So the answer to "why sync if Blue already has the data?" is:
 
@@ -205,7 +205,7 @@ Manual sync is for:
 
 Admin-only manual sync routes exist here:
 
-- [sync.ts](/Users/hparacha/AyaFinancial/Blue/apps/aya-ops-bot/src/routes/sync.ts)
+- [sync.ts](/Users/hparacha/AyaFinancial/Blue/apps/copilot/src/routes/sync.ts)
 
 That means production does not depend on an operator clicking "sync" all day. The manual routes are recovery tools, not the main architecture.
 
@@ -237,7 +237,7 @@ Likely causes:
 - the Blue workspace user data does not have emails populated for that workspace membership view
 - or the current Blue API/token scope does not expose them in this query
 
-The query Aya uses already requests `email` in [client.ts](/Users/hparacha/AyaFinancial/Blue/apps/aya-ops-bot/src/modules/blue/graphql/client.ts), so this is not because Aya forgot to ask for it.
+The query Aya uses already requests `email` in [client.ts](/Users/hparacha/AyaFinancial/Blue/apps/copilot/src/modules/blue/graphql/client.ts), so this is not because Aya forgot to ask for it.
 
 Production recommendation:
 
@@ -270,7 +270,7 @@ Today, Aya supports two write modes:
 
 Current code:
 
-- request auth normalization: [request-auth.ts](/Users/hparacha/AyaFinancial/Blue/apps/aya-ops-bot/src/modules/blue/request-auth.ts)
+- request auth normalization: [request-auth.ts](/Users/hparacha/AyaFinancial/Blue/apps/copilot/src/modules/blue/request-auth.ts)
 
 Recommended production policy:
 
@@ -312,8 +312,8 @@ Once the production workspace employees are synced:
 
 Provisioning code:
 
-- [auth.ts](/Users/hparacha/AyaFinancial/Blue/apps/aya-ops-bot/src/routes/auth.ts)
-- [service.ts](/Users/hparacha/AyaFinancial/Blue/apps/aya-ops-bot/src/auth/service.ts)
+- [auth.ts](/Users/hparacha/AyaFinancial/Blue/apps/copilot/src/routes/auth.ts)
+- [service.ts](/Users/hparacha/AyaFinancial/Blue/apps/copilot/src/auth/service.ts)
 
 ## Services In The Stack
 
@@ -385,7 +385,7 @@ Basic host setup:
 Clone the Aya Financial repository onto the VM and navigate to:
 
 ```bash
-cd Blue/apps/aya-ops-bot/deploy/hostinger
+cd Blue/apps/copilot/deploy/hostinger
 ```
 
 ### 3. Prepare Configuration

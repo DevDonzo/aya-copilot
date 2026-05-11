@@ -24,19 +24,19 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: |
-            apps/aya-ops-bot/package-lock.json
+            apps/copilot/package-lock.json
             apps/librechat/package-lock.json
 
       - name: Install Aya dependencies
-        working-directory: apps/aya-ops-bot
+        working-directory: apps/copilot
         run: npm ci
 
       - name: Test Aya backend
-        working-directory: apps/aya-ops-bot
+        working-directory: apps/copilot
         run: npm test
 
       - name: Build Aya backend
-        working-directory: apps/aya-ops-bot
+        working-directory: apps/copilot
         run: npm run build
 
       - name: Install LibreChat dependencies
@@ -76,10 +76,39 @@ jobs:
           script: |
             set -eu
             cd ~/Blue
+            LEGACY_DEPLOY_DIR="apps/aya-ops-bot/deploy/hostinger"
+            DEPLOY_DIR="apps/copilot/deploy/hostinger"
+            RUNTIME_BACKUP="/tmp/aya-copilot-runtime"
+            rm -rf "$RUNTIME_BACKUP"
+            if [ -d "$LEGACY_DEPLOY_DIR" ]; then
+              mkdir -p "$RUNTIME_BACKUP"
+              [ -d "$LEGACY_DEPLOY_DIR/env" ] && cp -a "$LEGACY_DEPLOY_DIR/env" "$RUNTIME_BACKUP/env"
+              [ -d "$LEGACY_DEPLOY_DIR/data" ] && cp -a "$LEGACY_DEPLOY_DIR/data" "$RUNTIME_BACKUP/data"
+              if [ -f "$LEGACY_DEPLOY_DIR/config/librechat.yaml" ]; then
+                mkdir -p "$RUNTIME_BACKUP/config"
+                cp -a "$LEGACY_DEPLOY_DIR/config/librechat.yaml" "$RUNTIME_BACKUP/config/librechat.yaml"
+              fi
+            fi
             git fetch origin main
             git reset --hard origin/main
-            cd apps/aya-ops-bot/deploy/hostinger
-            docker compose up -d --build
+            cd "$DEPLOY_DIR"
+            if [ -d "$RUNTIME_BACKUP/env" ]; then
+              mkdir -p env
+              for env_file in "$RUNTIME_BACKUP"/env/*; do
+                [ -e "$env_file" ] || continue
+                target="env/$(basename "$env_file")"
+                [ -e "$target" ] || cp -a "$env_file" "$target"
+              done
+            fi
+            [ -d "$RUNTIME_BACKUP/data" ] && [ ! -d data ] && cp -a "$RUNTIME_BACKUP/data" data
+            if [ -f "$RUNTIME_BACKUP/config/librechat.yaml" ] && [ ! -f config/librechat.yaml ]; then
+              mkdir -p config
+              cp -a "$RUNTIME_BACKUP/config/librechat.yaml" config/librechat.yaml
+            fi
+            if [ -f config/librechat.yaml ]; then
+              perl -0pi -e 's/aya-ops-assistant/aya-copilot-assistant/g; s/Aya Ops/Aya Copilot/g; s/Aya Financial Assistant/Aya Copilot Assistant/g' config/librechat.yaml
+            fi
+            docker compose up -d --build --remove-orphans
             for i in $(seq 1 30); do
               if curl -fsS http://127.0.0.1:3010/health >/dev/null; then
                 break

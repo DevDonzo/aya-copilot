@@ -8,7 +8,7 @@ It intentionally does not contain real API keys, passwords, tokens, SSH keys, da
 
 ## 1. Executive Summary
 
-Aya Copilot is an internal chatbot built on LibreChat plus a custom Aya Ops backend. It lets Aya employees ask Blue CRM questions and perform approved Blue actions from chat.
+Aya Copilot is an internal chatbot built on LibreChat plus a custom Aya Copilot backend. It lets Aya employees ask Blue CRM questions and perform approved Blue actions from chat.
 
 Production URL:
 
@@ -34,9 +34,13 @@ The system is made from three active code areas:
 
 ```text
 apps/librechat       LibreChat frontend/API, login, chat UI, MCP client, OpenAI model access
-apps/aya-ops-bot     Aya business logic, Blue MCP tools, Blue sync, memory, audit, auth guardrails
+apps/copilot     Aya business logic, Blue MCP tools, Blue sync, memory, audit, auth guardrails
 tools/blue-cli       Low-level Blue API CLI for maintenance and diagnostics
 ```
+
+Naming note:
+
+The product and backend are now called Aya Copilot. Some LibreChat internal keys can still contain `aya_ops` because that key is tied to existing MCP credential storage and model wiring. Treat it as a compatibility identifier, not the product name. Rename it only with a planned LibreChat credential/data migration.
 
 Supporting folders:
 
@@ -159,10 +163,10 @@ Prefer workspace IDs over names.
 Code-level guardrails:
 
 ```text
-apps/aya-ops-bot/src/config.ts refuses to boot if BLUE_WORKSPACE_ID is the forbidden workspace.
-apps/aya-ops-bot/src/config.ts refuses to boot if BLUE_READ_WORKSPACE_ID is the forbidden workspace.
-apps/aya-ops-bot/src/config.ts refuses production boot if system Blue write fallback, dev default actor, bootstrap provisioning, or full audit stdout logging are enabled.
-apps/aya-ops-bot/src/config.ts requires production Blue system read credentials for sync and health checks.
+apps/copilot/src/config.ts refuses to boot if BLUE_WORKSPACE_ID is the forbidden workspace.
+apps/copilot/src/config.ts refuses to boot if BLUE_READ_WORKSPACE_ID is the forbidden workspace.
+apps/copilot/src/config.ts refuses production boot if system Blue write fallback, dev default actor, bootstrap provisioning, or full audit stdout logging are enabled.
+apps/copilot/src/config.ts requires production Blue system read credentials for sync and health checks.
 Aya tools use config.BLUE_WORKSPACE_ID for Blue read/write paths.
 AGENTS.md repeats the same workspace contract for future agents.
 ```
@@ -208,11 +212,11 @@ The team accepts that Aya actions can create comments, move records, create lead
 Files/settings that must be updated:
 
 ```text
-apps/aya-ops-bot/deploy/hostinger/env/aya.env
+apps/copilot/deploy/hostinger/env/aya.env
 BLUE_WORKSPACE_ID=<new-workspace-id>
 BLUE_READ_WORKSPACE_ID=<new-workspace-id if read/write should use the same workspace>
 
-apps/aya-ops-bot/src/config.ts
+apps/copilot/src/config.ts
 Review safeBlueWorkspaceId and forbiddenBlueWorkspaceId before changing workspace policy.
 
 AGENTS.md
@@ -269,15 +273,15 @@ User browser
   -> LibreChat container
   -> OpenAI model selected by LibreChat
   -> LibreChat MCP client
-  -> Aya Ops MCP endpoint inside Docker network
-  -> Aya Ops Blue tools
+  -> Aya Copilot MCP endpoint inside Docker network
+  -> Aya Copilot Blue tools
   -> Blue GraphQL API
 ```
 
 Production compose services:
 
 ```text
-aya          custom Aya Ops backend, container name aya-ops-bot, port 3010 bound to 127.0.0.1
+aya          custom Aya Copilot backend, container name aya-copilot, port 3010 bound to 127.0.0.1
 librechat    LibreChat app/API, port 3080 bound to 127.0.0.1
 mongodb      LibreChat MongoDB, private Docker network only
 meilisearch  LibreChat search, private Docker network only
@@ -286,25 +290,25 @@ meilisearch  LibreChat search, private Docker network only
 Important deployment directory:
 
 ```text
-apps/aya-ops-bot/deploy/hostinger/
+apps/copilot/deploy/hostinger/
 ```
 
 Important deployment files:
 
 ```text
-apps/aya-ops-bot/deploy/hostinger/docker-compose.yml
-apps/aya-ops-bot/deploy/hostinger/config/librechat.yaml.example
-apps/aya-ops-bot/deploy/hostinger/env/aya.env.example
-apps/aya-ops-bot/deploy/hostinger/env/librechat.env.example
+apps/copilot/deploy/hostinger/docker-compose.yml
+apps/copilot/deploy/hostinger/config/librechat.yaml.example
+apps/copilot/deploy/hostinger/env/aya.env.example
+apps/copilot/deploy/hostinger/env/librechat.env.example
 ```
 
 Runtime files that must stay untracked:
 
 ```text
-apps/aya-ops-bot/deploy/hostinger/env/aya.env
-apps/aya-ops-bot/deploy/hostinger/env/librechat.env
-apps/aya-ops-bot/deploy/hostinger/config/librechat.yaml
-apps/aya-ops-bot/deploy/hostinger/data/
+apps/copilot/deploy/hostinger/env/aya.env
+apps/copilot/deploy/hostinger/env/librechat.env
+apps/copilot/deploy/hostinger/config/librechat.yaml
+apps/copilot/deploy/hostinger/data/
 apps/librechat/.blue-local.env
 .local/blue-api-token.json
 ```
@@ -322,20 +326,20 @@ Google/social login is disabled.
 Self-signup is enabled.
 Signup is restricted to the ayafinancial.com email domain through LibreChat config.
 Passwords are handled by LibreChat and stored in MongoDB using LibreChat's password hashing flow.
-Aya Ops does not store LibreChat user passwords.
+Aya Copilot does not store LibreChat user passwords.
 ```
 
 LibreChat registration domain enforcement:
 
 ```text
-apps/aya-ops-bot/deploy/hostinger/config/librechat.yaml.example has registration.allowedDomains = ayafinancial.com.
+apps/copilot/deploy/hostinger/config/librechat.yaml.example has registration.allowedDomains = ayafinancial.com.
 LibreChat checks this in its auth service before creating accounts.
 ```
 
-Aya Ops session auth:
+Aya Copilot session auth:
 
 ```text
-Aya Ops has its own employee/session layer for direct Aya routes.
+Aya Copilot has its own employee/session layer for direct Aya routes.
 Session cookie name is aya_session.
 Cookies are httpOnly.
 Production cookies become secure when the incoming protocol is HTTPS.
@@ -354,10 +358,10 @@ The Hostinger MCP key is intentionally separate from the normal Aya MCP key.
 Blue action auth:
 
 ```text
-LibreChat passes the signed-in user's email/name to Aya Ops through MCP headers.
+LibreChat passes the signed-in user's email/name to Aya Copilot through MCP headers.
 Users can save personal Blue Token ID and Blue Token Secret in LibreChat MCP user variables.
 LibreChat stores those user variables encrypted using CREDS_KEY.
-Aya Ops uses per-user Blue credentials for write actions when provided.
+Aya Copilot uses per-user Blue credentials for write actions when provided.
 System Blue write fallback should remain disabled in production.
 ```
 
@@ -373,7 +377,7 @@ If this is false and a user tries a write without personal Blue credentials, Aya
 
 Do not email actual values. Send values through a password manager or secure secret-transfer tool.
 
-Aya Ops secrets:
+Aya Copilot secrets:
 
 ```text
 BLUE_WORKSPACE_ID
@@ -399,7 +403,7 @@ Purpose: Blue company/account identifier used by Blue GraphQL calls.
 Required for user/reporting operations.
 
 AYA_MCP_API_KEY
-Purpose: internal shared secret between LibreChat and Aya Ops /mcp.
+Purpose: internal shared secret between LibreChat and Aya Copilot /mcp.
 Generate as a long random value, for example openssl rand -hex 32.
 Rotate if exposed.
 
@@ -423,7 +427,7 @@ Purpose: local/non-production provisioning bootstrap.
 Do not enable production bootstrap provisioning.
 
 LIBRECHAT_MONGO_URI
-Purpose: allows Aya Ops to inspect LibreChat data when needed for transcript/reporting features.
+Purpose: allows Aya Copilot to inspect LibreChat data when needed for transcript/reporting features.
 Production points to MongoDB inside the Docker network.
 ```
 
@@ -473,7 +477,7 @@ Implemented controls:
 
 ```text
 Public app is LibreChat only.
-Aya Ops port 3010 is bound to 127.0.0.1 on the VPS and is also available privately inside the Docker network.
+Aya Copilot port 3010 is bound to 127.0.0.1 on the VPS and is also available privately inside the Docker network.
 LibreChat port 3080 is bound to 127.0.0.1 on the VPS behind the public proxy/tunnel.
 MongoDB and Meilisearch are not publicly exposed by docker-compose.yml.
 /mcp requires AYA_MCP_API_KEY.
@@ -521,9 +525,9 @@ Review Hostinger MCP necessity; leave disabled unless actively needed.
 Never commit these files:
 
 ```text
-apps/aya-ops-bot/deploy/hostinger/env/aya.env
-apps/aya-ops-bot/deploy/hostinger/env/librechat.env
-apps/aya-ops-bot/deploy/hostinger/config/librechat.yaml
+apps/copilot/deploy/hostinger/env/aya.env
+apps/copilot/deploy/hostinger/env/librechat.env
+apps/copilot/deploy/hostinger/config/librechat.yaml
 .local/blue-api-token.json
 apps/librechat/.blue-local.env
 ```
@@ -570,13 +574,13 @@ Rotate anything that may have left the secure channel.
 Aya syncs Blue data in three ways:
 
 ```text
-Initial employee sync on Aya Ops boot.
-Initial workspace index sync on Aya Ops boot.
+Initial employee sync on Aya Copilot boot.
+Initial workspace index sync on Aya Copilot boot.
 Background polling when ENABLE_BLUE_POLLING=true.
 Optional webhooks if BLUE_WEBHOOK_PUBLIC_URL and BLUE_WEBHOOK_SECRET are configured.
 ```
 
-Default sync settings from Aya Ops config:
+Default sync settings from Aya Copilot config:
 
 ```text
 BLUE_INGEST_INTERVAL_MS=60000
@@ -601,7 +605,7 @@ For any critical action, Blue remains the final source of truth.
 Context and disambiguation behavior:
 
 ```text
-LibreChat passes x-aya-conversation-id to Aya Ops using {{LIBRECHAT_BODY_CONVERSATIONID}}.
+LibreChat passes x-aya-conversation-id to Aya Copilot using {{LIBRECHAT_BODY_CONVERSATIONID}}.
 Aya scopes recent record context, pending record choices, and copilot memory by employee plus conversation-scoped transport.
 If LibreChat does not provide a conversation ID, Aya falls back to the base transport scope.
 Broad or close client-name matches ask the user to choose a record instead of silently picking the top match.
@@ -645,7 +649,7 @@ It should not store unnecessary customer-sensitive data beyond what is needed fo
 
 ## 12. Audit and Logging
 
-Aya Ops audit logs record tool activity and operational metadata.
+Aya Copilot audit logs record tool activity and operational metadata.
 
 Audit behavior:
 
@@ -726,7 +730,7 @@ social login disabled
 Google login disabled
 registration domain is ayafinancial.com when the public config exposes it
 MCP UI enabled
-aya-ops-assistant model spec present
+aya-copilot-assistant model spec present
 /login has no Google sign-in copy or Google OAuth route
 /admin returns 404
 /mcp and /mcp/hostinger reject unauthenticated requests
@@ -741,20 +745,20 @@ node scripts/verify_production.mjs
 
 ## 14. Local Setup
 
-Install and test Aya Ops:
+Install and test Aya Copilot:
 
 ```bash
-cd /Users/hparacha/AyaFinancial/Blue/apps/aya-ops-bot
+cd /Users/hparacha/AyaFinancial/Blue/apps/copilot
 npm ci
 npm run check
 npm test
 npm run build
 ```
 
-Run Aya Ops locally:
+Run Aya Copilot locally:
 
 ```bash
-cd /Users/hparacha/AyaFinancial/Blue/apps/aya-ops-bot
+cd /Users/hparacha/AyaFinancial/Blue/apps/copilot
 npm run dev
 ```
 
@@ -797,13 +801,13 @@ VPS repo location:
 Production deployment directory:
 
 ```text
-~/Blue/apps/aya-ops-bot/deploy/hostinger
+~/Blue/apps/copilot/deploy/hostinger
 ```
 
 Manual deploy command on VPS:
 
 ```bash
-cd ~/Blue/apps/aya-ops-bot/deploy/hostinger
+cd ~/Blue/apps/copilot/deploy/hostinger
 docker compose up -d --build
 ```
 
@@ -850,17 +854,17 @@ Expected public config shape:
 Persistent state lives under:
 
 ```text
-apps/aya-ops-bot/deploy/hostinger/data/aya
-apps/aya-ops-bot/deploy/hostinger/data/mongodb
-apps/aya-ops-bot/deploy/hostinger/data/meilisearch
-apps/aya-ops-bot/deploy/hostinger/data/librechat/uploads
-apps/aya-ops-bot/deploy/hostinger/data/librechat/logs
+apps/copilot/deploy/hostinger/data/aya
+apps/copilot/deploy/hostinger/data/mongodb
+apps/copilot/deploy/hostinger/data/meilisearch
+apps/copilot/deploy/hostinger/data/librechat/uploads
+apps/copilot/deploy/hostinger/data/librechat/logs
 ```
 
 Do not commit anything under:
 
 ```text
-apps/aya-ops-bot/deploy/hostinger/data/
+apps/copilot/deploy/hostinger/data/
 ```
 
 Backup recommendation:
@@ -1081,14 +1085,14 @@ Current VPS:
 Hostinger VPS IP: 187.77.21.222
 SSH user used during buildout: root
 Server checkout path: /root/Blue
-Deployment directory: /root/Blue/apps/aya-ops-bot/deploy/hostinger
+Deployment directory: /root/Blue/apps/copilot/deploy/hostinger
 ```
 
 Docker services:
 
 ```text
 librechat              employee-facing chat app and LibreChat API
-aya-ops-bot            Aya business logic, MCP tools, Blue routing, audit, sync
+aya-copilot            Aya business logic, MCP tools, Blue routing, audit, sync
 aya-chat-mongodb       LibreChat database
 aya-chat-meilisearch   LibreChat search/index service
 ```
@@ -1097,7 +1101,7 @@ Useful server commands:
 
 ```bash
 ssh root@187.77.21.222
-cd /root/Blue/apps/aya-ops-bot/deploy/hostinger
+cd /root/Blue/apps/copilot/deploy/hostinger
 
 docker compose ps
 docker compose logs --tail=100 aya
@@ -1126,30 +1130,30 @@ Secret values are intentionally not in GitHub and should not be pasted into this
 Current production secret files live on the VPS here:
 
 ```text
-/root/Blue/apps/aya-ops-bot/deploy/hostinger/env/aya.env
-/root/Blue/apps/aya-ops-bot/deploy/hostinger/env/librechat.env
-/root/Blue/apps/aya-ops-bot/deploy/hostinger/config/librechat.yaml
+/root/Blue/apps/copilot/deploy/hostinger/env/aya.env
+/root/Blue/apps/copilot/deploy/hostinger/env/librechat.env
+/root/Blue/apps/copilot/deploy/hostinger/config/librechat.yaml
 ```
 
 Example templates in GitHub:
 
 ```text
-apps/aya-ops-bot/deploy/hostinger/env/aya.env.example
-apps/aya-ops-bot/deploy/hostinger/env/librechat.env.example
-apps/aya-ops-bot/deploy/hostinger/config/librechat.yaml.example
+apps/copilot/deploy/hostinger/env/aya.env.example
+apps/copilot/deploy/hostinger/env/librechat.env.example
+apps/copilot/deploy/hostinger/config/librechat.yaml.example
 ```
 
 To show only the variable names on the VPS without exposing values:
 
 ```bash
-cd /root/Blue/apps/aya-ops-bot/deploy/hostinger
+cd /root/Blue/apps/copilot/deploy/hostinger
 cut -d= -f1 env/aya.env | sed '/^#/d;/^$/d'
 cut -d= -f1 env/librechat.env | sed '/^#/d;/^$/d'
 ```
 
 To transfer the real values, use a password manager, encrypted note, or approved secure channel. Do not commit them. Do not paste them into Slack, GitHub issues, or this handoff file.
 
-### Required Aya Ops Env Values
+### Required Aya Copilot Env Values
 
 `env/aya.env` controls the custom Aya backend.
 
@@ -1265,7 +1269,7 @@ The handoff owner should either:
 After changing the key:
 
 ```bash
-cd /root/Blue/apps/aya-ops-bot/deploy/hostinger
+cd /root/Blue/apps/copilot/deploy/hostinger
 docker compose restart librechat
 node /root/Blue/scripts/verify_production.mjs
 ```
@@ -1274,7 +1278,7 @@ If `node /root/Blue/scripts/verify_production.mjs` is not available on the VPS, 
 
 ### Blue System Credentials
 
-Aya Ops needs system-level Blue credentials in `env/aya.env` for background sync, health checks, indexing, and read paths:
+Aya Copilot needs system-level Blue credentials in `env/aya.env` for background sync, health checks, indexing, and read paths:
 
 ```text
 BLUE_AUTH_TOKEN
@@ -1287,7 +1291,7 @@ BLUE_API_URL
 The current real values are on the VPS in:
 
 ```text
-/root/Blue/apps/aya-ops-bot/deploy/hostinger/env/aya.env
+/root/Blue/apps/copilot/deploy/hostinger/env/aya.env
 ```
 
 If those values are lost, the new owner must create or retrieve Blue API credentials from an Aya-controlled Blue admin/service account. Use a dedicated integration/service account where possible, not a personal employee account.
@@ -1312,10 +1316,10 @@ Employee steps:
 3. Open the API/token section.
 4. Create or copy the Blue Token ID and Blue Token Secret.
 5. Log into copilot.ayafinancial.com.
-6. Open MCP/Aya Ops server settings in LibreChat.
+6. Open MCP/Aya Copilot server settings in LibreChat.
 7. Paste Blue Token ID into AYA_BLUE_TOKEN_ID.
 8. Paste Blue Token Secret into AYA_BLUE_TOKEN_SECRET.
-9. Save/initialize the Aya Ops connection.
+9. Save/initialize the Aya Copilot connection.
 10. Test with a harmless read prompt first, then one smoke-test write.
 ```
 
@@ -1365,7 +1369,7 @@ LibreChat stores user passwords hashed with bcrypt. Plaintext passwords are not 
 LibreChat runtime data lives in MongoDB:
 
 ```text
-/root/Blue/apps/aya-ops-bot/deploy/hostinger/data/mongodb
+/root/Blue/apps/copilot/deploy/hostinger/data/mongodb
 ```
 
 Do not delete or edit MongoDB directly unless you know exactly what you are doing.
@@ -1385,12 +1389,12 @@ Do not put the password in GitHub or this document. If the new owner needs this 
 Back up these directories before making major changes:
 
 ```text
-/root/Blue/apps/aya-ops-bot/deploy/hostinger/data/aya
-/root/Blue/apps/aya-ops-bot/deploy/hostinger/data/mongodb
-/root/Blue/apps/aya-ops-bot/deploy/hostinger/data/meilisearch
-/root/Blue/apps/aya-ops-bot/deploy/hostinger/data/librechat/uploads
-/root/Blue/apps/aya-ops-bot/deploy/hostinger/env
-/root/Blue/apps/aya-ops-bot/deploy/hostinger/config
+/root/Blue/apps/copilot/deploy/hostinger/data/aya
+/root/Blue/apps/copilot/deploy/hostinger/data/mongodb
+/root/Blue/apps/copilot/deploy/hostinger/data/meilisearch
+/root/Blue/apps/copilot/deploy/hostinger/data/librechat/uploads
+/root/Blue/apps/copilot/deploy/hostinger/env
+/root/Blue/apps/copilot/deploy/hostinger/config
 ```
 
 Minimum backup method:
@@ -1412,7 +1416,7 @@ Validated before handoff:
 ```text
 Production URL loads.
 LibreChat login surface works.
-Aya Ops health endpoint works.
+Aya Copilot health endpoint works.
 LibreChat config check passes.
 Old custom admin surface is removed.
 Unauthenticated /api/user is blocked.
@@ -1425,24 +1429,24 @@ Sarah/Rehan workload prompts work.
 Team overdue prompt works.
 Record summary and recent activity prompts work.
 8 simultaneous authenticated read-only chat sessions passed.
-Aya Ops npm audit reports 0 vulnerabilities.
-Aya Ops focused tests pass.
-Aya Ops TypeScript build passes.
+Aya Copilot npm audit reports 0 vulnerabilities.
+Aya Copilot focused tests pass.
+Aya Copilot TypeScript build passes.
 ```
 
 Useful validation commands:
 
 ```bash
 node scripts/verify_production.mjs
-npm --prefix apps/aya-ops-bot test -- tests/router/intents.test.ts tests/modules/disambiguation/record-choices.test.ts
-npm --prefix apps/aya-ops-bot run build
-npm --prefix apps/aya-ops-bot audit --audit-level=high
+npm --prefix apps/copilot test -- tests/router/intents.test.ts tests/modules/disambiguation/record-choices.test.ts
+npm --prefix apps/copilot run build
+npm --prefix apps/copilot audit --audit-level=high
 node scripts/librechat_demo_smoke.mjs --base-url=https://copilot.ayafinancial.com --json "show my assignments" "what is Sarah working on?" "who is overdue?"
 ```
 
 ### Known Maintenance Caveat
 
-Aya Ops dependencies were patched and deployed with zero npm audit vulnerabilities.
+Aya Copilot dependencies were patched and deployed with zero npm audit vulnerabilities.
 
 LibreChat is an upstream third-party app and still has dependency advisories in its dependency tree. A safe `npm audit fix` was attempted, but it broke the local LibreChat build, so the LibreChat lockfile change was not kept or deployed.
 

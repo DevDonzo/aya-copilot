@@ -135,7 +135,7 @@ async function startGeneration({
     endpoint,
     conversationId,
     parentMessageId,
-    spec: "aya-ops-assistant",
+    spec: "aya-copilot-assistant",
     ephemeralAgent: {
       mcp: ["aya_ops"],
       web_search: false,

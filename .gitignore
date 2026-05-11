@@ -8,7 +8,7 @@ docs/internal/ops/**/run-*/
 
 # Transitional compatibility links at the workspace root
 /LibreChat
-/aya-ops-bot
+/aya-copilot
 /blue.cc-AyaFinancial
 /blue-api-docs
 /blue-api-live-schema
@@ -17,16 +17,16 @@ docs/internal/ops/**/run-*/
 /bin
 
 # Common local runtime state if this workspace becomes a single root repo later
-apps/aya-ops-bot/data/
-apps/aya-ops-bot/dist/
-apps/aya-ops-bot/node_modules/
-apps/aya-ops-bot/deploy/hetzner/env/aya.env
-apps/aya-ops-bot/deploy/hetzner/env/librechat.env
-apps/aya-ops-bot/deploy/hetzner/config/librechat.yaml
-apps/aya-ops-bot/deploy/hostinger/env/aya.env
-apps/aya-ops-bot/deploy/hostinger/env/librechat.env
-apps/aya-ops-bot/deploy/hostinger/config/librechat.yaml
-apps/aya-ops-bot/deploy/hostinger/data/
+apps/copilot/data/
+apps/copilot/dist/
+apps/copilot/node_modules/
+apps/copilot/deploy/hetzner/env/aya.env
+apps/copilot/deploy/hetzner/env/librechat.env
+apps/copilot/deploy/hetzner/config/librechat.yaml
+apps/copilot/deploy/hostinger/env/aya.env
+apps/copilot/deploy/hostinger/env/librechat.env
+apps/copilot/deploy/hostinger/config/librechat.yaml
+apps/copilot/deploy/hostinger/data/
 apps/librechat/data-node/
 apps/librechat/aya-data/
 apps/librechat/logs/

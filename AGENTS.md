@@ -13,7 +13,7 @@ Always use the `blue` MCP server for Blue workspace access when the task involve
 This repo contains three main product surfaces:
 
 - `apps/librechat`: the employee-facing chat UI
-- `apps/aya-ops-bot`: the secured business-logic, MCP, audit, and admin layer
+- `apps/copilot`: the secured business-logic, MCP, audit, and admin layer
 - `tools/blue-cli`: low-level Blue CLI and API tooling
 
 It also contains deployment and reference material:
@@ -36,7 +36,7 @@ It also contains deployment and reference material:
 
 The main VPS deployment bundle lives in:
 
-- `apps/aya-ops-bot/deploy/hostinger/`
+- `apps/copilot/deploy/hostinger/`
 
 Important subpaths there:
 
@@ -67,7 +67,7 @@ If deployment work is needed, prefer updating the checked-in examples and docs b
 
 - Treat Hostinger access as production-adjacent infrastructure access.
 - Default to read-only inspection unless the user explicitly asks for a change.
-- Prefer documented deployment assets in `apps/aya-ops-bot/deploy/hostinger/` over ad hoc commands.
+- Prefer documented deployment assets in `apps/copilot/deploy/hostinger/` over ad hoc commands.
 - If deployment status in Hostinger conflicts with local docs, update the docs after confirming the real state.
 
 ## Documentation Maintenance Rules

@@ -1,4 +1,4 @@
-import typescript from 'rollup-plugin-typescript2';
+import typescript from '@rollup/plugin-typescript';
 import resolve from '@rollup/plugin-node-resolve';
 import pkg from './package.json';
 import peerDepsExternal from 'rollup-plugin-peer-deps-external';
@@ -6,17 +6,21 @@ import commonjs from '@rollup/plugin-commonjs';
 import replace from '@rollup/plugin-replace';
 import terser from '@rollup/plugin-terser';
 
-const plugins = [
+const createPlugins = (outDir) => [
   peerDepsExternal(),
-  resolve(),
   replace({
     __IS_DEV__: process.env.NODE_ENV === 'development',
   }),
   commonjs(),
   typescript({
     tsconfig: './tsconfig.json',
-    useTsconfigDeclarationDir: true,
+    noEmit: false,
+    declaration: false,
+    declarationDir: outDir,
+    outDir,
+    rootDir: './src',
   }),
+  resolve(),
   terser(),
 ];
 
@@ -41,13 +45,13 @@ export default [
       external: [
         ...Object.keys(pkg.dependencies || {}),
         ...Object.keys(pkg.devDependencies || {}),
-        ...Object.keys(pkg.peerDependencies || {}),
-        'react',
-        'react-dom',
-      ],
-      preserveSymlinks: true,
-      plugins,
-    },
+      ...Object.keys(pkg.peerDependencies || {}),
+      'react',
+      'react-dom',
+    ],
+    preserveSymlinks: true,
+    plugins: createPlugins('./dist'),
+  },
   },
   // Separate bundle for react-query related part
   {
@@ -69,6 +73,6 @@ export default [
       // 'librechat-data-provider', // Marking main part as external
     ],
     preserveSymlinks: true,
-    plugins,
+    plugins: createPlugins('./dist/react-query'),
   },
 ];

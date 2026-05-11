@@ -82,8 +82,8 @@ async function checkConfig() {
   const modelSpecs = config.modelSpecs?.list || config.modelSpecs || [];
   assert(Array.isArray(modelSpecs), 'modelSpecs must be a list');
   assert(
-    modelSpecs.some((spec) => JSON.stringify(spec).includes('aya-ops-assistant')),
-    'aya-ops-assistant model spec must be present',
+    modelSpecs.some((spec) => JSON.stringify(spec).includes('aya-copilot-assistant')),
+    'aya-copilot-assistant model spec must be present',
   );
 }
 

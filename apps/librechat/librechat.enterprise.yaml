@@ -79,8 +79,8 @@ modelSpecs:
   enforce: true
   prioritize: true
   list:
-    - name: 'aya-ops-assistant'
-      label: 'Aya Ops Assistant'
+    - name: 'aya-copilot-assistant'
+      label: 'Aya Copilot Assistant'
       description: 'Use Aya tools for client search, workflow status, comments, stage moves, and admin activity reporting in the Blue workspace exposed through Aya.'
       default: true
       preset:
@@ -162,7 +162,7 @@ mcpServers:
         title: 'Blue Token Secret'
         description: 'The matching Blue Token Secret. Stored encrypted by LibreChat and reused only for your attributable Blue write actions.'
     serverInstructions: |
-      Aya Ops tools are the approved path for internal workflow lookups and CRM actions. Prefer Aya tools over unsupported free-form answers about internal data. Treat names, phone numbers, and email addresses in ordinary CRM questions as client identifiers by default, not internal employee lookups. Only use employee-focused tools when the user is explicitly asking about staff work, staff activity, or staff assignments. For admin requests about exactly what an employee did, which comments they made, what they moved, what they created, or for an employee activity timeline over today, yesterday, this week, last week, this month, last month, or an explicit date range, prefer the dedicated employee activity report tool. For admin requests about what happened across the workspace over those time ranges, who moved clients, who commented, who created leads, or for a workspace activity timeline, prefer the dedicated workspace activity report tool. For admin requests about a specific client or file, prefer the dedicated record activity report tool when the user asks who touched it, who commented on it, what happened on it, or for a timeline over those same time ranges. For new lead creation, prefer explicit firstName and lastName arguments, normalize human names even if the user typed lowercase, normalize obvious amount shorthand, and ask a short follow-up instead of guessing when the split is ambiguous.
+      Aya Copilot tools are the approved path for internal workflow lookups and CRM actions. Prefer Aya tools over unsupported free-form answers about internal data. Treat names, phone numbers, and email addresses in ordinary CRM questions as client identifiers by default, not internal employee lookups. Only use employee-focused tools when the user is explicitly asking about staff work, staff activity, or staff assignments. For admin requests about exactly what an employee did, which comments they made, what they moved, what they created, or for an employee activity timeline over today, yesterday, this week, last week, this month, last month, or an explicit date range, prefer the dedicated employee activity report tool. For admin requests about what happened across the workspace over those time ranges, who moved clients, who commented, who created leads, or for a workspace activity timeline, prefer the dedicated workspace activity report tool. For admin requests about a specific client or file, prefer the dedicated record activity report tool when the user asks who touched it, who commented on it, what happened on it, or for a timeline over those same time ranges. For new lead creation, prefer explicit firstName and lastName arguments, normalize human names even if the user typed lowercase, normalize obvious amount shorthand, and ask a short follow-up instead of guessing when the split is ambiguous.
     headers:
       x-aya-internal-key: '${AYA_MCP_API_KEY}'
       x-aya-employee-email: '{{LIBRECHAT_USER_EMAIL}}'

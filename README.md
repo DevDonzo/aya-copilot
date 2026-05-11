@@ -14,7 +14,7 @@ The employee-facing chat application.
 - MCP client surface for Aya tools
 - local and VPS runtime configuration
 
-### `apps/aya-ops-bot`
+### `apps/copilot`
 
 The operational backend.
 
@@ -49,6 +49,10 @@ LibreChat
   -> Meilisearch
 ```
 
+## Naming Compatibility
+
+The product is Aya Copilot and the backend app lives in `apps/copilot`. A few LibreChat internal identifiers still use `aya_ops` for MCP credential compatibility. Do not rename those keys unless you also migrate stored LibreChat MCP credentials.
+
 ## Deployment Surfaces
 
 ### Local Development
@@ -62,8 +66,8 @@ Primary local chat setup:
 
 Primary single-server deployment bundle:
 
-- [README.md](/Users/hparacha/AyaFinancial/Blue/apps/aya-ops-bot/deploy/hostinger/README.md)
-- [docker-compose.yml](/Users/hparacha/AyaFinancial/Blue/apps/aya-ops-bot/deploy/hostinger/docker-compose.yml)
+- [README.md](/Users/hparacha/AyaFinancial/Blue/apps/copilot/deploy/hostinger/README.md)
+- [docker-compose.yml](/Users/hparacha/AyaFinancial/Blue/apps/copilot/deploy/hostinger/docker-compose.yml)
 - [deployment-guide.md](/Users/hparacha/AyaFinancial/Blue/docs/deployment-guide.md)
 
 The Hostinger deployment is designed around one VPS, Docker Compose, bind-mounted state, and optional Cloudflare protection in front.
@@ -89,7 +93,7 @@ Any Blue write path should stay pinned to the allowed workspace only.
 
 ## Documentation Index
 
-- [apps/aya-ops-bot/docs/system-design.md](/Users/hparacha/AyaFinancial/Blue/apps/aya-ops-bot/docs/system-design.md)
+- [apps/copilot/docs/system-design.md](/Users/hparacha/AyaFinancial/Blue/apps/copilot/docs/system-design.md)
 - [apps/librechat/docs/AYA_SETUP.md](/Users/hparacha/AyaFinancial/Blue/apps/librechat/docs/AYA_SETUP.md)
 - [docs/deployment-guide.md](/Users/hparacha/AyaFinancial/Blue/docs/deployment-guide.md)
 - [docs/internal/handoff.md](/Users/hparacha/AyaFinancial/Blue/docs/internal/handoff.md)
@@ -105,7 +109,7 @@ Any Blue write path should stay pinned to the allowed workspace only.
 ### Production State
 
 - LibreChat is live and serving the Aya employee chat flow.
-- Aya Ops is live behind LibreChat and Blue health checks are passing.
+- Aya Copilot is live behind LibreChat and Blue health checks are passing.
 - The separate visual admin dashboard has been removed.
 - Managers should ask workload, assignment, and activity questions directly in LibreChat.
 - Blue writes are constrained to the allowed workspace only:
@@ -123,14 +127,14 @@ Any Blue write path should stay pinned to the allowed workspace only.
 - LibreChat identifies the signed-in employee
 - Aya uses per-user Blue credentials for attributable Blue write actions
 - Blue token values should be entered by the employee in the Aya MCP connection flow and must not be committed to the repository
-- `AYA_MCP_API_KEY` is an internal shared secret between LibreChat and Aya Ops
+- `AYA_MCP_API_KEY` is an internal shared secret between LibreChat and Aya Copilot
 - it should exist in local untracked `.env` files and in production deployment env/secrets
 - it must not be hardcoded in application code or committed to git
 
 ### Manager/Admin Use
 
 - manager/admin reporting is available through the chatbot tools, not a separate dashboard
-- manager/admin permissions should be assigned through the Aya Ops auth/role layer
+- manager/admin permissions should be assigned through the Aya Copilot auth/role layer
 - do not store or commit live passwords in this repository
 
 ### Known Issues / Caveats

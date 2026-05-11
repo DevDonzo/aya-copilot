@@ -16,16 +16,16 @@ Future runtime:
 
 The main refactor moves the product logic out of the old message handler and out of the MCP helper layer into a shared Aya application layer:
 
-- `apps/aya-ops-bot/src/modules/copilot/planner.ts`
+- `apps/copilot/src/modules/copilot/planner.ts`
   - typed planner output with `intent`, `confidence`, extracted `parameters`, matched signals, and clarification state
-- `apps/aya-ops-bot/src/modules/copilot/actions.ts`
+- `apps/copilot/src/modules/copilot/actions.ts`
   - reusable Aya action services for search, detail, comments, workload, move, create, summaries, and reporting
-- `apps/aya-ops-bot/src/modules/copilot/service.ts`
+- `apps/copilot/src/modules/copilot/service.ts`
   - shared execution flow: `plan -> enforce -> execute -> audit`
 
-The previous `apps/aya-ops-bot/src/messages/handle-message.ts` path is now a thin re-export into the shared copilot service.
+The previous `apps/copilot/src/messages/handle-message.ts` path is now a thin re-export into the shared copilot service.
 
-The previous `apps/aya-ops-bot/src/mcp/service.ts` layer is now a thin compatibility wrapper over the same shared Aya action services.
+The previous `apps/copilot/src/mcp/service.ts` layer is now a thin compatibility wrapper over the same shared Aya action services.
 
 ## Why This Matters
 

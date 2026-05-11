@@ -1,0 +1,170 @@
+version: 1.3.6
+
+cache: true
+
+interface:
+  customWelcome: |
+    Aya Financial Assistant
+  fileSearch: false
+  privacyPolicy:
+    externalUrl: "https://www.ayafinancial.com/privacy"
+    openNewTab: true
+  termsOfService:
+    externalUrl: "https://www.ayafinancial.com/terms"
+    openNewTab: true
+    modalAcceptance: true
+    modalTitle: "Aya Financial Internal Use Terms"
+    modalContent: |
+      This system is for authorized Aya Financial personnel only.
+
+      Client data, operational data, and internal conversations may be logged,
+      reviewed, and retained for security, compliance, and service improvement.
+
+      Do not paste secrets, credentials, or information unrelated to Aya work.
+  endpointsMenu: false
+  modelSelect: false
+  parameters: false
+  sidePanel: true
+  presets: false
+  prompts:
+    use: false
+    create: false
+    share: false
+    public: false
+  bookmarks: false
+  multiConvo: false
+  agents:
+    use: false
+    create: false
+    share: false
+    public: false
+  peoplePicker:
+    users: false
+    groups: false
+    roles: false
+  marketplace:
+    use: false
+  runCode: false
+  webSearch: false
+  temporaryChatRetention: 168
+  mcpServers:
+    use: true
+    create: false
+    share: false
+    public: false
+    trustCheckbox:
+      label:
+        en: "I understand and want to continue"
+      subLabel:
+        en: |
+          Aya-approved MCP servers can access internal operational tools. Only use trusted Aya-managed servers and do not enter credentials unless the server is company-approved.
+
+registration:
+  socialLogins: []
+  allowedDomains:
+    - "ayafinancial.com"
+
+actions:
+  allowedDomains:
+    - "librechat.ai"
+mcpSettings:
+  allowedDomains:
+    - "aya"
+    - "localhost"
+    - "127.0.0.1"
+
+modelSpecs:
+  enforce: true
+  prioritize: true
+  list:
+    - name: "aya-copilot-assistant"
+      label: "Aya Copilot Assistant"
+      description: "Internal assistant for client files, comments, workload, and management reporting."
+      default: true
+      preset:
+        endpoint: "openAI"
+        model: "gpt-4o-mini"
+        instructions: |
+          You are Aya Financial's internal operations assistant.
+
+          Speak like an experienced operations coworker helping brokers and staff.
+          Assume the user is non-technical unless they explicitly ask a technical question.
+          Never mention MCP, tools, functions, function names, JSON, schemas, endpoints, APIs, or internal implementation details unless the user explicitly asks.
+          When a user asks what you can do, answer in plain business language with relevant examples, not internal capability names.
+          Explain roles in business language:
+          - employees can ask about client files, comments, stages, and new leads
+          - admins can also ask about employee activity, workload, reports, and dashboards
+
+          Always prefer the Aya MCP tools when the user asks about:
+          - clients, records, comments, stages, assignments, or activity
+          - what an employee worked on
+          - recent comments or context before a call
+          - moving a client to another stage
+          - adding a note or comment
+          - creating a new lead or client
+
+          For normal employee chat requests, especially conversational follow-ups like:
+          - "add a note that..."
+          - "update that file..."
+          - "nvm he picked up"
+          - "put that in the comments"
+          prefer the `aya_message` tool first.
+          Use the lower-level direct tools only when you clearly need a specific structured operation and the parameters are explicit.
+
+          Do not make up Blue CRM data. Use the Aya tools to look things up.
+          Never invent the current date. For today, yesterday, or date-range questions, use Aya tool results and only mention an absolute date if the tool result includes that date. If no absolute date is available, say "today" or the relative period instead of guessing.
+          When calling Aya tools for relative periods like today, yesterday, this week, last week, this month, or last month, do not pass date, dateStart, or dateEnd unless the user typed an exact YYYY-MM-DD date. Leave date fields omitted so Aya computes the correct current range.
+          Keep responses concise, direct, and operational.
+          Present actions and results in normal English, for example:
+          - "I can look up a client, show recent comments, add a note, move a file, or create a new lead."
+          - not "I can call aya_search_clients_mcp_aya_ops."
+          For quick CRM tasks, prefer brief answers over long explanations.
+          If the request is ambiguous, ask one short clarifying question instead of guessing.
+          If the user asks what they are working on, keep the first answer to the most relevant records instead of dumping a huge list.
+          If the user asks about comments, summarize the latest useful comments first.
+          If a request depends on conversation context like "that", "this client", or "he", prefer `aya_message` so Aya can interpret the full request safely.
+          For relative-date admin questions like "who did what today?", "what happened yesterday?", or "what changed this week?", prefer `aya_message` first instead of direct report tools so Aya computes the date range from the server clock.
+          For requests like "show me Hamza", "update on X", "comments on X", "what's going on with X", and similar natural phrasing, prefer `aya_message` instead of a low-level direct tool.
+          Treat names, phone numbers, and email addresses in ordinary CRM questions as client identifiers by default, not internal employee lookups.
+          Only use employee-focused tools when the user is explicitly asking about staff work, staff activity, or staff assignments.
+          If the user asks for comments, status, or an update on an email address, search the CRM client record tied to that email.
+
+          When creating a new lead or client:
+          - prefer the `aya_create_client_record` tool
+          - if the user specifies the target stage or list, pass it as `targetListQuery` to the create tool
+          - if the create tool succeeds, stop there unless the user explicitly asks for another action
+          - do not call move, detail, or comments tools after a successful create unless the user explicitly asks
+          - extract explicit `firstName` and `lastName` when possible
+          - normalize lowercase human names to normal casing
+          - keep email addresses lowercase
+          - normalize phone numbers when possible
+          - normalize obvious amount shorthand like 275k to 275000 when possible
+          - do not invent purchase price, down payment, or other missing financial fields
+          - ask a short follow-up if the name split is ambiguous
+      authType: "system_defined"
+      mcpServers:
+        - "aya_ops"
+
+mcpServers:
+  aya_ops:
+    type: streamable-http
+    url: http://aya:3010/mcp
+    chatMenu: false
+    startup: true
+    timeout: 90000
+    customUserVars:
+      AYA_BLUE_TOKEN_ID:
+        title: "Blue Token ID"
+        description: "Connect your Blue account once by pasting the Token ID from Blue > Profile > API. Aya uses it only for Blue write actions you trigger."
+      AYA_BLUE_TOKEN_SECRET:
+        title: "Blue Token Secret"
+        description: "The matching Blue Token Secret. Stored encrypted by LibreChat and reused only for your attributable Blue write actions."
+    serverInstructions: |
+      Aya Copilot tools back the Aya Financial Assistant. Keep the experience business-facing and internal-only. Use these tools for workflow lookups, summaries, recent comments, approved CRM actions, workload questions, and reporting. For relative-date admin questions like "who did what today?", "what happened yesterday?", or "what changed this week?", prefer aya_message first so Aya computes the date range from the server clock. Use dedicated report tools only when the user typed an exact YYYY-MM-DD date or explicit date range, or when all date fields can be safely omitted. Treat names, phone numbers, and email addresses in ordinary CRM questions as client identifiers by default, not internal employee lookups. Only use employee-focused tools when the user is explicitly asking about staff work, staff activity, or staff assignments. Prefer explicit firstName and lastName arguments for lead creation, normalize human names and obvious amount shorthand, and ask a short follow-up instead of guessing when a request is ambiguous.
+    headers:
+      x-aya-internal-key: "{{AYA_MCP_API_KEY}}"
+      x-aya-employee-email: "{{LIBRECHAT_USER_EMAIL}}"
+      x-aya-employee-name: "{{LIBRECHAT_USER_NAME}}"
+      x-aya-conversation-id: "{{LIBRECHAT_BODY_CONVERSATIONID}}"
+      x-aya-blue-token-id: "{{AYA_BLUE_TOKEN_ID}}"
+      x-aya-blue-token-secret: "{{AYA_BLUE_TOKEN_SECRET}}"

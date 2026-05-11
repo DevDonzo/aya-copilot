@@ -136,6 +136,15 @@ Name: AYA sales CRM 3
 ID:   cmhazc4rl1vkand1eonnmiyjy
 ```
 
+Important context:
+
+```text
+This forbidden-workspace setting is a temporary development and intern safety guardrail.
+It exists because the Copilot was built and tested with agentic coding tools and should not accidentally touch the real company CRM before an authorized owner accepts that risk.
+It is not a permanent product requirement.
+When Aya's authorized technical owner is ready to move the Copilot to the live CRM, they should intentionally replace this guardrail with the approved live workspace policy instead of treating the current forbidden value as final.
+```
+
 Hard rules:
 
 ```text
@@ -214,6 +223,8 @@ Update this handoff so future owners know the new source-of-truth workspace.
 ```
 
 If the intended production workspace is currently listed as forbidden in this repo, do not only change the env file. The app is designed to refuse boot against that workspace. A developer must intentionally update the code guardrails, `AGENTS.md`, and this handoff in the same change so the safety policy matches the new operating model.
+
+The current forbidden workspace should be removed or changed only during an authorized live CRM cutover. That change should be made by the new owner after repository transfer, VPS access transfer, and secret handoff are complete. The expected change is not "delete all safety"; it is "replace the intern/dev safety policy with Aya's approved production workspace policy."
 
 Safe migration process:
 

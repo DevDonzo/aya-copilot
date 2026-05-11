@@ -818,12 +818,11 @@ function resolveWorkloadIntent(
     message.includes("my open files")
   ) {
     return candidate(
-      "assignments.report",
+      "records.list_assigned",
       92,
       0.88,
       {
         employeeName: request.actor.displayName,
-        assignmentStatus: "open",
       },
       ["workload:self"],
     );
@@ -833,7 +832,7 @@ function resolveWorkloadIntent(
   if (workingOnMatch) {
     const target = workingOnMatch[1].trim();
     return candidate(
-      "assignments.report",
+      "records.list_assigned",
       87,
       0.84,
       {
@@ -841,7 +840,6 @@ function resolveWorkloadIntent(
           target === "i" || target === "me"
             ? request.actor.displayName
             : workingOnMatch[1].trim(),
-        assignmentStatus: "open",
       },
       ["workload:employee"],
     );

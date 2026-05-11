@@ -26,10 +26,24 @@ describe("detectIntent", () => {
     });
 
     expect(result).toMatchObject({
-      intent: "assignments.report",
+      intent: "records.list_assigned",
       parameters: {
         employeeName: "Hamza Paracha",
-        assignmentStatus: "open",
+      },
+    });
+  });
+
+  it("maps another employee working-on requests to open-record workload", () => {
+    const result = detectIntent({
+      actor: adminActor,
+      message: "what is Sarah working on?",
+      nowIso: new Date().toISOString(),
+    });
+
+    expect(result).toMatchObject({
+      intent: "records.list_assigned",
+      parameters: {
+        employeeName: "sarah",
       },
     });
   });
@@ -176,9 +190,8 @@ describe("detectIntent", () => {
     });
 
     expect(result).toMatchObject({
-      intent: "assignments.report",
+      intent: "records.list_assigned",
       parameters: {
-        assignmentStatus: "open",
         employeeName: "Hamza Paracha",
       },
       requiresClarification: false,

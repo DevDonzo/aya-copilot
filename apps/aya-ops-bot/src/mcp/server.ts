@@ -21,6 +21,7 @@ import {
   getEmployeeWorkload,
   getUserMentionsReport,
   getRecordActivityReport,
+  getTeamFollowUpQueue,
   getTeamDaySummary,
   getWorkspaceActivityReport,
   moveClientToStage,
@@ -143,6 +144,23 @@ function getHeaderBlueAuth(
       getHeaderValue(headers, "x-aya-blue-token-secret") ??
       getHeaderValue(headers, "x-blue-token-secret"),
   });
+}
+
+function resolveRequestedEmployeeName(
+  employeeName: string | undefined,
+  actor?: EmployeeIdentity | null,
+) {
+  const trimmed = employeeName?.trim();
+  if (
+    !trimmed ||
+    /^(?:self|me|myself|current user|signed-in user|signed in user|i)$/i.test(
+      trimmed,
+    )
+  ) {
+    return actor?.displayName;
+  }
+
+  return trimmed;
 }
 
 async function requireToolActor(
@@ -646,7 +664,7 @@ function createAyaMcpServer() {
     {
       title: "Team Day Summary",
       description:
-        "Summarize team activity or list inactive employees for a given day.",
+        "Summarize logged team activity or list inactive employees for a given day. Do not use this for overdue files, due dates, assignments, or workload questions; use team follow-up or workload tools instead.",
       inputSchema: {
         date: z.string().optional(),
         inactiveOnly: z.boolean().default(false),
@@ -657,6 +675,27 @@ function createAyaMcpServer() {
       const result = await getTeamDaySummary({ date, inactiveOnly });
       return {
         content: [{ type: "text", text: result.summaryText }],
+        structuredContent: toStructuredContent(result),
+      };
+    },
+  );
+
+  server.registerTool(
+    "aya_get_team_follow_up_queue",
+    {
+      title: "Team Follow-Up Queue",
+      description:
+        "Admin/manager view of who has overdue, due-today, or stale Blue files in the allowed workspace. Use this for questions like 'who is overdue?', 'which employees have overdue files?', 'show team follow-up', or 'what files need attention across the team?'. This is about Blue file due dates, not logged activity inactivity.",
+      inputSchema: {
+        date: z.string().optional().describe("YYYY-MM-DD reference date"),
+        limitPerEmployee: z.number().int().min(1).max(12).optional(),
+      },
+    },
+    async ({ date, limitPerEmployee }, extra) => {
+      await requireAdminToolActor(extra.requestInfo?.headers);
+      const result = await getTeamFollowUpQueue({ date, limitPerEmployee });
+      return {
+        content: [{ type: "text", text: result.responseText }],
         structuredContent: toStructuredContent(result),
       };
     },
@@ -742,7 +781,12 @@ function createAyaMcpServer() {
       inputSchema: {
         employeeId: z.string().optional(),
         employeeEmail: z.string().email().optional(),
-        employeeName: z.string().optional(),
+        employeeName: z
+          .string()
+          .min(1)
+          .describe(
+            "Required. Pass the exact named employee, such as Sarah or Rehan. For the signed-in user, pass self.",
+          ),
       },
     },
     async ({ employeeId, employeeEmail, employeeName }, extra) => {
@@ -750,7 +794,7 @@ function createAyaMcpServer() {
       const result = await getEmployeeWorkload({
         employeeId: employeeId ?? actor?.employeeId,
         employeeEmail: employeeEmail ?? actor?.email,
-        employeeName: employeeName ?? actor?.displayName,
+        employeeName: resolveRequestedEmployeeName(employeeName, actor),
       });
       return {
         content: [{ type: "text", text: result.responseText }],

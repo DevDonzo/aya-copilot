@@ -8,6 +8,7 @@ import {
   listBotAuditLogsForEmployeeDay,
   listBotAuditLogsInRange,
   listCachedBlueRecordsForInspection,
+  listEmployees,
   listEventsForEmployeeInRange,
   listMentionsForUser,
   getEmployeeNotificationState,
@@ -375,6 +376,76 @@ export async function getTeamDaySummary(input: {
   return input.inactiveOnly
     ? await buildNoActivitySummary(date)
     : await buildTeamDaySummary(date);
+}
+
+export async function getTeamFollowUpQueue(input: {
+  date?: string;
+  limitPerEmployee?: number;
+}) {
+  const referenceDate = normalizeDate(input.date);
+  const limitPerEmployee = Math.max(1, Math.min(input.limitPerEmployee ?? 5, 12));
+  const employees = await listEmployees();
+  const employeeSummaries = [];
+
+  for (const employee of employees) {
+    const { items, pageInfo } = await loadAssignedOpenRecords(employee.id);
+    const priorities = buildFollowUpPriorityQueue(items, referenceDate);
+
+    if (priorities.prioritized.length === 0) {
+      continue;
+    }
+
+    employeeSummaries.push({
+      employeeId: employee.id,
+      employeeName: employee.display_name,
+      overdueCount: priorities.overdue.length,
+      dueTodayCount: priorities.dueToday.length,
+      staleCount: priorities.stale.length,
+      totalPriorityCount: priorities.prioritized.length,
+      items: priorities.prioritized.slice(0, limitPerEmployee),
+      hasMore: Boolean(
+        pageInfo.hasNextPage || priorities.prioritized.length > limitPerEmployee,
+      ),
+    });
+  }
+
+  employeeSummaries.sort(
+    (left, right) =>
+      right.overdueCount - left.overdueCount ||
+      right.dueTodayCount - left.dueTodayCount ||
+      right.staleCount - left.staleCount ||
+      left.employeeName.localeCompare(right.employeeName),
+  );
+
+  const overdueEmployeeCount = employeeSummaries.filter(
+    (employee) => employee.overdueCount > 0,
+  ).length;
+  const responseText =
+    employeeSummaries.length === 0
+      ? `No employees have overdue, due-today, or stale Blue files on ${referenceDate}.`
+      : [
+          `Team follow-up queue on ${referenceDate}`,
+          `Employees with overdue files: ${overdueEmployeeCount}`,
+          ...employeeSummaries.map((employee, index) => {
+            const itemLines = employee.items.map(
+              (item, itemIndex) =>
+                `   ${itemIndex + 1}. ${item.title} (${item.listTitle}) - ${item.reason}`,
+            );
+            return [
+              `${index + 1}. ${employee.employeeName}: ${employee.overdueCount} overdue, ${employee.dueTodayCount} due today, ${employee.staleCount} stale`,
+              ...itemLines,
+              employee.hasMore ? "   More priority files may be available." : null,
+            ]
+              .filter(Boolean)
+              .join("\n");
+          }),
+        ].join("\n");
+
+  return {
+    date: referenceDate,
+    responseText,
+    employees: employeeSummaries,
+  };
 }
 
 export async function getEmployeeWorkload(input: {

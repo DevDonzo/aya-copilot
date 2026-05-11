@@ -85,6 +85,7 @@ const INTENT_RESOLVERS: Array<
   resolveReportingQuestionIntent,
   resolveWorkspaceActivityIntent,
   resolveTeamSummaryIntent,
+  resolveTeamFollowUpIntent,
   resolveNoActivityIntent,
   resolveEmployeeActivityIntent,
   resolveRecordActivityIntent,
@@ -236,6 +237,45 @@ function resolveTeamSummaryIntent(
   const target = employeeMatch?.[1]?.trim();
   if (target && TEAM_TARGETS.has(target)) {
     return candidate("summary.team_day", 90, 0.86, {}, ["summary:team"]);
+  }
+
+  return null;
+}
+
+function resolveTeamFollowUpIntent(
+  request: IntentPlannerRequest,
+): IntentCandidate | null {
+  if (request.actor.roleName !== "admin") {
+    return null;
+  }
+
+  const rawMessage = request.message.trim();
+  const message = normalize(rawMessage);
+  const dateRange = resolveActivityDateRangeFromMessage(
+    rawMessage,
+    request.nowIso,
+  );
+
+  if (
+    /^who (?:is|has|looks) overdue[.?!]?$/.test(message) ||
+    /^who has overdue (?:files|records|work|assignments?)[.?!]?$/.test(message) ||
+    /^which employees? (?:is|are|has|have) overdue\b/.test(message) ||
+    /^show(?: me)? (?:the )?team follow[- ]?up(?: queue)?[.?!]?$/.test(message) ||
+    /^what (?:files|records|work) need attention across the team[.?!]?$/.test(message)
+  ) {
+    return candidate(
+      "records.team_follow_up",
+      94,
+      0.9,
+      {
+        date:
+          typeof dateRange.dateStart === "string" &&
+          dateRange.dateStart === dateRange.dateEnd
+            ? dateRange.dateStart
+            : undefined,
+      },
+      ["follow-up:team"],
+    );
   }
 
   return null;

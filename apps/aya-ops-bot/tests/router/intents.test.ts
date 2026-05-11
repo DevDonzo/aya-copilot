@@ -48,6 +48,21 @@ describe("detectIntent", () => {
     });
   });
 
+  it("maps team overdue questions to the team follow-up queue", () => {
+    const result = detectIntent({
+      actor: adminActor,
+      message: "who is overdue?",
+      nowIso: fixedNowIso,
+    });
+
+    expect(result).toMatchObject({
+      intent: "records.team_follow_up",
+      parameters: {
+        date: "2026-04-09",
+      },
+    });
+  });
+
   it("matches follow-up queue requests", () => {
     const result = detectIntent({
       actor,

@@ -22,6 +22,7 @@ export type IntentName =
   | "records.exception_report"
   | "records.list_assigned"
   | "records.follow_up"
+  | "records.team_follow_up"
   | "records.complete"
   | "records.search"
   | "records.detail"

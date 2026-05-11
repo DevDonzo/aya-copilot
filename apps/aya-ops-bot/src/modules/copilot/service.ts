@@ -39,6 +39,7 @@ import {
   getRecordActivityReport,
   getWorkspaceExceptionReport,
   getReportingOverview,
+  getTeamFollowUpQueue,
   getTeamDaySummary,
   getWorkspaceActivityReport,
   moveClientToStage,
@@ -337,6 +338,7 @@ function enforceIntentPermissions(actor: EmployeeIdentity, plan: IntentPlan) {
     plan.intent === "activity.record_report" ||
     plan.intent === "activity.workspace_report" ||
     plan.intent === "records.exception_report" ||
+    plan.intent === "records.team_follow_up" ||
     plan.intent === "summary.team_day" ||
     plan.intent === "summary.no_activity_day" ||
     plan.intent === "reporting.overview" ||
@@ -714,6 +716,19 @@ async function executePlan(input: {
       const result = await getTeamDaySummary({ inactiveOnly: true });
       return {
         responseText: result.summaryText,
+        data: result,
+      };
+    }
+
+    case "records.team_follow_up": {
+      const result = await getTeamFollowUpQueue({
+        date:
+          typeof plan.parameters.date === "string"
+            ? plan.parameters.date
+            : undefined,
+      });
+      return {
+        responseText: result.responseText,
         data: result,
       };
     }
@@ -1245,6 +1260,7 @@ function getAuditCommandName(intent: IntentName) {
       return "getBlueRecordDetail";
     case "records.list_assigned":
     case "records.follow_up":
+    case "records.team_follow_up":
       return "todoQueries.todos";
     case "records.complete":
       return "updateTodos";

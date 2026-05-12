@@ -100,7 +100,9 @@ jobs:
                 [ -e "$target" ] || cp -a "$env_file" "$target"
               done
             fi
-            [ -d "$RUNTIME_BACKUP/data" ] && [ ! -d data ] && cp -a "$RUNTIME_BACKUP/data" data
+            if [ -d "$RUNTIME_BACKUP/data" ] && [ ! -d data ]; then
+              cp -a "$RUNTIME_BACKUP/data" data
+            fi
             if [ -f "$RUNTIME_BACKUP/config/librechat.yaml" ] && [ ! -f config/librechat.yaml ]; then
               mkdir -p config
               cp -a "$RUNTIME_BACKUP/config/librechat.yaml" config/librechat.yaml

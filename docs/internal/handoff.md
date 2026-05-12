@@ -1358,10 +1358,10 @@ registration.allowedDomains:
 LibreChat admin signup is controlled by an explicit env allowlist:
 
 ```text
-AYA_LIBRECHAT_ADMIN_EMAILS=hamza@ayafinancial.com
+AYA_LIBRECHAT_ADMIN_EMAILS=hamza@ayafinancial.com,rsaeed@ayafinancial.com,skhan@ayafinancial.com
 ```
 
-When this variable is set, only listed emails become LibreChat `ADMIN` users during signup. All other Aya-domain signups become normal `USER` accounts. This prevents Rehan, Sarah, or another employee from becoming admin merely because they are the first person to register in a freshly reset Mongo database.
+When this variable is set, only listed emails become LibreChat `ADMIN` users during signup. All other Aya-domain signups become normal `USER` accounts. This prevents an unapproved employee from becoming admin merely because they are the first person to register in a freshly reset Mongo database.
 
 Expected behavior:
 

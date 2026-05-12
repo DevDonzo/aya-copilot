@@ -41,6 +41,23 @@ const domains = {
 
 const genericVerificationMessage = 'Please check your email to verify your email address.';
 
+const getExplicitAdminEmails = () =>
+  new Set(
+    (process.env.AYA_LIBRECHAT_ADMIN_EMAILS ?? '')
+      .split(',')
+      .map((value) => value.trim().toLowerCase())
+      .filter(Boolean),
+  );
+
+const getRegistrationRole = (email, isFirstRegisteredUser) => {
+  const explicitAdmins = getExplicitAdminEmails();
+  if (explicitAdmins.size > 0) {
+    return explicitAdmins.has(email.toLowerCase()) ? SystemRoles.ADMIN : SystemRoles.USER;
+  }
+
+  return isFirstRegisteredUser ? SystemRoles.ADMIN : SystemRoles.USER;
+};
+
 /**
  * Logout user
  *
@@ -221,7 +238,7 @@ const registerUser = async (user, additionalData = {}) => {
       username,
       name,
       avatar: null,
-      role: isFirstRegisteredUser ? SystemRoles.ADMIN : SystemRoles.USER,
+      role: getRegistrationRole(email, isFirstRegisteredUser),
       password: bcrypt.hashSync(password, salt),
       ...additionalData,
     };

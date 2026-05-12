@@ -1355,6 +1355,14 @@ registration.allowedDomains:
   - ayafinancial.com
 ```
 
+LibreChat admin signup is controlled by an explicit env allowlist:
+
+```text
+AYA_LIBRECHAT_ADMIN_EMAILS=hamza@ayafinancial.com
+```
+
+When this variable is set, only listed emails become LibreChat `ADMIN` users during signup. All other Aya-domain signups become normal `USER` accounts. This prevents Rehan, Sarah, or another employee from becoming admin merely because they are the first person to register in a freshly reset Mongo database.
+
 Expected behavior:
 
 ```text
@@ -1362,9 +1370,47 @@ Expected behavior:
 non-Aya signup: rejected
 Google login: disabled unless intentionally re-enabled
 password reset: disabled unless SMTP/reset flow is intentionally configured
+LibreChat admin: only emails listed in AYA_LIBRECHAT_ADMIN_EMAILS
 ```
 
 LibreChat stores user passwords hashed with bcrypt. Plaintext passwords are not stored in MongoDB.
+
+### Major Handoff Item: Password Reset Email
+
+Password reset is currently not production-complete unless Aya provides an outbound email sender.
+
+LibreChat already includes the forgot-password UI and reset-token backend, but it needs email delivery configured before users can recover accounts themselves.
+
+Required production decision:
+
+```text
+Choose one approved email provider for reset links:
+- Google Workspace SMTP
+- SendGrid
+- Mailgun
+- another Aya-approved transactional email provider
+```
+
+Required environment shape:
+
+```text
+ALLOW_PASSWORD_RESET=true
+EMAIL_FROM_NAME=Aya Copilot
+EMAIL_FROM=copilot@ayafinancial.com
+
+# SMTP option
+EMAIL_HOST=<smtp host>
+EMAIL_PORT=587
+EMAIL_ENCRYPTION=starttls
+EMAIL_USERNAME=<smtp username>
+EMAIL_PASSWORD=<smtp password or app password>
+
+# Or Mailgun option
+MAILGUN_API_KEY=<mailgun api key>
+MAILGUN_DOMAIN=<mailgun domain>
+```
+
+Until this is configured, existing users who forget passwords must be reset manually by an operator with VPS/Mongo access, or the environment must be intentionally reset before go-live.
 
 LibreChat runtime data lives in MongoDB:
 
@@ -1373,6 +1419,14 @@ LibreChat runtime data lives in MongoDB:
 ```
 
 Do not delete or edit MongoDB directly unless you know exactly what you are doing.
+
+Aya Copilot role data lives separately in SQLite:
+
+```text
+/root/Blue/apps/copilot/deploy/hostinger/data/aya
+```
+
+If employee admin privileges look wrong inside chatbot tools, check the Copilot `employees.role_name` values as well as LibreChat Mongo users. Mongo controls LibreChat accounts and UI roles; Aya SQLite controls Copilot tool roles.
 
 ### Demo Account
 

@@ -55,11 +55,6 @@ Instead:
 - duration
 - call outcome
 
-### WhatsApp
-
-- bot conversations
-- structured actions triggered from chat
-
 ## Identity Resolution
 
 Every event has to map back to one employee.
@@ -67,7 +62,6 @@ Every event has to map back to one employee.
 Use `identity_links` to associate:
 
 - Blue user ID
-- WhatsApp number
 - email address
 - phone extension or dialer user ID
 - Google or Microsoft account

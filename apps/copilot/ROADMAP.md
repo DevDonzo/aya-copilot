@@ -2,7 +2,7 @@
 
 ## Goal
 
-Build a WhatsApp-first employee and manager assistant for Aya Financial that uses Blue as the system of record, starting in the safe pilot workspace:
+Build a chat-first employee and manager assistant for Aya Financial that uses Blue as the system of record, starting in the safe pilot workspace:
 
 - workspace name: `03 - AYA x Hamza/ AI`
 - workspace ID: `cmn524yr800e101mh7kn44mhf`
@@ -31,8 +31,6 @@ That means:
 
 ### Bot-owned capabilities we should add
 
-- WhatsApp transport
-- phone-number to employee mapping
 - natural-language intent routing
 - record/list/employee name resolution
 - manager summaries and daily rollups
@@ -66,8 +64,6 @@ That means:
 
 ### Next Up
 
-- [ ] Add a real WhatsApp webhook adapter
-- [ ] Add reply formatting that is short and phone-friendly
 - [ ] Add explicit confirmation flow for ambiguous writes
 - [ ] Add rate limits and request authentication around public endpoints
 - [ ] Add a bot audit endpoint for admin review
@@ -90,7 +86,6 @@ That means:
 
 ### Cross-System Logging
 
-- [ ] Add WhatsApp message logging
 - [ ] Add email metadata connector
 - [ ] Add calendar connector
 - [ ] Add phone/call log connector
@@ -99,11 +94,10 @@ That means:
 ## Implementation Order
 
 1. Keep improving the copy-workspace bot until the daily loop feels solid.
-2. Add the real WhatsApp adapter.
-3. Add better manager queries.
-4. Add client lookup and record-detail views.
-5. Add non-Blue sources one by one.
-6. Only then point the same system at the real CRM.
+2. Add better manager queries.
+3. Add client lookup and record-detail views.
+4. Add non-Blue sources one by one.
+5. Only then point the same system at the real CRM.
 
 ## Rules
 

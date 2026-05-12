@@ -93,7 +93,6 @@ Manager-only reporting tools should remain role-gated inside the chatbot.
 
 Add more transports only if they create real operational value:
 
-- WhatsApp for quick notifications or after-hours lookups
 - Slack if Aya already uses it internally
 - Microsoft Teams if that is the existing company communication hub
 
@@ -105,7 +104,7 @@ Build this in phases:
 
 1. LibreChat as the private employee chat UI
 2. manager/admin chat reporting through role-gated chatbot tools
-3. optional WhatsApp, Slack, or Teams transports later
+3. optional Slack or Teams transports later
 
 ### Why LibreChat first
 
@@ -113,28 +112,6 @@ Build this in phases:
 - it already solves chat UX and login better than a custom Aya UI
 - it keeps Aya focused on permissions, logging, and system orchestration
 - it is easier to host one internal chat product than multiple partial front ends
-
-### Why not WhatsApp first
-
-WhatsApp is convenient, but weak as the primary UI for:
-
-- long client details
-- comment history
-- search result disambiguation
-- approvals
-- manager dashboards
-- dense operational workflows
-
-Meta’s Cloud API also adds business verification, webhook, and template-management overhead that is unnecessary for the first internal release.
-
-### When WhatsApp should still exist
-
-Even if LibreChat is the main product, WhatsApp can still be valuable for:
-
-- "what am I working on?"
-- "what changed today?"
-- manager alerts
-- follow-up reminders
 
 ## System Architecture
 
@@ -144,7 +121,6 @@ Possible clients:
 
 - LibreChat
 - role-gated manager/admin chatbot reporting
-- WhatsApp webhook integration
 - optional Slack app
 - optional Teams bot
 
@@ -206,7 +182,6 @@ Collect structured events from:
 
 - Blue activity
 - bot requests and responses
-- WhatsApp messages
 - later: email, calendar, phone systems
 
 Normalize all events into one internal format and store them locally.
@@ -361,7 +336,6 @@ add convenience access without changing the core architecture
 
 Deliver:
 
-- optional WhatsApp webhook handler
 - optional sender mapping
 - short mobile-friendly replies
 - safe-action confirmation patterns
@@ -456,6 +430,5 @@ Scale-up path later:
 
 ## References
 
-- Meta Cloud API overview: https://meta-preview.mintlify.io/docs/whatsapp/cloud-api/overview
 - Slack platform overview: https://docs.slack.dev/
 - Microsoft Teams bot overview: https://learn.microsoft.com/en-us/microsoftteams/platform/resources/bot-v3/bots-overview

@@ -3,7 +3,6 @@ export type ActivitySource =
   | "blue_webhook"
   | "bot"
   | "web"
-  | "whatsapp"
   | "email"
   | "calendar"
   | "phone"

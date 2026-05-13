@@ -851,7 +851,26 @@ function resolveAssignmentReportIntent(
 function resolveWorkloadIntent(
   request: IntentPlannerRequest,
 ): IntentCandidate | null {
+  const rawMessage = request.message.trim();
   const message = normalize(request.message);
+
+  const namedWorkloadTarget =
+    rawMessage.match(/^(?:show|list|view|see)(?: me)?\s+([a-z][a-z .-]*?)(?:'s|s)?\s+(?:workload|open files|assigned files|files)[.?!]?$/i)?.[1]?.trim() ??
+    rawMessage.match(/^(?:show|list|view|see)(?: me)?\s+(?:the\s+)?(?:workload|open files|assigned files|files)\s+(?:for|of)\s+([a-z][a-z .-]*?)[.?!]?$/i)?.[1]?.trim() ??
+    rawMessage.match(/^what(?: is|'s)\s+([a-z][a-z .-]*?)\s+working on[.?!]?$/i)?.[1]?.trim() ??
+    rawMessage.match(/^what\s+(?:open files|files|workload)\s+(?:does|do)\s+([a-z][a-z .-]*?)\s+(?:have|has)[.?!]?$/i)?.[1]?.trim();
+
+  if (namedWorkloadTarget && !TEAM_TARGETS.has(normalize(namedWorkloadTarget))) {
+    return candidate(
+      "records.list_assigned",
+      91,
+      0.88,
+      {
+        employeeName: normalizeEmployeeTarget(namedWorkloadTarget, request),
+      },
+      ["workload:employee"],
+    );
+  }
 
   if (
     message.includes("what am i working on") ||
@@ -919,7 +938,26 @@ function resolveWorkloadIntent(
 function resolveFollowUpIntent(
   request: IntentPlannerRequest,
 ): IntentCandidate | null {
+  const rawMessage = request.message.trim();
   const message = normalize(request.message);
+  const namedFollowUpTarget =
+    rawMessage.match(/^(?:show|list|view|see)(?: me)?\s+([a-z][a-z .-]*?)(?:'s|s)?\s+(?:follow[- ]?ups?|follow[- ]?up queue|stale files|overdue files)[.?!]?$/i)?.[1]?.trim() ??
+    rawMessage.match(/^(?:show|list|view|see)(?: me)?\s+(?:the\s+)?(?:follow[- ]?ups?|follow[- ]?up queue|stale files|overdue files)\s+(?:for|of)\s+([a-z][a-z .-]*?)[.?!]?$/i)?.[1]?.trim() ??
+    rawMessage.match(/^what does (.+?) need to follow up on\??$/i)?.[1]?.trim() ??
+    rawMessage.match(/^which of (.+?)'?s files are stale\??$/i)?.[1]?.trim();
+
+  if (namedFollowUpTarget && !TEAM_TARGETS.has(normalize(namedFollowUpTarget))) {
+    return candidate(
+      "records.follow_up",
+      91,
+      0.87,
+      {
+        employeeName: normalizeEmployeeTarget(namedFollowUpTarget, request),
+      },
+      ["follow-up:employee"],
+    );
+  }
+
   const selfSignals = [
     "what needs follow up today",
     "what do i need to follow up on",
@@ -1783,10 +1821,20 @@ function normalizeEmployeeTarget(
   value: string,
   request: IntentPlannerRequest,
 ) {
-  const normalized = normalize(value);
-  return normalized === "i" || normalized === "me"
+  const cleaned = value
+    .trim()
+    .replace(/^(?:the\s+)?employee\s+/i, "")
+    .replace(/\s+(?:please|pls)$/i, "")
+    .trim();
+  const normalized = normalize(cleaned);
+  return isSelfEmployeeTarget(normalized)
     ? request.actor.displayName
-    : value.trim();
+    : cleaned;
+}
+
+function isSelfEmployeeTarget(value: string) {
+  const normalized = normalize(value).replace(/'s$/i, "");
+  return SELF_EMPLOYEE_TARGETS.has(normalized);
 }
 
 function resolveExceptionFocus(message: string) {
@@ -1887,9 +1935,7 @@ function resolveAssignmentEmployeeTarget(
 
   const normalizedMatch = normalize(match);
   if (
-    normalizedMatch === "my" ||
-    normalizedMatch === "me" ||
-    normalizedMatch === "i" ||
+    isSelfEmployeeTarget(normalizedMatch) ||
     TEAM_TARGETS.has(normalizedMatch)
   ) {
     return request.actor.displayName;
@@ -2026,6 +2072,14 @@ const REPORTING_OVERVIEW_MESSAGES = new Set([
 ]);
 
 const TEAM_TARGETS = new Set(["everyone", "the team", "team", "we"]);
+const SELF_EMPLOYEE_TARGETS = new Set([
+  "i",
+  "me",
+  "my",
+  "mine",
+  "myself",
+  "me please",
+]);
 
 const CONTEXT_POINTERS = new Set([
   "this",

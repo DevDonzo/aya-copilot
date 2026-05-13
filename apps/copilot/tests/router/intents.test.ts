@@ -43,8 +43,40 @@ describe("detectIntent", () => {
     expect(result).toMatchObject({
       intent: "records.list_assigned",
       parameters: {
-        employeeName: "sarah",
+        employeeName: "Sarah",
       },
+    });
+  });
+
+  it("does not treat show-me named workload requests as self requests", () => {
+    const result = planEmployeeIntent({
+      actor: adminActor,
+      message: "show me Sarah's workload",
+      nowIso: fixedNowIso,
+    });
+
+    expect(result).toMatchObject({
+      intent: "records.list_assigned",
+      parameters: {
+        employeeName: "Sarah",
+      },
+      requiresClarification: false,
+    });
+  });
+
+  it("maps workload-for-employee requests to the named employee", () => {
+    const result = planEmployeeIntent({
+      actor: adminActor,
+      message: "please show me the workload for Sarah",
+      nowIso: fixedNowIso,
+    });
+
+    expect(result).toMatchObject({
+      intent: "records.list_assigned",
+      parameters: {
+        employeeName: "Sarah",
+      },
+      requiresClarification: false,
     });
   });
 
@@ -75,6 +107,38 @@ describe("detectIntent", () => {
       parameters: {
         employeeName: "Hamza Paracha",
       },
+    });
+  });
+
+  it("does not treat show-me named follow-up requests as self requests", () => {
+    const result = planEmployeeIntent({
+      actor: adminActor,
+      message: "show me Sarah's follow ups",
+      nowIso: fixedNowIso,
+    });
+
+    expect(result).toMatchObject({
+      intent: "records.follow_up",
+      parameters: {
+        employeeName: "Sarah",
+      },
+      requiresClarification: false,
+    });
+  });
+
+  it("maps follow-up-for-employee requests to the named employee", () => {
+    const result = planEmployeeIntent({
+      actor: adminActor,
+      message: "please show me the follow up queue for Sarah",
+      nowIso: fixedNowIso,
+    });
+
+    expect(result).toMatchObject({
+      intent: "records.follow_up",
+      parameters: {
+        employeeName: "Sarah",
+      },
+      requiresClarification: false,
     });
   });
 

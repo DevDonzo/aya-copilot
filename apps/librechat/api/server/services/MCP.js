@@ -53,13 +53,15 @@ function evictStale(map, ttl) {
 const unavailableMsg =
   "This tool's MCP server is temporarily unavailable. Please try again shortly.";
 
-async function withLibreChatIdentityVars(customUserVars, user) {
+async function withLibreChatIdentityVars(customUserVars, user, fallbackUserId) {
   let resolvedUser = user;
-  if (resolvedUser?.id && (!resolvedUser.email || !resolvedUser.name)) {
+  const userId = resolvedUser?.id || resolvedUser?._id?.toString?.() || fallbackUserId;
+
+  if (userId && (!resolvedUser?.email || !resolvedUser?.name)) {
     try {
-      const hydratedUser = await getUserById(resolvedUser.id);
+      const hydratedUser = await getUserById(userId);
       if (hydratedUser) {
-        hydratedUser.id = hydratedUser._id?.toString?.() ?? hydratedUser.id;
+        hydratedUser.id = hydratedUser._id?.toString?.() ?? hydratedUser.id ?? userId;
         resolvedUser = hydratedUser;
       }
     } catch (error) {
@@ -71,7 +73,7 @@ async function withLibreChatIdentityVars(customUserVars, user) {
     ...(customUserVars ?? {}),
     ...(resolvedUser?.email ? { LIBRECHAT_USER_EMAIL: resolvedUser.email } : {}),
     ...(resolvedUser?.name ? { LIBRECHAT_USER_NAME: resolvedUser.name } : {}),
-    ...(resolvedUser?.id ? { LIBRECHAT_USER_ID: resolvedUser.id } : {}),
+    ...(userId ? { LIBRECHAT_USER_ID: userId } : {}),
   };
 }
 
@@ -556,6 +558,7 @@ function createToolInstance({
   /** @type {(toolArguments: Object | string, config?: GraphRunnableConfig) => Promise<unknown>} */
   const _call = async (toolArguments, config) => {
     const userId = config?.configurable?.user?.id || config?.configurable?.user_id;
+    const user = config?.configurable?.user || (userId ? { id: userId } : undefined);
     /** @type {ReturnType<typeof createAbortHandler>} */
     let abortHandler = null;
     /** @type {AbortSignal} */
@@ -595,7 +598,8 @@ function createToolInstance({
 
       const customUserVars = await withLibreChatIdentityVars(
         config?.configurable?.userMCPAuthMap?.[`${Constants.mcp_prefix}${serverName}`],
-        config?.configurable?.user,
+        user,
+        userId,
       );
 
       const result = await mcpManager.callTool({
@@ -606,7 +610,7 @@ function createToolInstance({
         options: {
           signal: derivedSignal,
         },
-        user: config?.configurable?.user,
+        user,
         requestBody: config?.configurable?.requestBody,
         customUserVars,
         flowManager,

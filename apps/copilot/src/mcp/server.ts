@@ -35,7 +35,6 @@ import {
 } from "../reporting/service.js";
 import type { BlueRequestAuth, EmployeeIdentity, IntentName } from "../domain/types.js";
 import { normalizeBlueRequestAuth } from "../modules/blue/request-auth.js";
-import { config } from "../config.js";
 
 const MIN_REASONABLE_ACTIVITY_DATE = "2025-01-01";
 
@@ -113,7 +112,6 @@ async function getHeaderActor(
   const employeeEmail =
     getHeaderValue(headers, "x-aya-employee-email") ??
     fallback?.employeeEmail ??
-    config.AYA_MCP_FALLBACK_EMPLOYEE_EMAIL ??
     undefined;
   const employeeName =
     getHeaderValue(headers, "x-aya-employee-name") ??

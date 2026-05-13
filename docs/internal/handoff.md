@@ -362,13 +362,7 @@ x-aya-employee-email: {{LIBRECHAT_USER_EMAIL}}
 x-aya-employee-name: {{LIBRECHAT_USER_NAME}}
 ```
 
-The deployment also supports:
-
-```text
-AYA_MCP_FALLBACK_EMPLOYEE_EMAIL=hamza@ayafinancial.com
-```
-
-This fallback exists so the trusted internal LibreChat MCP connection still resolves to an admin during the pilot if LibreChat drops per-user MCP headers. It should be reviewed during production handoff. For a full company rollout, prefer fixing/validating per-user headers and setting this only if Aya accepts all unattributed MCP calls resolving to the fallback account.
+There is intentionally no employee fallback for MCP calls. If LibreChat does not send a signed-in user email/name, Aya should reject the request instead of silently attributing it to another employee.
 
 Blue action auth:
 
@@ -1185,7 +1179,6 @@ ALLOW_DEV_DEFAULT_ACTOR=false
 ALLOW_SYSTEM_BLUE_WRITE_FALLBACK=false
 ALLOW_BOOTSTRAP_PROVISIONING=false
 AYA_MCP_API_KEY=<shared internal key used by LibreChat to call Aya MCP>
-AYA_MCP_FALLBACK_EMPLOYEE_EMAIL=<pilot fallback employee email if per-user MCP headers are missing>
 AYA_HOSTINGER_MCP_API_KEY=<separate internal key for Hostinger/infra MCP surface>
 BLUE_WORKSPACE_ID=<Blue workspace ID Aya is allowed to use>
 BLUE_API_URL=https://api.blue.cc/graphql

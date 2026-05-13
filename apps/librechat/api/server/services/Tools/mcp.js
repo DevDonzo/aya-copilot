@@ -5,13 +5,15 @@ const { findToken, createToken, updateToken, deleteTokens, getUserById } = requi
 const { updateMCPServerTools } = require('~/server/services/Config');
 const { getLogStores } = require('~/cache');
 
-async function withLibreChatIdentityVars(customUserVars, user) {
+async function withLibreChatIdentityVars(customUserVars, user, fallbackUserId) {
   let resolvedUser = user;
-  if (resolvedUser?.id && (!resolvedUser.email || !resolvedUser.name)) {
+  const userId = resolvedUser?.id || resolvedUser?._id?.toString?.() || fallbackUserId;
+
+  if (userId && (!resolvedUser?.email || !resolvedUser?.name)) {
     try {
-      const hydratedUser = await getUserById(resolvedUser.id);
+      const hydratedUser = await getUserById(userId);
       if (hydratedUser) {
-        hydratedUser.id = hydratedUser._id?.toString?.() ?? hydratedUser.id;
+        hydratedUser.id = hydratedUser._id?.toString?.() ?? hydratedUser.id ?? userId;
         resolvedUser = hydratedUser;
       }
     } catch (error) {
@@ -23,7 +25,7 @@ async function withLibreChatIdentityVars(customUserVars, user) {
     ...(customUserVars ?? {}),
     ...(resolvedUser?.email ? { LIBRECHAT_USER_EMAIL: resolvedUser.email } : {}),
     ...(resolvedUser?.name ? { LIBRECHAT_USER_NAME: resolvedUser.name } : {}),
-    ...(resolvedUser?.id ? { LIBRECHAT_USER_ID: resolvedUser.id } : {}),
+    ...(userId ? { LIBRECHAT_USER_ID: userId } : {}),
   };
 }
 
@@ -93,6 +95,7 @@ async function reinitMCPServer({
     const customUserVars = await withLibreChatIdentityVars(
       userMCPAuthMap?.[`${Constants.mcp_prefix}${serverName}`],
       user,
+      user?.id,
     );
     const flowManager = _flowManager ?? getFlowStateManager(getLogStores(CacheKeys.FLOWS));
     const mcpManager = getMCPManager();

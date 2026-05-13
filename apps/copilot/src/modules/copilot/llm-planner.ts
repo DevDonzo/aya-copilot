@@ -185,13 +185,15 @@ function normalizeLlmPlan(
     matchedSignals: [...parsed.data.matchedSignals, "llm-planner"],
   };
 
-  return applySelfDefaults(plan, request);
+  return applyPlanDefaults(plan, request);
 }
 
-function applySelfDefaults(
+function applyPlanDefaults(
   plan: IntentPlan,
   request: IntentPlannerRequest,
 ): IntentPlan {
+  let nextPlan = plan;
+
   if (
     (plan.intent === "assignments.report" ||
       plan.intent === "records.list_assigned" ||
@@ -202,7 +204,7 @@ function applySelfDefaults(
     typeof plan.parameters.employeeId !== "string" &&
     typeof plan.parameters.employeeEmail !== "string"
   ) {
-    return {
+    nextPlan = {
       ...plan,
       parameters: {
         ...plan.parameters,
@@ -211,7 +213,31 @@ function applySelfDefaults(
     };
   }
 
-  return plan;
+  if (nextPlan.intent === "assignments.report") {
+    const message = request.message.toLowerCase();
+    const explicitlyCompleted = /\b(completed?|done|finished?|closed)\b/.test(
+      message,
+    );
+    const explicitlyAll =
+      /\b(all|everything)\b/.test(message) ||
+      /\bopen\s+and\s+(?:completed?|done|closed)\b/.test(message) ||
+      /\bincluding\s+(?:completed?|done|closed)\b/.test(message);
+    const assignmentStatus = explicitlyCompleted
+      ? "completed"
+      : explicitlyAll
+        ? "all"
+        : "open";
+
+    nextPlan = {
+      ...nextPlan,
+      parameters: {
+        ...nextPlan.parameters,
+        assignmentStatus,
+      },
+    };
+  }
+
+  return nextPlan;
 }
 
 function buildPlannerSystemPrompt() {
@@ -224,7 +250,7 @@ function buildPlannerSystemPrompt() {
     "For admin questions about another employee, set employeeName to the named employee.",
     "For client/file/record questions, set recordQuery or entityQuery to the client/file name, not the employee name unless the user clearly asks for an employee report.",
     "For follow-up questions, use records.follow_up for one employee and records.team_follow_up for the whole team.",
-    "For assignment/checklist/task list questions, use assignments.report with assignmentStatus open, completed, or all.",
+    "For assignment/checklist/task list questions, use assignments.report. Default assignmentStatus to open unless the user explicitly asks for completed/done/all/everything.",
     "For workload/open files/working-on questions, use records.list_assigned.",
     "For mentions/notifications, use activity.mentions or notifications.feed.",
     "For comments, use comments.list_recent to read and comments.create to add a note/comment.",

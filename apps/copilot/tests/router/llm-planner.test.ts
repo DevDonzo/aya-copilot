@@ -74,6 +74,60 @@ describe("LLM intent planner", () => {
     }
   });
 
+  it("forces plain assignment requests to open even if the LLM says all", async () => {
+    const env = createTestEnvironment({
+      OPENAI_API_KEY: "test-openai-key",
+      AYA_LLM_PLANNER_ENABLED: "true",
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  intent: "assignments.report",
+                  confidence: 0.91,
+                  parameters: {
+                    employeeName: "Sarah",
+                    assignmentStatus: "all",
+                  },
+                  requiresClarification: false,
+                  matchedSignals: ["llm:test"],
+                }),
+              },
+            },
+          ],
+        }),
+      }),
+    );
+
+    try {
+      const { planCopilotIntent } = await import(
+        "../../src/modules/copilot/llm-planner.js"
+      );
+
+      const result = await planCopilotIntent({
+        actor,
+        message: "what are Sarahs assignments?",
+        nowIso: fixedNowIso,
+        hasActiveRecordContext: false,
+      });
+
+      expect(result).toMatchObject({
+        intent: "assignments.report",
+        parameters: {
+          employeeName: "Sarah",
+          assignmentStatus: "open",
+        },
+      });
+    } finally {
+      env.cleanup();
+    }
+  });
+
   it("falls back to the deterministic router when OpenAI is unavailable", async () => {
     const env = createTestEnvironment({
       OPENAI_API_KEY: "test-openai-key",

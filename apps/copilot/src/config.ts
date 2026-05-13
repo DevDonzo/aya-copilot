@@ -70,6 +70,10 @@ const runtimeEnv = {
   HOSTINGER_API_KEY: process.env.HOSTINGER_API_KEY,
   AYA_MCP_API_KEY: process.env.AYA_MCP_API_KEY,
   AYA_HOSTINGER_MCP_API_KEY: process.env.AYA_HOSTINGER_MCP_API_KEY,
+  OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+  AYA_LLM_PLANNER_ENABLED: process.env.AYA_LLM_PLANNER_ENABLED,
+  AYA_LLM_PLANNER_MODEL: process.env.AYA_LLM_PLANNER_MODEL,
+  AYA_LLM_PLANNER_TIMEOUT_MS: process.env.AYA_LLM_PLANNER_TIMEOUT_MS,
 };
 
 const configSchema = z.object({
@@ -103,6 +107,13 @@ const configSchema = z.object({
   BLUE_WEBHOOK_SECRET: z.string().optional(),
   AYA_MCP_API_KEY: z.string().optional(),
   AYA_HOSTINGER_MCP_API_KEY: z.string().optional(),
+  OPENAI_API_KEY: z.string().optional(),
+  AYA_LLM_PLANNER_ENABLED: z
+    .string()
+    .default("true")
+    .transform((value) => value.toLowerCase() === "true"),
+  AYA_LLM_PLANNER_MODEL: z.string().default("gpt-4o-mini"),
+  AYA_LLM_PLANNER_TIMEOUT_MS: z.coerce.number().default(2_500),
   WORKSPACE_FULL_RECONCILE_HOURS: z.coerce.number().default(6),
   AUTH_SESSION_TTL_HOURS: z.coerce.number().default(12),
   AUTH_BOOTSTRAP_KEY: z.string().optional(),

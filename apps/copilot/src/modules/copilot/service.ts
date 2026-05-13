@@ -12,6 +12,7 @@ import {
   getActiveRecordContextForActor,
 } from "../disambiguation/active-record-context.js";
 import { rememberCopilotTurnMemory } from "./memory.js";
+import { planCopilotIntent } from "./llm-planner.js";
 import {
   clearPendingRecordChoiceForActor,
   resolvePendingRecordChoice,
@@ -47,7 +48,6 @@ import {
   setTaskDueDate,
   searchClients,
 } from "./actions.js";
-import { planEmployeeIntent } from "./planner.js";
 import { insertBotAuditLog } from "../../store/audit-store.js";
 import { PermissionError } from "../../app/errors.js";
 
@@ -125,7 +125,7 @@ export async function planInboundMessage(payload: InboundMessagePayload) {
     transport,
   );
 
-  const plan = planEmployeeIntent({
+  const plan = await planCopilotIntent({
     actor,
     message: payload.message,
     nowIso: new Date().toISOString(),
@@ -153,7 +153,7 @@ export async function handleInboundMessage(
     transport,
   );
 
-  const plan = planEmployeeIntent({
+  const plan = await planCopilotIntent({
     actor,
     message: payload.message,
     nowIso: new Date().toISOString(),

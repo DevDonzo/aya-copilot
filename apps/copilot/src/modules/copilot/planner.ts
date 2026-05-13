@@ -1853,6 +1853,12 @@ function resolveAssignmentEmployeeTarget(
     rawMessage.match(/^what did\s+(.+?)\s+(?:complete|finish|do)[.?!]?$/i)
       ?.[1]
       ?.trim() ??
+    rawMessage.match(/\bwhat\s+(?:are|is)\s+(.+?)'s\s+(?:assignments?|tasks?|checklist items?)(?:\b|[.?!]?$)/i)
+      ?.[1]
+      ?.trim() ??
+    rawMessage.match(/\bwhat\s+(?:are|is)\s+(.+?)\s+(?:assignments?|tasks?|checklist items?)(?:\b|[.?!]?$)/i)
+      ?.[1]
+      ?.trim() ??
     rawMessage.match(/\b(?:for|assigned to|does|did)\s+(.+?)(?:\s+(?:have|has|need|completed?|done|open|pending|to do|assignments?|tasks?)\b|[.?!]?$)/i)
       ?.[1]
       ?.trim() ??

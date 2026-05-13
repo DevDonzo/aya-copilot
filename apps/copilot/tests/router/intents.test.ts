@@ -129,6 +129,40 @@ describe("detectIntent", () => {
     });
   });
 
+  it("maps direct named assignment requests to another employee", () => {
+    const result = planEmployeeIntent({
+      actor: adminActor,
+      message: "what are Sarah's assignments?",
+      nowIso: fixedNowIso,
+    });
+
+    expect(result).toMatchObject({
+      intent: "assignments.report",
+      parameters: {
+        assignmentStatus: "open",
+        employeeName: "Sarah",
+      },
+      requiresClarification: false,
+    });
+  });
+
+  it("maps casual named assignment requests without possessive punctuation", () => {
+    const result = planEmployeeIntent({
+      actor: adminActor,
+      message: "what are sarah assignments?",
+      nowIso: fixedNowIso,
+    });
+
+    expect(result).toMatchObject({
+      intent: "assignments.report",
+      parameters: {
+        assignmentStatus: "open",
+        employeeName: "sarah",
+      },
+      requiresClarification: false,
+    });
+  });
+
   it("matches move commands", () => {
     const result = detectIntent({
       actor,

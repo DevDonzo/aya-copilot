@@ -12,7 +12,16 @@ import {
   getActiveRecordContextForActor,
 } from "../disambiguation/active-record-context.js";
 import { rememberCopilotTurnMemory } from "./memory.js";
-import { planCopilotIntent } from "./llm-planner.js";
+import {
+  finalizeAgentResponseWithLlm,
+  planCopilotAgent,
+  planCopilotIntent,
+  repairAgentStepWithLlm,
+  type AgentPlan,
+  type AgentStepPlan,
+  type AgentStepResultSummary,
+} from "./llm-planner.js";
+import type { IntentPlannerRequest } from "./planner.js";
 import {
   clearPendingRecordChoiceForActor,
   resolvePendingRecordChoice,
@@ -49,7 +58,7 @@ import {
   searchClients,
 } from "./actions.js";
 import { insertBotAuditLog } from "../../store/audit-store.js";
-import { PermissionError } from "../../app/errors.js";
+import { AppError, PermissionError } from "../../app/errors.js";
 
 export interface InboundMessagePayload {
   transport?: string;
@@ -153,83 +162,134 @@ export async function handleInboundMessage(
     transport,
   );
 
-  const plan = await planCopilotIntent({
+  const agentRequest = {
     actor,
     message: payload.message,
     nowIso: new Date().toISOString(),
     hasActiveRecordContext: Boolean(activeRecordContext),
-  });
+  };
 
-  if (!plan) {
-    const pending = await continuePendingRecordChoice(
+  const pending = await continuePendingRecordChoice(
+    actor,
+    transport,
+    payload.message,
+    blueAuth,
+  );
+  if (pending) {
+    return await respondToPendingSelection({
       actor,
       transport,
-      payload.message,
-      blueAuth,
-    );
-    if (pending) {
-      const syntheticPlan: IntentPlan = {
-        intent: pending.intent,
-        confidence: 1,
-        parameters: {
-          selection: payload.message.trim(),
-        },
-        requiresClarification: false,
-        matchedSignals: ["pending-choice"],
-      };
-      await recordAudit({
-        actor,
-        transport,
-        inboundText: payload.message,
-        detectedIntent: pending.intent,
-        adapter: "pending-record-choice",
-        commandName: getAuditCommandName(pending.intent),
-        commandArgs: JSON.stringify({ selection: payload.message.trim() }),
-        outcome: "success",
-        responseText: pending.responseText,
-        requestJson: {
-          payload: auditPayload,
-          plan: syntheticPlan,
-        },
-        responseJson: {
-          plan: syntheticPlan,
-          data: pending.data,
-        },
-      });
+      payload,
+      auditPayload,
+      pending,
+    });
+  }
 
-      await rememberCopilotTurnMemory({
-        actor,
-        transport,
-        intent: pending.intent,
-        message: payload.message,
-        responseText: pending.responseText,
-      });
+  const agentPlan = await planCopilotAgent(agentRequest);
+  return await executeAgentMessage({
+    actor,
+    transport,
+    blueAuth,
+    payload,
+    auditPayload,
+    request: agentRequest,
+    agentPlan,
+  });
+}
 
-      return {
-        matched: true,
-        intent: pending.intent,
-        actor,
-        responseText: pending.responseText,
-        plan: syntheticPlan,
-        data: pending.data,
-      };
-    }
+interface AgentStepTrace extends AgentStepResultSummary {
+  purpose?: string;
+  repairedFromStepId?: string;
+}
 
+interface AgentRunResult {
+  plan: IntentPlan;
+  responseText: string;
+  data?: unknown;
+  step: AgentStepPlan;
+}
+
+async function respondToPendingSelection(input: {
+  actor: EmployeeIdentity;
+  transport: string;
+  payload: InboundMessagePayload;
+  auditPayload: ReturnType<typeof redactPayloadForAudit>;
+  pending: PendingExecutionResult;
+}): Promise<MessageResponse> {
+  const { actor, transport, payload, auditPayload, pending } = input;
+  const selectionPlan: IntentPlan = {
+    intent: pending.intent,
+    confidence: 1,
+    parameters: {
+      selection: payload.message.trim(),
+    },
+    requiresClarification: false,
+    matchedSignals: ["pending-record-choice"],
+  };
+
+  await recordAudit({
+    actor,
+    transport,
+    inboundText: payload.message,
+    detectedIntent: pending.intent,
+    adapter: "pending-record-choice",
+    outcome: "success",
+    responseText: pending.responseText,
+    commandName: getAuditCommandName(pending.intent),
+    commandArgs: JSON.stringify(selectionPlan.parameters),
+    requestJson: {
+      payload: auditPayload,
+      plan: selectionPlan,
+    },
+    responseJson: {
+      plan: selectionPlan,
+      data: pending.data,
+    },
+  });
+
+  await rememberCopilotTurnMemory({
+    actor,
+    transport,
+    message: payload.message,
+    responseText: pending.responseText,
+    intent: pending.intent,
+  });
+
+  return {
+    matched: true,
+    intent: pending.intent,
+    actor,
+    responseText: pending.responseText,
+    plan: selectionPlan,
+    data: pending.data,
+  };
+}
+
+async function executeAgentMessage(input: {
+  actor: EmployeeIdentity;
+  transport: string;
+  blueAuth: BlueRequestAuth | null;
+  payload: InboundMessagePayload;
+  auditPayload: ReturnType<typeof redactPayloadForAudit>;
+  request: IntentPlannerRequest;
+  agentPlan: AgentPlan | null;
+}): Promise<MessageResponse> {
+  const { actor, transport, blueAuth, payload, auditPayload, request, agentPlan } =
+    input;
+
+  if (!agentPlan) {
     const responseText =
       "I could not map that request to a supported Aya action yet.";
     await recordAudit({
       actor,
       transport,
       inboundText: payload.message,
-      adapter: "planner",
+      adapter: "aya-agent",
       outcome: "unmatched",
       responseText,
       requestJson: {
         payload: auditPayload,
-        plan: null,
-      },
-      responseJson: {
-        matched: false,
+        agentPlan: null,
       },
     });
 
@@ -240,91 +300,484 @@ export async function handleInboundMessage(
     };
   }
 
-  if (plan.requiresClarification) {
+  if (agentPlan.requiresClarification || agentPlan.steps.length === 0) {
     const responseText =
-      plan.clarificationQuestion ?? "I need one quick clarification first.";
-    await recordAudit({
+      agentPlan.clarificationQuestion ??
+      "What exact record, person, or action should I use?";
+    await recordAgentAudit({
       actor,
       transport,
-      inboundText: payload.message,
-      detectedIntent: plan.intent,
-      adapter: "planner",
-      commandName: getAuditCommandName(plan.intent),
-      commandArgs: JSON.stringify(plan.parameters),
+      payload,
+      auditPayload,
+      agentPlan,
+      steps: [],
       outcome: "needs_clarification",
       responseText,
-      requestJson: {
-        payload: auditPayload,
-        plan,
-      },
-      responseJson: {
-        clarificationRequired: true,
-      },
     });
-
     await rememberCopilotTurnMemory({
       actor,
       transport,
-      intent: plan.intent,
       message: payload.message,
       responseText,
+      intent: agentPlan.steps[0]?.intent,
     });
 
     return {
       matched: true,
-      intent: plan.intent,
+      intent: agentPlan.steps[0]?.intent,
       actor,
       responseText,
       clarificationRequired: true,
-      plan,
     };
   }
 
-  enforceIntentPermissions(actor, plan);
-  const execution = await executePlan({
-    actor,
-    transport,
-    blueAuth,
-    payload,
-    plan,
-  });
+  const stepTraces: AgentStepTrace[] = [];
+  let firstPlan: IntentPlan | undefined;
+  let lastSuccess: AgentRunResult | null = null;
 
-  await recordAudit({
+  for (const step of agentPlan.steps.slice(0, 3)) {
+    const result = await runAgentStep({
+      actor,
+      transport,
+      blueAuth,
+      payload,
+      step,
+    });
+
+    firstPlan ??= result.plan;
+
+    if (result.ok) {
+      stepTraces.push(toStepTrace(step, "success", result.execution.responseText));
+      lastSuccess = {
+        plan: result.plan,
+        responseText: result.execution.responseText,
+        data: result.execution.data,
+        step,
+      };
+      continue;
+    }
+
+    const errorMessage = formatAgentErrorMessage(result.error);
+    stepTraces.push(toStepTrace(step, "error", undefined, errorMessage));
+
+    if (isNonRepairableAgentError(result.error)) {
+      return await finishAgentError({
+        actor,
+        transport,
+        payload,
+        auditPayload,
+        agentPlan,
+        steps: stepTraces,
+        plan: firstPlan,
+        responseText: errorMessage,
+      });
+    }
+
+    const repair = await repairAgentStepWithLlm({
+      request,
+      agentPlan,
+      failedStep: step,
+      errorMessage,
+      priorResults: stepTraces.map(stripTraceForPlanner),
+    });
+
+    if (repair?.action === "retry") {
+      const retryResult = await runAgentStep({
+        actor,
+        transport,
+        blueAuth,
+        payload,
+        step: repair.step,
+      });
+      firstPlan ??= retryResult.plan;
+
+      if (retryResult.ok) {
+        stepTraces.push({
+          ...toStepTrace(
+            repair.step,
+            "success",
+            retryResult.execution.responseText,
+          ),
+          repairedFromStepId: step.id,
+        });
+        lastSuccess = {
+          plan: retryResult.plan,
+          responseText: retryResult.execution.responseText,
+          data: retryResult.execution.data,
+          step: repair.step,
+        };
+        continue;
+      }
+
+      const retryErrorMessage = formatAgentErrorMessage(retryResult.error);
+      stepTraces.push({
+        ...toStepTrace(repair.step, "error", undefined, retryErrorMessage),
+        repairedFromStepId: step.id,
+      });
+
+      return await finishAgentError({
+        actor,
+        transport,
+        payload,
+        auditPayload,
+        agentPlan,
+        steps: stepTraces,
+        plan: firstPlan,
+        responseText: retryErrorMessage,
+      });
+    }
+
+    if (repair?.action === "clarify") {
+      return await finishAgentClarification({
+        actor,
+        transport,
+        payload,
+        auditPayload,
+        agentPlan,
+        steps: stepTraces,
+        plan: firstPlan,
+        responseText: repair.clarificationQuestion,
+      });
+    }
+
+    return await finishAgentError({
+      actor,
+      transport,
+      payload,
+      auditPayload,
+      agentPlan,
+      steps: stepTraces,
+      plan: firstPlan,
+      responseText: `I could not complete that yet: ${errorMessage}`,
+    });
+  }
+
+  if (!lastSuccess) {
+    const responseText = "I could not complete that yet.";
+    await recordAgentAudit({
+      actor,
+      transport,
+      payload,
+      auditPayload,
+      agentPlan,
+      steps: stepTraces,
+      outcome: "error",
+      responseText,
+    });
+    return {
+      matched: true,
+      actor,
+      responseText,
+      plan: firstPlan,
+    };
+  }
+
+  const successfulTexts = stepTraces
+    .filter((step) => step.outcome === "success" && step.responseText)
+    .map((step) => step.responseText as string);
+  const fallbackResponse =
+    successfulTexts.length > 1
+      ? successfulTexts.join("\n\n")
+      : lastSuccess.responseText;
+  const finalResponse =
+    (await finalizeAgentResponseWithLlm({
+      request,
+      agentPlan,
+      results: stepTraces.map(stripTraceForPlanner),
+    })) ??
+    fallbackResponse ??
+    "I completed the request, but Aya did not return a readable summary.";
+
+  await recordAgentAudit({
     actor,
     transport,
-    inboundText: payload.message,
-    detectedIntent: plan.intent,
-    adapter: getAuditAdapter(plan.intent),
-    commandName: getAuditCommandName(plan.intent),
-    commandArgs: JSON.stringify(plan.parameters),
+    payload,
+    auditPayload,
+    agentPlan,
+    steps: stepTraces,
     outcome: "success",
-    responseText: execution.responseText,
-    requestJson: {
-      payload: auditPayload,
-      plan,
-    },
-    responseJson: {
-      plan,
-      data: execution.data,
-    },
+    responseText: finalResponse,
   });
 
   await rememberCopilotTurnMemory({
     actor,
     transport,
-    intent: plan.intent,
     message: payload.message,
-    responseText: execution.responseText,
+    responseText: finalResponse,
+    intent: lastSuccess.plan.intent,
   });
 
   return {
     matched: true,
-    intent: plan.intent,
+    intent: lastSuccess.plan.intent,
     actor,
-    responseText: execution.responseText,
-    plan,
-    data: execution.data,
+    responseText: finalResponse,
+    plan: firstPlan ?? lastSuccess.plan,
+    data: lastSuccess.data,
   };
+}
+
+async function runAgentStep(input: {
+  actor: EmployeeIdentity;
+  transport: string;
+  blueAuth: BlueRequestAuth | null;
+  payload: InboundMessagePayload;
+  step: AgentStepPlan;
+}): Promise<
+  | {
+      ok: true;
+      plan: IntentPlan;
+      execution: { responseText: string; data?: unknown };
+    }
+  | {
+      ok: false;
+      plan: IntentPlan;
+      error: unknown;
+    }
+> {
+  const plan = agentStepToIntentPlan(input.step);
+
+  try {
+    enforceIntentPermissions(input.actor, plan);
+    const execution = await executePlan({
+      actor: input.actor,
+      transport: input.transport,
+      blueAuth: input.blueAuth,
+      payload: input.payload,
+      plan,
+    });
+    return {
+      ok: true,
+      plan,
+      execution: {
+        ...execution,
+        responseText: normalizeExecutionResponseText(execution),
+      },
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      plan,
+      error,
+    };
+  }
+}
+
+function normalizeExecutionResponseText(execution: {
+  responseText?: string;
+  data?: unknown;
+}) {
+  if (typeof execution.responseText === "string" && execution.responseText.trim()) {
+    return execution.responseText;
+  }
+
+  const dataResponseText = extractDataResponseText(execution.data);
+  if (dataResponseText) {
+    return dataResponseText;
+  }
+
+  return "Aya completed the action, but no readable summary was returned.";
+}
+
+function extractDataResponseText(data: unknown): string | null {
+  if (!data || typeof data !== "object") {
+    return null;
+  }
+
+  for (const key of ["responseText", "summaryText", "answerText"] as const) {
+    const value = (data as Record<string, unknown>)[key];
+    if (typeof value === "string" && value.trim()) {
+      return value;
+    }
+  }
+
+  return null;
+}
+
+function agentStepToIntentPlan(step: AgentStepPlan): IntentPlan {
+  return {
+    intent: step.intent,
+    confidence: 0.95,
+    parameters: step.parameters,
+    requiresClarification: false,
+    matchedSignals: ["aya-agent"],
+  };
+}
+
+function toStepTrace(
+  step: AgentStepPlan,
+  outcome: "success" | "error",
+  responseText?: string,
+  errorMessage?: string,
+): AgentStepTrace {
+  return {
+    stepId: step.id,
+    intent: step.intent,
+    parameters: step.parameters,
+    purpose: step.purpose,
+    outcome,
+    responseText,
+    errorMessage,
+  };
+}
+
+function stripTraceForPlanner(trace: AgentStepTrace): AgentStepResultSummary {
+  return {
+    stepId: trace.stepId,
+    intent: trace.intent,
+    parameters: trace.parameters,
+    outcome: trace.outcome,
+    responseText: trace.responseText,
+    errorMessage: trace.errorMessage,
+  };
+}
+
+async function finishAgentClarification(input: {
+  actor: EmployeeIdentity;
+  transport: string;
+  payload: InboundMessagePayload;
+  auditPayload: ReturnType<typeof redactPayloadForAudit>;
+  agentPlan: AgentPlan;
+  steps: AgentStepTrace[];
+  plan?: IntentPlan;
+  responseText: string;
+}): Promise<MessageResponse> {
+  await recordAgentAudit({
+    actor: input.actor,
+    transport: input.transport,
+    payload: input.payload,
+    auditPayload: input.auditPayload,
+    agentPlan: input.agentPlan,
+    steps: input.steps,
+    outcome: "needs_clarification",
+    responseText: input.responseText,
+  });
+
+  await rememberCopilotTurnMemory({
+    actor: input.actor,
+    transport: input.transport,
+    message: input.payload.message,
+    responseText: input.responseText,
+    intent: input.plan?.intent,
+  });
+
+  return {
+    matched: true,
+    intent: input.plan?.intent,
+    actor: input.actor,
+    responseText: input.responseText,
+    clarificationRequired: true,
+    plan: input.plan,
+  };
+}
+
+async function finishAgentError(input: {
+  actor: EmployeeIdentity;
+  transport: string;
+  payload: InboundMessagePayload;
+  auditPayload: ReturnType<typeof redactPayloadForAudit>;
+  agentPlan: AgentPlan;
+  steps: AgentStepTrace[];
+  plan?: IntentPlan;
+  responseText: string;
+}): Promise<MessageResponse> {
+  await recordAgentAudit({
+    actor: input.actor,
+    transport: input.transport,
+    payload: input.payload,
+    auditPayload: input.auditPayload,
+    agentPlan: input.agentPlan,
+    steps: input.steps,
+    outcome: "error",
+    responseText: input.responseText,
+  });
+
+  await rememberCopilotTurnMemory({
+    actor: input.actor,
+    transport: input.transport,
+    message: input.payload.message,
+    responseText: input.responseText,
+    intent: input.plan?.intent,
+  });
+
+  return {
+    matched: true,
+    intent: input.plan?.intent,
+    actor: input.actor,
+    responseText: input.responseText,
+    plan: input.plan,
+  };
+}
+
+async function recordAgentAudit(input: {
+  actor: EmployeeIdentity;
+  transport: string;
+  payload: InboundMessagePayload;
+  auditPayload: ReturnType<typeof redactPayloadForAudit>;
+  agentPlan: AgentPlan;
+  steps: AgentStepTrace[];
+  outcome: string;
+  responseText: string;
+}) {
+  const lastIntent = [...input.steps].reverse().find((step) => step.intent)?.intent;
+
+  await recordAudit({
+    actor: input.actor,
+    transport: input.transport,
+    inboundText: input.payload.message,
+    detectedIntent: lastIntent,
+    adapter: "aya-agent",
+    outcome: input.outcome,
+    responseText: input.responseText,
+    commandName: "agent.execute",
+    commandArgs: JSON.stringify({
+      goal: input.agentPlan.goal,
+      stepCount: input.agentPlan.steps.length,
+      intents: input.agentPlan.steps.map((step) => step.intent),
+    }),
+    requestJson: {
+      payload: input.auditPayload,
+      agentPlan: input.agentPlan,
+    },
+    responseJson: {
+      agentPlan: input.agentPlan,
+      steps: input.steps,
+      visibleResponseText: input.responseText,
+    },
+  });
+}
+
+function formatAgentErrorMessage(error: unknown) {
+  if (error instanceof PermissionError) {
+    return "You do not have permission to do that.";
+  }
+
+  if (error instanceof AppError) {
+    return error.message;
+  }
+
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+
+  return "The action failed before Aya could complete it.";
+}
+
+function isNonRepairableAgentError(error: unknown) {
+  if (error instanceof PermissionError) {
+    return true;
+  }
+
+  if (error instanceof AppError) {
+    return (
+      error.statusCode === 401 ||
+      error.statusCode === 403 ||
+      error.code === "AUTH_REQUIRED" ||
+      error.code === "FORBIDDEN"
+    );
+  }
+
+  return false;
 }
 
 function scopedTransport(transport: string, conversationKey?: string) {

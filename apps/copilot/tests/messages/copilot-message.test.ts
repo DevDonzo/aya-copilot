@@ -625,6 +625,172 @@ describe("Aya copilot message flow", () => {
     }
   });
 
+  it("runs LLM agent steps without exposing the internal trace", async () => {
+    const env = createTestEnvironment({
+      OPENAI_API_KEY: "test-openai-key",
+      AYA_LLM_PLANNER_ENABLED: "true",
+    });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  goal: "Show Sarah's open assignments.",
+                  confidence: 0.96,
+                  requiresClarification: false,
+                  steps: [
+                    {
+                      id: "step_1",
+                      intent: "assignments.report",
+                      parameters: {
+                        employeeName: "Sarah",
+                        assignmentStatus: "open",
+                      },
+                      purpose: "Read Sarah's open Blue assignments.",
+                    },
+                  ],
+                  finalResponseInstructions:
+                    "Answer like an operations assistant.",
+                  matchedSignals: ["test-agent-plan"],
+                }),
+              },
+            },
+          ],
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  responseText:
+                    "Sarah Khan has 1 open assignment: Employment Letter, Paystubs for Sarah Client.",
+                }),
+              },
+            },
+          ],
+        }),
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    try {
+      vi.doMock("../../src/modules/blue/graphql/client.js", async () => {
+        const actual =
+          await vi.importActual<
+            typeof import("../../src/modules/blue/graphql/client.js")
+          >("../../src/modules/blue/graphql/client.js");
+
+        return {
+          ...actual,
+          listAssignedChecklistItems: vi.fn().mockResolvedValue({
+            items: [
+              {
+                id: "assignment_1",
+                uid: "assignment_uid_1",
+                title: "Employment Letter, Paystubs",
+                done: false,
+                duedAt: "2026-04-11T23:59:59.999Z",
+                updatedAt: "2026-04-09T10:00:00.000Z",
+                users: [
+                  {
+                    id: "employee_2",
+                    uid: "employee_2",
+                    email: "sarah@ayafinancial.com",
+                    firstName: "Sarah",
+                    lastName: "Khan",
+                    fullName: "Sarah Khan",
+                    timezone: "America/Toronto",
+                    updatedAt: "2026-04-01T00:00:00.000Z",
+                  },
+                ],
+                checklist: {
+                  id: "checklist_1",
+                  title: "AYA Checklist V1",
+                  todo: {
+                    id: "record_1",
+                    uid: "record_uid_1",
+                    title: "Sarah Client",
+                    todoList: {
+                      id: "list_1",
+                      uid: "list_uid_1",
+                      title: "Underwriting",
+                      position: 1,
+                      updatedAt: "2026-04-01T00:00:00.000Z",
+                    },
+                  },
+                },
+              },
+            ],
+            pageInfo: {
+              totalItems: 1,
+              hasNextPage: false,
+              hasPreviousPage: false,
+              page: 1,
+              perPage: 50,
+            },
+          }),
+          listAssignedOpenRecords: vi.fn().mockResolvedValue({
+            items: [],
+            pageInfo: {
+              totalItems: 0,
+              hasNextPage: false,
+              hasPreviousPage: false,
+              page: 1,
+              perPage: 50,
+            },
+          }),
+        };
+      });
+
+      const { ensureEmployee, initializeDatabase } = await import("../../src/db.js");
+
+      await initializeDatabase();
+      await ensureEmployee({
+        employeeId: "admin_1",
+        displayName: "Admin User",
+        email: "admin@ayafinancial.com",
+        roleName: "admin",
+      });
+      await ensureEmployee({
+        employeeId: "employee_2",
+        displayName: "Sarah Khan",
+        email: "sarah@ayafinancial.com",
+        roleName: "admin",
+      });
+
+      const { handleInboundMessage } = await import(
+        "../../src/messages/handle-message.js"
+      );
+
+      const response = await handleInboundMessage({
+        actorEmployeeId: "admin_1",
+        message: "find Sarah's open assignments and summarize them",
+      });
+
+      expect(response).toMatchObject({
+        matched: true,
+        intent: "assignments.report",
+      });
+      expect(response.responseText).toBe(
+        "Sarah Khan has 1 open assignment: Employment Letter, Paystubs for Sarah Client.",
+      );
+      expect(response.responseText).not.toContain("step_1");
+      expect(response.responseText).not.toContain("assignments.report");
+      expect(response.responseText).not.toContain("tool");
+      expect(JSON.stringify(response.data)).not.toContain("step_1");
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.unstubAllGlobals();
+      env.cleanup();
+    }
+  });
+
   it("returns an admin activity report with exact comments, moves, and created leads", async () => {
     const env = createTestEnvironment();
 

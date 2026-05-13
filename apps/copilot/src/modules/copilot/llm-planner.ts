@@ -53,6 +53,31 @@ const planSchema = z.object({
   matchedSignals: z.array(z.string()).default(["llm-planner"]),
 });
 
+const agentStepSchema = z.object({
+  id: z.string().optional(),
+  intent: z.enum(SUPPORTED_INTENTS),
+  parameters: z
+    .record(z.union([z.string(), z.number(), z.boolean(), z.null()]))
+    .default({}),
+  purpose: z.string().optional(),
+});
+
+const agentPlanSchema = z.object({
+  goal: z.string().default("Complete the user's Aya/Blue request."),
+  confidence: z.number().min(0).max(1).default(0.8),
+  requiresClarification: z.boolean().default(false),
+  clarificationQuestion: z.string().optional(),
+  steps: z.array(agentStepSchema).max(3).default([]),
+  finalResponseInstructions: z.string().optional(),
+  matchedSignals: z.array(z.string()).default(["llm-agent-planner"]),
+});
+
+const repairSchema = z.object({
+  action: z.enum(["retry", "clarify", "stop"]),
+  clarificationQuestion: z.string().optional(),
+  step: agentStepSchema.optional(),
+});
+
 const chatCompletionSchema = z.object({
   choices: z.array(
     z.object({
@@ -63,6 +88,32 @@ const chatCompletionSchema = z.object({
   ),
 });
 
+export interface AgentStepPlan {
+  id: string;
+  intent: IntentName;
+  parameters: Record<string, string | number | boolean | undefined>;
+  purpose?: string;
+}
+
+export interface AgentPlan {
+  goal: string;
+  confidence: number;
+  requiresClarification: boolean;
+  clarificationQuestion?: string;
+  steps: AgentStepPlan[];
+  finalResponseInstructions?: string;
+  matchedSignals: string[];
+}
+
+export interface AgentStepResultSummary {
+  stepId: string;
+  intent: IntentName;
+  parameters: Record<string, string | number | boolean | undefined>;
+  outcome: "success" | "error";
+  responseText?: string;
+  errorMessage?: string;
+}
+
 export async function planCopilotIntent(
   request: IntentPlannerRequest,
 ): Promise<IntentPlan | null> {
@@ -72,6 +123,38 @@ export async function planCopilotIntent(
   }
 
   return planEmployeeIntent(request);
+}
+
+export async function planCopilotAgent(
+  request: IntentPlannerRequest,
+): Promise<AgentPlan | null> {
+  const llmPlan = await planAgentWithLlm(request);
+  if (llmPlan) {
+    return llmPlan;
+  }
+
+  const fallbackPlan = planEmployeeIntent(request);
+  if (!fallbackPlan) {
+    return null;
+  }
+
+  return {
+    goal: "Complete the user's Aya/Blue request.",
+    confidence: fallbackPlan.confidence,
+    requiresClarification: fallbackPlan.requiresClarification,
+    clarificationQuestion: fallbackPlan.clarificationQuestion,
+    steps: fallbackPlan.requiresClarification
+      ? []
+      : [
+          {
+            id: "step_1",
+            intent: fallbackPlan.intent,
+            parameters: fallbackPlan.parameters,
+            purpose: "Run the supported Aya action.",
+          },
+        ],
+    matchedSignals: [...fallbackPlan.matchedSignals, "deterministic-fallback"],
+  };
 }
 
 export async function planEmployeeIntentWithLlm(
@@ -140,6 +223,221 @@ export async function planEmployeeIntentWithLlm(
     }
 
     return normalizeLlmPlan(content, request);
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function planAgentWithLlm(
+  request: IntentPlannerRequest,
+): Promise<AgentPlan | null> {
+  const content = await callPlannerLlm(
+    buildAgentPlannerSystemPrompt(),
+    {
+      message: request.message,
+      actor: {
+        displayName: request.actor.displayName,
+        roleName: request.actor.roleName ?? "employee",
+        email: request.actor.email ?? null,
+      },
+      nowIso: request.nowIso,
+      hasActiveRecordContext: request.hasActiveRecordContext === true,
+      maxSteps: 3,
+    },
+  );
+  if (!content) {
+    return null;
+  }
+
+  let raw: unknown;
+  try {
+    raw = JSON.parse(content);
+  } catch {
+    return null;
+  }
+
+  if (
+    raw &&
+    typeof raw === "object" &&
+    "supported" in raw &&
+    (raw as { supported?: unknown }).supported === false
+  ) {
+    return null;
+  }
+
+  const parsed = agentPlanSchema.safeParse(raw);
+  if (!parsed.success || parsed.data.confidence < 0.72) {
+    return null;
+  }
+
+  return {
+    goal: parsed.data.goal,
+    confidence: parsed.data.confidence,
+    requiresClarification: parsed.data.requiresClarification,
+    clarificationQuestion: parsed.data.clarificationQuestion,
+    finalResponseInstructions: parsed.data.finalResponseInstructions,
+    matchedSignals: [...parsed.data.matchedSignals, "llm-agent-planner"],
+    steps: parsed.data.steps.slice(0, 3).map((step, index) => ({
+      id: step.id?.trim() || `step_${index + 1}`,
+      intent: step.intent as IntentName,
+      parameters: cleanParameters(step.parameters),
+      purpose: step.purpose,
+    })),
+  };
+}
+
+export async function repairAgentStepWithLlm(input: {
+  request: IntentPlannerRequest;
+  agentPlan: AgentPlan;
+  failedStep: AgentStepPlan;
+  errorMessage: string;
+  priorResults: AgentStepResultSummary[];
+}): Promise<
+  | { action: "retry"; step: AgentStepPlan }
+  | { action: "clarify"; clarificationQuestion: string }
+  | { action: "stop" }
+  | null
+> {
+  const content = await callPlannerLlm(buildAgentRepairSystemPrompt(), {
+    message: input.request.message,
+    actor: {
+      displayName: input.request.actor.displayName,
+      roleName: input.request.actor.roleName ?? "employee",
+      email: input.request.actor.email ?? null,
+    },
+    agentGoal: input.agentPlan.goal,
+    failedStep: input.failedStep,
+    errorMessage: input.errorMessage,
+    priorResults: input.priorResults,
+  });
+  if (!content) {
+    return null;
+  }
+
+  let raw: unknown;
+  try {
+    raw = JSON.parse(content);
+  } catch {
+    return null;
+  }
+
+  const parsed = repairSchema.safeParse(raw);
+  if (!parsed.success) {
+    return null;
+  }
+
+  if (parsed.data.action === "retry" && parsed.data.step) {
+    return {
+      action: "retry",
+      step: {
+        id: parsed.data.step.id?.trim() || `${input.failedStep.id}_repair`,
+        intent: parsed.data.step.intent as IntentName,
+        parameters: cleanParameters(parsed.data.step.parameters),
+        purpose: parsed.data.step.purpose,
+      },
+    };
+  }
+
+  if (parsed.data.action === "clarify") {
+    return {
+      action: "clarify",
+      clarificationQuestion:
+        parsed.data.clarificationQuestion ??
+        "Which exact record or action should I use?",
+    };
+  }
+
+  return { action: "stop" };
+}
+
+export async function finalizeAgentResponseWithLlm(input: {
+  request: IntentPlannerRequest;
+  agentPlan: AgentPlan;
+  results: AgentStepResultSummary[];
+}): Promise<string | null> {
+  const content = await callPlannerLlm(buildAgentFinalizerSystemPrompt(), {
+    message: input.request.message,
+    actor: {
+      displayName: input.request.actor.displayName,
+      roleName: input.request.actor.roleName ?? "employee",
+      email: input.request.actor.email ?? null,
+    },
+    goal: input.agentPlan.goal,
+    finalResponseInstructions: input.agentPlan.finalResponseInstructions ?? null,
+    results: input.results.map((result) => ({
+      intent: result.intent,
+      outcome: result.outcome,
+      responseText: result.responseText,
+      errorMessage: result.errorMessage,
+    })),
+  });
+  if (!content) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(content) as { responseText?: unknown };
+    return typeof parsed.responseText === "string"
+      ? parsed.responseText.trim()
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function cleanParameters(
+  value: Record<string, string | number | boolean | null>,
+) {
+  return Object.fromEntries(
+    Object.entries(value).filter(([, item]) => item !== null),
+  ) as Record<string, string | number | boolean | undefined>;
+}
+
+async function callPlannerLlm(
+  systemPrompt: string,
+  payload: unknown,
+): Promise<string | null> {
+  if (!config.AYA_LLM_PLANNER_ENABLED || !config.OPENAI_API_KEY) {
+    return null;
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(
+    () => controller.abort(),
+    config.AYA_LLM_PLANNER_TIMEOUT_MS,
+  );
+
+  try {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        authorization: `Bearer ${config.OPENAI_API_KEY}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        model: config.AYA_LLM_PLANNER_MODEL,
+        temperature: 0,
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: JSON.stringify(payload) },
+        ],
+      }),
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const parsedResponse = chatCompletionSchema.safeParse(await response.json());
+    if (!parsedResponse.success) {
+      return null;
+    }
+
+    return parsedResponse.data.choices[0]?.message.content ?? null;
   } catch {
     return null;
   } finally {
@@ -259,5 +557,47 @@ function buildPlannerSystemPrompt() {
     "For completing work, use records.complete or tasks.complete.",
     "Return JSON shape: {\"intent\":\"assignments.report\",\"confidence\":0.91,\"parameters\":{\"employeeName\":\"Sarah\",\"assignmentStatus\":\"open\"},\"requiresClarification\":false,\"matchedSignals\":[\"llm\"]}.",
     `Supported intents: ${SUPPORTED_INTENTS.join(", ")}.`,
+  ].join("\n");
+}
+
+function buildAgentPlannerSystemPrompt() {
+  return [
+    "You are Aya Copilot's bounded agent planner. Return only JSON.",
+    "Do not answer the user. Do not call tools. Create up to 3 safe Aya action steps.",
+    "If unsupported or unsafe, return {\"supported\":false}.",
+    "If one missing detail blocks safe execution, set requiresClarification true and ask one concise question.",
+    "Use filler words like 'show me' and 'please' only as conversational filler.",
+    "For named employees, set employeeName to the named employee. For clear self requests, use the actor.",
+    "For record/client/file follow-ups like 'this client' or 'it', set useActiveRecordContext true.",
+    "Use assignments.report for assigned checklist/task lists. Default assignmentStatus to open unless the user explicitly asks for all/completed/done.",
+    "Use records.list_assigned for workload/open files/what someone is working on.",
+    "Use records.follow_up for overdue, stale, due-today, or priority follow-up queues.",
+    "Use comments.create, records.move, records.assign, records.set_due_date, tasks.complete, and records.complete for writes only when the user clearly asks.",
+    "For compound requests, sequence read steps before write or final summary steps. Do not include a separate final-answer step.",
+    "Return JSON shape: {\"goal\":\"Find Sarah overdue work and draft follow-up\",\"confidence\":0.91,\"requiresClarification\":false,\"steps\":[{\"id\":\"step_1\",\"intent\":\"records.follow_up\",\"parameters\":{\"employeeName\":\"Sarah\"},\"purpose\":\"Find overdue work\"}],\"finalResponseInstructions\":\"Prioritize overdue work and draft a short follow-up.\"}.",
+    `Supported intents: ${SUPPORTED_INTENTS.join(", ")}.`,
+  ].join("\n");
+}
+
+function buildAgentRepairSystemPrompt() {
+  return [
+    "You repair one failed Aya agent step. Return only JSON.",
+    "Choose action retry, clarify, or stop.",
+    "Retry only if the error can be fixed by changing the intent parameters using the original user request or prior results.",
+    "Clarify if the error is ambiguity, missing record/client/task/list, or missing user choice.",
+    "Stop if the request is unsupported or unsafe.",
+    "Return JSON shape for retry: {\"action\":\"retry\",\"step\":{\"intent\":\"records.detail\",\"parameters\":{\"recordQuery\":\"Exact Client\"}}}.",
+    "Return JSON shape for clarify: {\"action\":\"clarify\",\"clarificationQuestion\":\"Which John Smith file should I use?\"}.",
+  ].join("\n");
+}
+
+function buildAgentFinalizerSystemPrompt() {
+  return [
+    "You write Aya Copilot's final user-facing response. Return only JSON.",
+    "Do not reveal internal plan, tool names, retries, hidden reasoning, JSON, or audit trace.",
+    "Be concise, operational, and specific. Use the action results as ground truth.",
+    "If a write succeeded, clearly confirm what changed.",
+    "If the user asked for a draft, include the draft.",
+    "Return JSON shape: {\"responseText\":\"...\"}.",
   ].join("\n");
 }

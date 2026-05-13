@@ -163,6 +163,57 @@ describe("detectIntent", () => {
     });
   });
 
+  it("maps model-rewritten possessive assignment requests", () => {
+    const result = planEmployeeIntent({
+      actor: adminActor,
+      message: "show me Sarah's assignments",
+      nowIso: fixedNowIso,
+    });
+
+    expect(result).toMatchObject({
+      intent: "assignments.report",
+      parameters: {
+        assignmentStatus: "open",
+        employeeName: "Sarah",
+      },
+      requiresClarification: false,
+    });
+  });
+
+  it("maps assignment-for-employee requests", () => {
+    const result = planEmployeeIntent({
+      actor: adminActor,
+      message: "please show me the assignments for Sarah",
+      nowIso: fixedNowIso,
+    });
+
+    expect(result).toMatchObject({
+      intent: "assignments.report",
+      parameters: {
+        assignmentStatus: "open",
+        employeeName: "Sarah",
+      },
+      requiresClarification: false,
+    });
+  });
+
+  it("maps contextual who-is assignment requests", () => {
+    const result = planEmployeeIntent({
+      actor: adminActor,
+      message: "who is Sarah and what are her assignments?",
+      nowIso: fixedNowIso,
+    });
+
+    expect(result).toMatchObject({
+      intent: "assignments.report",
+      parameters: {
+        assignmentStatus: "open",
+        employeeName: "Sarah",
+      },
+      requiresClarification: false,
+    });
+  });
+
   it("matches move commands", () => {
     const result = detectIntent({
       actor,

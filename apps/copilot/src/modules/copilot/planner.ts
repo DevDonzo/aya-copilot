@@ -814,7 +814,7 @@ function resolveAssignmentReportIntent(
     /^what did .+ complete\??$/.test(message) ||
     /^what did .+ finish\??$/.test(message);
   const asksForAssignmentReport =
-    /\b(what|show|which|list|who|have|has|did|completed?|done|finished?|open|pending|todo|to do|see|view)\b/.test(
+    /\b(what|show|which|list|who|tell|about|have|has|did|completed?|done|finished?|open|pending|todo|to do|see|view)\b/.test(
       message,
     );
   const asksAboutAssignmentTooling =
@@ -1842,21 +1842,30 @@ function resolveAssignmentEmployeeTarget(
   request: IntentPlannerRequest,
 ) {
   const message = normalize(rawMessage);
-  if (
-    /\b(my|me|i have|i need|am i assigned)\b/.test(message) ||
-    /^what tasks (?:did|do) i\b/.test(message)
-  ) {
-    return request.actor.displayName;
-  }
 
   const match =
     rawMessage.match(/^what did\s+(.+?)\s+(?:complete|finish|do)[.?!]?$/i)
       ?.[1]
       ?.trim() ??
+    rawMessage.match(/\bwho\s+is\s+(.+?)\s+and\s+what\s+(?:are|is)\s+(?:their|her|his)\s+(?:assignments?|tasks?|checklist items?)/i)
+      ?.[1]
+      ?.trim() ??
+    rawMessage.match(/\b(?:show|list|view|see|tell)(?: me)?(?: about)?\s+([a-z][a-z .-]*?)(?:'s|s)\s+(?:assignments?|tasks?|checklist items?)[.?!]?$/i)
+      ?.[1]
+      ?.trim() ??
+    rawMessage.match(/\b(?:show|list|view|see)(?: me)?\s+(?:the\s+)?(?:assignments?|tasks?|checklist items?)\s+(?:for|of)\s+([a-z][a-z .-]*?)[.?!]?$/i)
+      ?.[1]
+      ?.trim() ??
     rawMessage.match(/\bwhat\s+(?:are|is)\s+(.+?)'s\s+(?:assignments?|tasks?|checklist items?)(?:\b|[.?!]?$)/i)
       ?.[1]
       ?.trim() ??
+    rawMessage.match(/\bwhat\s+(?:are|is)\s+(.+?)s\s+(?:assignments?|tasks?|checklist items?)(?:\b|[.?!]?$)/i)
+      ?.[1]
+      ?.trim() ??
     rawMessage.match(/\bwhat\s+(?:are|is)\s+(.+?)\s+(?:assignments?|tasks?|checklist items?)(?:\b|[.?!]?$)/i)
+      ?.[1]
+      ?.trim() ??
+    rawMessage.match(/\b(?:assignments?|tasks?|checklist items?)\s+(?:for|of)\s+(.+?)(?:\b|[.?!]?$)/i)
       ?.[1]
       ?.trim() ??
     rawMessage.match(/\b(?:for|assigned to|does|did)\s+(.+?)(?:\s+(?:have|has|need|completed?|done|open|pending|to do|assignments?|tasks?)\b|[.?!]?$)/i)
@@ -1865,7 +1874,24 @@ function resolveAssignmentEmployeeTarget(
     rawMessage.match(/^(.+?)'s\s+(?:assignments?|tasks?|checklist items?)/i)?.[1]?.trim() ??
     rawMessage.match(/\bwhat\s+(?:assignments?|tasks?)\s+(?:does|did)\s+(.+?)\s+(?:have|complete|do)/i)?.[1]?.trim();
 
-  if (!match || TEAM_TARGETS.has(normalize(match))) {
+  if (!match) {
+    if (
+      /\b(my|me|i have|i need|am i assigned)\b/.test(message) ||
+      /^what tasks (?:did|do) i\b/.test(message)
+    ) {
+      return request.actor.displayName;
+    }
+
+    return request.actor.displayName;
+  }
+
+  const normalizedMatch = normalize(match);
+  if (
+    normalizedMatch === "my" ||
+    normalizedMatch === "me" ||
+    normalizedMatch === "i" ||
+    TEAM_TARGETS.has(normalizedMatch)
+  ) {
     return request.actor.displayName;
   }
 

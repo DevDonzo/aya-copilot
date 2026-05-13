@@ -113,6 +113,14 @@ describe("users sync", () => {
 
     const result = applyKnownAyaEmployeeEmails([
       {
+        id: "emp_hamza",
+        email: "",
+        firstName: "Hamza",
+        lastName: "Paracha",
+        fullName: "Hamza Paracha",
+        timezone: null,
+      } as BlueUser,
+      {
         id: "emp_rehan",
         email: "",
         firstName: "Rehan",
@@ -139,6 +147,7 @@ describe("users sync", () => {
     ]);
 
     expect(result).toMatchObject([
+      { email: "hamza@ayafinancial.com" },
       { email: "rsaeed@ayafinancial.com" },
       { email: "skhan@ayafinancial.com" },
       { email: "existing@ayafinancial.com" },

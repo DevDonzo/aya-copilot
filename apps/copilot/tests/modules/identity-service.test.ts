@@ -39,4 +39,33 @@ describe("identity service", () => {
       env.cleanup();
     }
   });
+
+  it("formats unmapped LibreChat accounts without asking the user to type identity", async () => {
+    const { formatUnmappedEmployeeMessage, resolveActorIdentity } = await import(
+      "../../src/modules/identity/service.js"
+    );
+
+    expect(
+      formatUnmappedEmployeeMessage({
+        employeeEmail: "codex.qa.20260513.1827@ayafinancial.com",
+      }),
+    ).toBe(
+      "Your Copilot account is not linked to an Aya employee profile. Ask an admin to link codex.qa.20260513.1827@ayafinancial.com.",
+    );
+    expect(
+      formatUnmappedEmployeeMessage({
+        employeeEmail: "{{LIBRECHAT_USER_EMAIL}}",
+      }),
+    ).toBe(
+      "Aya Copilot could not read your signed-in LibreChat employee email. Ask an admin to check the LibreChat-to-Aya identity headers.",
+    );
+
+    await expect(
+      resolveActorIdentity({
+        employeeEmail: "codex.qa.20260513.1827@ayafinancial.com",
+      }),
+    ).rejects.toThrow(
+      "Your Copilot account is not linked to an Aya employee profile. Ask an admin to link codex.qa.20260513.1827@ayafinancial.com.",
+    );
+  });
 });

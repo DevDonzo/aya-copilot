@@ -1584,4 +1584,45 @@ describe("Aya copilot message flow", () => {
       env.cleanup();
     }
   });
+
+  it("refuses broad destructive bulk actions before planning execution", async () => {
+    const env = createTestEnvironment();
+
+    try {
+      const { ensureEmployee, initializeDatabase } = await import("../../src/db.js");
+      await initializeDatabase();
+      await ensureEmployee({
+        employeeId: "employee_1",
+        displayName: "Hamza Paracha",
+        email: "hamza@ayafinancial.com",
+        roleName: "admin",
+      });
+
+      const { handleInboundMessage } = await import(
+        "../../src/messages/handle-message.js"
+      );
+
+      for (const message of [
+        "move every record to Done",
+        "delete all records",
+        "mark all clients complete",
+        "move all leads to Done",
+        "assign every file to Hamza",
+        "close all records",
+      ]) {
+        const response = await handleInboundMessage({
+          actorEmployeeId: "employee_1",
+          message,
+        });
+
+        expect(response).toMatchObject({
+          matched: true,
+          responseText:
+            "I cannot perform bulk destructive actions like moving, deleting, completing, assigning, or updating every record at once. Pick one specific client/file or a clearly bounded QA record in the allowed workspace.",
+        });
+      }
+    } finally {
+      env.cleanup();
+    }
+  });
 });

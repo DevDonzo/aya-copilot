@@ -35,6 +35,8 @@ import {
 } from "../reporting/service.js";
 import type { BlueRequestAuth, EmployeeIdentity, IntentName } from "../domain/types.js";
 import { normalizeBlueRequestAuth } from "../modules/blue/request-auth.js";
+import { getPreAuthSafetyBlock } from "../modules/copilot/safety.js";
+import { formatUnmappedEmployeeMessage } from "../modules/identity/service.js";
 
 const MIN_REASONABLE_ACTIVITY_DATE = "2025-01-01";
 
@@ -105,23 +107,21 @@ async function getHeaderActor(
     employeeName?: string;
   },
 ) {
-  const employeeId =
-    getHeaderValue(headers, "x-aya-employee-id") ??
-    fallback?.employeeId ??
-    undefined;
-  const employeeEmail =
-    getHeaderValue(headers, "x-aya-employee-email") ??
-    fallback?.employeeEmail ??
-    undefined;
-  const employeeName =
-    getHeaderValue(headers, "x-aya-employee-name") ??
-    fallback?.employeeName ??
-    undefined;
+  const identity = getHeaderActorInput(headers, fallback);
 
   const actor = await resolveActorIdentity({
-    employeeId: employeeId || undefined,
-    employeeEmail: employeeEmail || undefined,
-    employeeName: employeeName || undefined,
+    employeeId: identity.employeeId,
+    employeeEmail: identity.employeeEmail,
+    employeeName: identity.employeeName,
+  }).catch((error: unknown) => {
+    if (
+      error instanceof AppError &&
+      (error.code === "AUTH_REQUIRED" || error.code === "NOT_FOUND")
+    ) {
+      return null;
+    }
+
+    throw error;
   });
   if (!actor) {
     return null;
@@ -129,7 +129,31 @@ async function getHeaderActor(
 
   return {
     ...actor,
-    email: actor.email ?? employeeEmail ?? undefined,
+    email: actor.email ?? identity.employeeEmail ?? undefined,
+  };
+}
+
+function getHeaderActorInput(
+  headers: Record<string, string | string[] | undefined> | undefined,
+  fallback?: {
+    employeeId?: string;
+    employeeEmail?: string;
+    employeeName?: string;
+  },
+) {
+  return {
+    employeeId:
+      getHeaderValue(headers, "x-aya-employee-id") ??
+      fallback?.employeeId ??
+      undefined,
+    employeeEmail:
+      getHeaderValue(headers, "x-aya-employee-email") ??
+      fallback?.employeeEmail ??
+      undefined,
+    employeeName:
+      getHeaderValue(headers, "x-aya-employee-name") ??
+      fallback?.employeeName ??
+      undefined,
   };
 }
 
@@ -186,7 +210,7 @@ async function requireToolActor(
   const actor = await getHeaderActor(headers, fallback);
   if (!actor) {
     throw new Error(
-      "This Aya tool requires employee identity. Send x-aya-employee-id, x-aya-employee-email, or x-aya-employee-name.",
+      formatUnmappedEmployeeMessage(getHeaderActorInput(headers, fallback)),
     );
   }
 
@@ -220,10 +244,23 @@ function getHeaderValue(
   const value =
     headers[name] ?? headers[name.toLowerCase()] ?? headers[name.toUpperCase()];
   if (Array.isArray(value)) {
-    return value[0] ?? null;
+    return normalizeHeaderValue(value[0]);
   }
 
-  return value ?? null;
+  return normalizeHeaderValue(value);
+}
+
+function normalizeHeaderValue(value: string | undefined | null) {
+  const normalized = value?.trim();
+  if (!normalized) {
+    return null;
+  }
+
+  if (/^\{\{.+\}\}$/.test(normalized) || /^\$\{.+\}$/.test(normalized)) {
+    return null;
+  }
+
+  return normalized;
 }
 
 function toStructuredContent(value: unknown) {
@@ -324,14 +361,40 @@ function createAyaMcpServer() {
       },
     },
     async ({ message }, extra) => {
+      const safetyBlock = getPreAuthSafetyBlock(message);
+      if (safetyBlock) {
+        return {
+          content: [{ type: "text", text: safetyBlock.responseText }],
+          structuredContent: toStructuredContent({
+            matched: true,
+            blocked: true,
+            code: safetyBlock.code,
+            responseText: safetyBlock.responseText,
+          }),
+        };
+      }
+
+      const actorInput = getHeaderActorInput(extra.requestInfo?.headers);
       const actor = await getHeaderActor(extra.requestInfo?.headers);
+      if (!actor) {
+        const responseText = formatUnmappedEmployeeMessage(actorInput);
+        return {
+          content: [{ type: "text", text: responseText }],
+          structuredContent: toStructuredContent({
+            matched: false,
+            code: "EMPLOYEE_IDENTITY_NOT_LINKED",
+            responseText,
+          }),
+        };
+      }
+
       const blueAuth = getHeaderBlueAuth(extra.requestInfo?.headers);
       const conversationKey = getHeaderConversationKey(extra.requestInfo?.headers);
       const result = await runAyaMessageTool({
         message,
-        actorEmployeeId: actor?.employeeId,
-        actorEmployeeEmail: actor?.email,
-        actorEmployeeName: actor?.displayName,
+        actorEmployeeId: actor.employeeId,
+        actorEmployeeEmail: actor.email ?? actorInput.employeeEmail,
+        actorEmployeeName: actor.displayName,
         blueAuth,
         conversationKey,
       });
@@ -352,7 +415,19 @@ function createAyaMcpServer() {
       inputSchema: {},
     },
     async (_args, extra) => {
-      const actor = await requireToolActor(extra.requestInfo?.headers);
+      const actorInput = getHeaderActorInput(extra.requestInfo?.headers);
+      const actor = await getHeaderActor(extra.requestInfo?.headers);
+      if (!actor) {
+        const responseText = formatUnmappedEmployeeMessage(actorInput);
+        return {
+          content: [{ type: "text", text: responseText }],
+          structuredContent: toStructuredContent({
+            code: "EMPLOYEE_IDENTITY_NOT_LINKED",
+            responseText,
+          }),
+        };
+      }
+
       const responseText = [
         `You are signed in as ${actor.displayName}.`,
         actor.email ? `Email: ${actor.email}` : null,

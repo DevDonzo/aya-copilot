@@ -564,7 +564,7 @@ function buildAgentPlannerSystemPrompt() {
   return [
     "You are Aya Copilot's bounded agent planner. Return only JSON.",
     "Do not answer the user. Do not call tools. Create up to 3 safe Aya action steps.",
-    "If unsupported or unsafe, return {\"supported\":false}.",
+    "If unsupported or unsafe, return {\"supported\":false}. Bulk destructive requests are unsafe, including moving, deleting, completing, assigning, or updating all/every records, clients, files, leads, tasks, or assignments.",
     "If one missing detail blocks safe execution, set requiresClarification true and ask one concise question.",
     "Use filler words like 'show me' and 'please' only as conversational filler.",
     "For named employees, set employeeName to the named employee. For clear self requests, use the actor.",

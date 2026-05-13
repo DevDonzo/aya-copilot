@@ -40,6 +40,7 @@ const domains = {
 };
 
 const genericVerificationMessage = 'Please check your email to verify your email address.';
+const loginReadyRegistrationMessage = 'Registration successful. You can sign in now.';
 
 const getExplicitAdminEmails = () =>
   new Set(
@@ -244,9 +245,9 @@ const registerUser = async (user, additionalData = {}) => {
     };
 
     const emailEnabled = checkEmailConfig();
-    const disableTTL = isEnabled(process.env.ALLOW_UNVERIFIED_EMAIL_LOGIN);
+    const unverifiedLoginAllowed = isEnabled(process.env.ALLOW_UNVERIFIED_EMAIL_LOGIN);
 
-    const newUser = await createUser(newUserData, appConfig.balance, disableTTL, true);
+    const newUser = await createUser(newUserData, appConfig.balance, unverifiedLoginAllowed, true);
     newUserId = newUser._id;
     if (emailEnabled && !newUser.emailVerified) {
       await sendVerificationEmail({
@@ -258,7 +259,10 @@ const registerUser = async (user, additionalData = {}) => {
       await updateUser(newUserId, { emailVerified: true });
     }
 
-    return { status: 200, message: genericVerificationMessage };
+    return {
+      status: 200,
+      message: unverifiedLoginAllowed ? loginReadyRegistrationMessage : genericVerificationMessage,
+    };
   } catch (err) {
     logger.error('[registerUser] Error in registering user:', err);
     if (newUserId) {

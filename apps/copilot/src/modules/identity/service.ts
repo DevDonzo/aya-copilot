@@ -18,6 +18,25 @@ const defaultActor: EmployeeIdentity = {
   blueUserId: "cmn4zii0g007p01nueg7v24k8",
 };
 
+export function formatUnmappedEmployeeMessage(input: {
+  employeeEmail?: string;
+  employeeName?: string;
+  senderId?: string;
+  transport?: string;
+}) {
+  const email = normalizeHeaderIdentityValue(input.employeeEmail);
+  if (email) {
+    return `Your Copilot account is not linked to an Aya employee profile. Ask an admin to link ${email}.`;
+  }
+
+  const name = normalizeHeaderIdentityValue(input.employeeName);
+  if (name) {
+    return `Your Copilot account is not linked to an Aya employee profile. Ask an admin to link ${name}.`;
+  }
+
+  return "Aya Copilot could not read your signed-in LibreChat employee email. Ask an admin to check the LibreChat-to-Aya identity headers.";
+}
+
 export async function createManualIdentityLink(input: {
   employeeId?: string;
   employeeName?: string;
@@ -61,19 +80,23 @@ export async function resolveActorIdentity(input: {
   autoLinkByEmail?: boolean;
 }) {
   let firstLookupError: Error | null = null;
+  const employeeId = normalizeHeaderIdentityValue(input.employeeId);
+  const employeeEmail = normalizeHeaderIdentityValue(input.employeeEmail);
+  const employeeName = normalizeHeaderIdentityValue(input.employeeName);
+  const senderId = normalizeHeaderIdentityValue(input.senderId);
 
-  if (input.employeeId) {
-    const employee = await findEmployeeById(input.employeeId);
+  if (employeeId) {
+    const employee = await findEmployeeById(employeeId);
     if (employee) {
       return toEmployeeIdentity(employee);
     }
 
-    firstLookupError ??= new NotFoundError(`Unknown employeeId: ${input.employeeId}`);
+    firstLookupError ??= new NotFoundError(`Unknown employeeId: ${employeeId}`);
   }
 
-  if (input.employeeEmail) {
+  if (employeeEmail) {
     const employee = await resolveEmployeeByEmail(
-      input.employeeEmail,
+      employeeEmail,
       Boolean(input.autoLinkByEmail),
     );
     if (employee) {
@@ -81,30 +104,30 @@ export async function resolveActorIdentity(input: {
     }
 
     firstLookupError ??= new NotFoundError(
-      `Unknown employee email: ${input.employeeEmail}`,
+      formatUnmappedEmployeeMessage({ employeeEmail }),
     );
   }
 
-  if (input.employeeName) {
-    const employee = await findEmployeeByName(input.employeeName);
+  if (employeeName) {
+    const employee = await findEmployeeByName(employeeName);
     if (employee) {
       return toEmployeeIdentity(employee);
     }
 
-    firstLookupError ??= new NotFoundError(`Unknown employee: ${input.employeeName}`);
+    firstLookupError ??= new NotFoundError(
+      formatUnmappedEmployeeMessage({ employeeName }),
+    );
   }
 
-  if (input.transport && input.senderId) {
-    const employee = await findEmployeeByIdentity(input.transport, input.senderId);
+  if (input.transport && senderId) {
+    const employee = await findEmployeeByIdentity(input.transport, senderId);
     if (employee) {
       return toEmployeeIdentity(employee);
     }
   }
 
   if (input.transport && input.transport !== "http") {
-    throw new AuthError(
-      `No employee mapping found for ${input.transport} sender ${input.senderId ?? "unknown"}`,
-    );
+    throw new AuthError(formatUnmappedEmployeeMessage(input));
   }
 
   if (config.ALLOW_DEV_DEFAULT_ACTOR && config.NODE_ENV !== "production") {
@@ -116,6 +139,19 @@ export async function resolveActorIdentity(input: {
   }
 
   throw new AuthError();
+}
+
+function normalizeHeaderIdentityValue(value?: string | null) {
+  const normalized = value?.trim();
+  if (!normalized) {
+    return undefined;
+  }
+
+  if (/^\{\{.+\}\}$/.test(normalized) || /^\$\{.+\}$/.test(normalized)) {
+    return undefined;
+  }
+
+  return normalized;
 }
 
 async function resolveEmployeeByEmail(email: string, autoLinkByEmail: boolean) {

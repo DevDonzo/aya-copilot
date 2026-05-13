@@ -13,6 +13,7 @@ import {
 import { config } from "../config.js";
 
 const knownAyaEmployeeEmailsByName = new Map([
+  ["hamza paracha", "hamza@ayafinancial.com"],
   ["rehan s", "rsaeed@ayafinancial.com"],
   ["sarah khan", "skhan@ayafinancial.com"],
 ]);

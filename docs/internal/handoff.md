@@ -1382,6 +1382,8 @@ password reset: disabled unless SMTP/reset flow is intentionally configured
 LibreChat admin: only emails listed in AYA_LIBRECHAT_ADMIN_EMAILS
 ```
 
+Production currently sets `ALLOW_UNVERIFIED_EMAIL_LOGIN=true`, so a new allowed-domain user can sign in immediately after registration. The registration API and UI should therefore say the account can be used now instead of instructing the user to wait for verification. If Aya later requires email verification before login, set `ALLOW_UNVERIFIED_EMAIL_LOGIN=false` and restore verification-first copy.
+
 LibreChat stores user passwords hashed with bcrypt. Plaintext passwords are not stored in MongoDB.
 
 ### Major Handoff Item: Password Reset Email

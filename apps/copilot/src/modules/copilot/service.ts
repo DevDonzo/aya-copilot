@@ -57,6 +57,7 @@ import {
   setTaskDueDate,
   searchClients,
 } from "./actions.js";
+import { getPreAuthSafetyBlock } from "./safety.js";
 import { insertBotAuditLog } from "../../store/audit-store.js";
 import { AppError, PermissionError } from "../../app/errors.js";
 
@@ -157,6 +158,33 @@ export async function handleInboundMessage(
   const transport = scopedTransport(payload.transport ?? "http", payload.conversationKey);
   const blueAuth = resolvePayloadBlueAuth(payload);
   const auditPayload = redactPayloadForAudit(payload);
+
+  const safetyBlock = getPreAuthSafetyBlock(payload.message);
+  if (safetyBlock) {
+    await recordAudit({
+      actor,
+      transport,
+      inboundText: payload.message,
+      adapter: "pre-auth-safety",
+      commandName: "safety.bulk_destructive_refusal",
+      outcome: "blocked",
+      responseText: safetyBlock.responseText,
+      requestJson: {
+        payload: auditPayload,
+        code: safetyBlock.code,
+      },
+      responseJson: {
+        code: safetyBlock.code,
+      },
+    });
+
+    return {
+      matched: true,
+      actor,
+      responseText: safetyBlock.responseText,
+    };
+  }
+
   const activeRecordContext = await getActiveRecordContextForActor(
     actor,
     transport,

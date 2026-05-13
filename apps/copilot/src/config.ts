@@ -69,6 +69,7 @@ const runtimeEnv = {
     process.env.BLUE_REPORT_FALLBACK_IDS ?? defaultDemoReportFallbackIds,
   HOSTINGER_API_KEY: process.env.HOSTINGER_API_KEY,
   AYA_MCP_API_KEY: process.env.AYA_MCP_API_KEY,
+  AYA_MCP_FALLBACK_EMPLOYEE_EMAIL: process.env.AYA_MCP_FALLBACK_EMPLOYEE_EMAIL,
   AYA_HOSTINGER_MCP_API_KEY: process.env.AYA_HOSTINGER_MCP_API_KEY,
 };
 
@@ -102,6 +103,7 @@ const configSchema = z.object({
   BLUE_WEBHOOK_PUBLIC_URL: z.string().optional(),
   BLUE_WEBHOOK_SECRET: z.string().optional(),
   AYA_MCP_API_KEY: z.string().optional(),
+  AYA_MCP_FALLBACK_EMPLOYEE_EMAIL: z.string().trim().email().optional(),
   AYA_HOSTINGER_MCP_API_KEY: z.string().optional(),
   WORKSPACE_FULL_RECONCILE_HOURS: z.coerce.number().default(6),
   AUTH_SESSION_TTL_HOURS: z.coerce.number().default(12),

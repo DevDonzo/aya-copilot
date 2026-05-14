@@ -49,6 +49,13 @@ export async function verifyAndProcessBlueWebhook(input: {
   rawBody: string;
   signature?: string | string[];
 }) {
+  const payload = JSON.parse(input.rawBody) as Record<string, unknown>;
+  const parsedEnvelope = webhookEnvelopeSchema.parse(payload);
+  const eventName = parsedEnvelope.event ?? parsedEnvelope.type ?? "UNKNOWN";
+  if (eventName === "WEBHOOK_HEALTH_CHECK") {
+    return { ok: true, healthCheck: true };
+  }
+
   const signature = Array.isArray(input.signature)
     ? input.signature[0]
     : input.signature;
@@ -68,13 +75,6 @@ export async function verifyAndProcessBlueWebhook(input: {
     !crypto.timingSafeEqual(hashBuffer, signatureBuffer)
   ) {
     throw new AuthError("Invalid webhook signature");
-  }
-
-  const parsedEnvelope = webhookEnvelopeSchema.parse(JSON.parse(input.rawBody));
-  const payload = JSON.parse(input.rawBody) as Record<string, unknown>;
-  const eventName = parsedEnvelope.event ?? parsedEnvelope.type ?? "UNKNOWN";
-  if (eventName === "WEBHOOK_HEALTH_CHECK") {
-    return { ok: true, healthCheck: true };
   }
 
   const eventData = isRecord(payload.data) ? payload.data : {};

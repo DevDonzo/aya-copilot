@@ -53,6 +53,12 @@ export async function runAyaToolAgent(
   }
 
   const lastToolCall = [...toolCalls].reverse().find((trace) => trace.intent);
+  const lastReadableToolCall = [...toolCalls]
+    .reverse()
+    .find((trace) => trace.responseText || trace.errorMessage);
+  const hasDirectResponse = toolCalls.some(
+    (trace) => trace.toolName === "respondDirectly" && trace.responseText,
+  );
   const fallbackResponseText = getFallbackResponseText(toolCalls);
   const responseText =
     result.text.trim() ||
@@ -60,10 +66,10 @@ export async function runAyaToolAgent(
     "I completed the request, but Aya did not return a readable summary.";
 
   return {
-    matched: toolCalls.some((trace) => Boolean(trace.intent)),
+    matched: Boolean(lastToolCall) || hasDirectResponse,
     intent: lastToolCall?.intent,
     responseText,
-    data: lastToolCall?.resultSummary,
+    data: (lastToolCall ?? lastReadableToolCall)?.resultSummary,
     model: config.AYA_AGENT_MODEL,
     toolCalls,
     usage: toAgentUsage(result.totalUsage),

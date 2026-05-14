@@ -21,23 +21,36 @@ export async function runAyaToolAgent(
   }
 
   const toolCalls: AyaAgentToolTrace[] = [];
-  const result = await generateText({
-    model: openai(config.AYA_AGENT_MODEL),
-    system: buildAyaAgentSystemPrompt(context),
-    prompt: buildAyaAgentPrompt(context),
-    tools: createAyaAgentTools(context, toolCalls),
-    prepareStep: ({ stepNumber }) => ({
-      toolChoice: stepNumber === 0 ? "required" : "auto",
-    }),
-    stopWhen: stepCountIs(config.AYA_AGENT_MAX_STEPS),
-    maxRetries: 0,
-    temperature: 0,
-    timeout: config.AYA_AGENT_TIMEOUT_MS,
-    experimental_include: {
-      requestBody: false,
-      responseBody: false,
-    },
-  });
+  let result: {
+    text: string;
+    totalUsage?: LanguageModelUsage;
+  };
+  try {
+    result = await generateText({
+      model: openai(config.AYA_AGENT_MODEL),
+      system: buildAyaAgentSystemPrompt(context),
+      prompt: buildAyaAgentPrompt(context),
+      tools: createAyaAgentTools(context, toolCalls),
+      prepareStep: ({ stepNumber }) => ({
+        toolChoice: stepNumber === 0 ? "required" : "auto",
+      }),
+      stopWhen: stepCountIs(config.AYA_AGENT_MAX_STEPS),
+      maxRetries: 0,
+      temperature: 0,
+      timeout: config.AYA_AGENT_TIMEOUT_MS,
+      experimental_include: {
+        requestBody: false,
+        responseBody: false,
+      },
+    });
+  } catch (error) {
+    const recovered = buildRecoveredAgentResult(toolCalls, error);
+    if (recovered) {
+      return recovered;
+    }
+
+    throw error;
+  }
 
   const lastToolCall = [...toolCalls].reverse().find((trace) => trace.intent);
   const fallbackResponseText = getFallbackResponseText(toolCalls);
@@ -71,6 +84,36 @@ function getFallbackResponseText(toolCalls: AyaAgentToolTrace[]) {
     latestReadableTrace?.errorMessage ??
     null
   );
+}
+
+function buildRecoveredAgentResult(
+  toolCalls: AyaAgentToolTrace[],
+  error: unknown,
+): AyaAgentResult | null {
+  const lastToolCall = [...toolCalls].reverse().find((trace) => trace.intent);
+  const responseText = getFallbackResponseText(toolCalls);
+
+  if (!lastToolCall || !responseText) {
+    return null;
+  }
+
+  return {
+    matched: true,
+    intent: lastToolCall.intent,
+    responseText,
+    data: lastToolCall.resultSummary,
+    model: config.AYA_AGENT_MODEL,
+    toolCalls,
+    recoveredFromError: formatRecoveredError(error),
+  };
+}
+
+function formatRecoveredError(error: unknown) {
+  if (error instanceof Error) {
+    return `${error.name}: ${error.message}`;
+  }
+
+  return String(error);
 }
 
 function toAgentUsage(

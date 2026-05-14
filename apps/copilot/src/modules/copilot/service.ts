@@ -361,6 +361,7 @@ async function executeAyaAgentRuntimeMessage(input: {
           model: result.model,
           toolCalls: result.toolCalls,
           usage: result.usage,
+          recoveredFromError: result.recoveredFromError,
         },
       });
       return null;

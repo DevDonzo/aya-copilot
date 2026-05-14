@@ -245,6 +245,66 @@ describe("Aya copilot message flow", () => {
     }
   });
 
+  it("returns a trusted tool result when final AI wording times out", async () => {
+    const env = createTestEnvironment({
+      AYA_CHAT_RUNTIME: "agent",
+      OPENAI_API_KEY: "test-openai-key",
+    });
+
+    try {
+      vi.doMock("ai", async () => {
+        const actual = await vi.importActual<typeof import("ai")>("ai");
+
+        return {
+          ...actual,
+          generateText: vi.fn(
+            async (options: {
+              tools: Record<
+                string,
+                { execute: (input: Record<string, unknown>) => Promise<Record<string, unknown>> }
+              >;
+            }) => {
+              await options.tools.getSignedInUser.execute({});
+              const error = new Error("The operation was aborted due to timeout");
+              error.name = "TimeoutError";
+              throw error;
+            },
+          ),
+        };
+      });
+
+      const { ensureEmployee, initializeDatabase } = await import("../../src/db.js");
+
+      await initializeDatabase();
+      await ensureEmployee({
+        employeeId: "employee_1",
+        displayName: "Hamza Paracha",
+        email: "hamza@ayafinancial.com",
+        roleName: "employee",
+      });
+
+      const { handleInboundMessage } = await import(
+        "../../src/messages/handle-message.js"
+      );
+
+      const response = await handleInboundMessage({
+        actorEmployeeId: "employee_1",
+        message: "who am I signed in as?",
+      });
+
+      expect(response).toMatchObject({
+        matched: true,
+        intent: "identity.self",
+      });
+      expect(response.responseText).toContain(
+        "You are signed in as Hamza Paracha.",
+      );
+    } finally {
+      vi.doUnmock("ai");
+      env.cleanup();
+    }
+  });
+
   it("falls back to the planner when the AI SDK agent does not call a tool", async () => {
     const env = createTestEnvironment({
       AYA_CHAT_RUNTIME: "agent_with_planner_fallback",

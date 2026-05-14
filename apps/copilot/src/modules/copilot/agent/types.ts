@@ -36,6 +36,7 @@ export interface AyaAgentResult {
   data?: unknown;
   model: string;
   toolCalls: AyaAgentToolTrace[];
+  recoveredFromError?: string;
   usage?: {
     inputTokens?: number;
     outputTokens?: number;

@@ -15,7 +15,11 @@ import {
 } from "../../../db.js";
 import { ValidationError, AuthError } from "../../../app/errors.js";
 import { webhookEnvelopeSchema } from "../../../types/api.js";
-import { fetchRecordDetail, createOrUpdateWebhook } from "../graphql/client.js";
+import {
+  createOrUpdateWebhook,
+  deleteWebhook,
+  fetchRecordDetail,
+} from "../graphql/client.js";
 import type { BlueWebhookEventType } from "../../../types/blue.js";
 
 const supportedEvents: BlueWebhookEventType[] = [
@@ -132,7 +136,30 @@ export async function registerBlueWebhookIfConfigured() {
   }
 
   const existing = await listBlueWebhookSubscriptions(config.BLUE_WORKSPACE_ID);
-  const existingWebhookId = existing[0]?.blue_webhook_id ?? undefined;
+  const existingSubscription =
+    existing.find((item) => item.url === config.BLUE_WEBHOOK_PUBLIC_URL) ??
+    existing[0];
+  let existingWebhookId: string | undefined =
+    existingSubscription?.blue_webhook_id ?? undefined;
+
+  if (
+    existingWebhookId &&
+    !config.BLUE_WEBHOOK_SECRET &&
+    !existingSubscription?.secret_ref
+  ) {
+    await deleteWebhook(existingWebhookId);
+    await upsertBlueWebhookSubscription({
+      id: existingSubscription.id,
+      workspaceId: config.BLUE_WORKSPACE_ID,
+      blueWebhookId: existingWebhookId,
+      url: existingSubscription.url,
+      eventsJson: existingSubscription.events_json,
+      status: "DELETED",
+      secretRef: null,
+      enabled: false,
+    });
+    existingWebhookId = undefined;
+  }
 
   const { webhook, secret } = await createOrUpdateWebhook({
     workspaceId: config.BLUE_WORKSPACE_ID,
@@ -148,7 +175,9 @@ export async function registerBlueWebhookIfConfigured() {
     url: webhook.url,
     eventsJson: JSON.stringify(webhook.events),
     status: webhook.status,
-    secretRef: secret ?? config.BLUE_WEBHOOK_SECRET ?? null,
+    secretRef:
+      secret ??
+      (config.BLUE_WEBHOOK_SECRET || existingSubscription?.secret_ref || null),
     enabled: webhook.enabled,
   });
 

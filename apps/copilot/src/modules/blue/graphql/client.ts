@@ -994,6 +994,27 @@ export async function createOrUpdateWebhook(input: {
   };
 }
 
+export async function deleteWebhook(webhookId: string) {
+  const data = await blueGraphqlRequest<{
+    deleteWebhook: { success: boolean };
+  }>(
+    `
+      mutation DeleteWebhook($input: DeleteWebhookInput!) {
+        deleteWebhook(input: $input) {
+          success
+        }
+      }
+    `,
+    {
+      input: {
+        webhookId,
+      },
+    },
+  );
+
+  return data.deleteWebhook.success;
+}
+
 export async function fetchWorkspaceCustomFields(workspaceId: string) {
   const data = await blueGraphqlRequest<{
     customFields: {

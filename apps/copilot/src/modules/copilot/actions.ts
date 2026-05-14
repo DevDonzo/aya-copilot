@@ -73,6 +73,7 @@ import {
   buildWorkspaceExceptionReport,
   type ExceptionReportFocus,
 } from "./exception-report.js";
+import { getPreAuthSafetyBlock } from "./safety.js";
 
 const BLUE_WRITE_AUTH_REJECTED_MESSAGE =
   "Blue rejected your saved personal Token ID and Secret for this write action. Open the Aya MCP server settings, re-save your Blue Token ID and Secret from Blue > Profile > API, then try again.";
@@ -693,6 +694,9 @@ export async function moveClientToStage(input: {
   blueAuth?: BlueRequestAuth | null;
   transport?: string;
 }) {
+  assertNoBulkDestructiveWrite(
+    `move ${input.recordQuery ?? input.recordId ?? ""} to ${input.targetListQuery}`,
+  );
   const writeAuth = resolveBlueWriteAuth(input.blueAuth);
   const record =
     input.recordId && input.recordId.trim()
@@ -879,6 +883,9 @@ export async function assignRecord(input: {
   blueAuth?: BlueRequestAuth | null;
   transport?: string;
 }) {
+  assertNoBulkDestructiveWrite(
+    `assign ${input.entityQuery ?? input.recordId ?? ""} to ${input.assigneeName}`,
+  );
   const writeAuth = resolveBlueWriteAuth(input.blueAuth);
   const record = await resolveRecordOrThrow({
     query: input.entityQuery,
@@ -926,6 +933,9 @@ export async function assignTask(input: {
   blueAuth?: BlueRequestAuth | null;
   transport?: string;
 }) {
+  assertNoBulkDestructiveWrite(
+    `assign ${input.entityQuery ?? input.recordId ?? ""} to ${input.assigneeName}`,
+  );
   const writeAuth = resolveBlueWriteAuth(input.blueAuth);
   const record = await resolveRecordOrThrow({
     query: input.entityQuery,
@@ -996,6 +1006,7 @@ export async function completeRecordAssignment(input: {
   blueAuth?: BlueRequestAuth | null;
   transport?: string;
 }) {
+  assertNoBulkDestructiveWrite(`complete ${input.entityQuery ?? ""}`);
   const writeAuth = resolveBlueWriteAuth(input.blueAuth);
   const record = await resolveRecordOrThrow({
     query: input.entityQuery,
@@ -1032,6 +1043,9 @@ export async function completeTaskAssignment(input: {
   blueAuth?: BlueRequestAuth | null;
   transport?: string;
 }) {
+  assertNoBulkDestructiveWrite(
+    `complete ${input.taskQuery} on ${input.recordQuery ?? ""}`,
+  );
   const writeAuth = resolveBlueWriteAuth(input.blueAuth);
   const { taskItem, record } = await resolveChecklistItemOrThrow({
     recordQuery: input.recordQuery,
@@ -1069,6 +1083,9 @@ export async function setRecordDueDate(input: {
   blueAuth?: BlueRequestAuth | null;
   transport?: string;
 }) {
+  assertNoBulkDestructiveWrite(
+    `set ${input.entityQuery ?? ""} due date to ${input.dueDate}`,
+  );
   const writeAuth = resolveBlueWriteAuth(input.blueAuth);
   const record = await resolveRecordOrThrow({
     query: input.entityQuery,
@@ -1111,6 +1128,9 @@ export async function setTaskDueDate(input: {
   blueAuth?: BlueRequestAuth | null;
   transport?: string;
 }) {
+  assertNoBulkDestructiveWrite(
+    `set ${input.taskQuery} on ${input.recordQuery ?? ""} due date to ${input.dueDate}`,
+  );
   const writeAuth = resolveBlueWriteAuth(input.blueAuth);
   const { taskItem, record } = await resolveChecklistItemOrThrow({
     recordQuery: input.recordQuery,
@@ -1262,7 +1282,8 @@ async function resolveRecordOrThrow(input: RecordResolutionInput) {
     }
   }
 
-  const trimmedQuery = input.query.trim();
+  const originalQuery = input.query.trim();
+  const trimmedQuery = normalizeRecordLookupQuery(originalQuery);
   const normalizedQuery = normalizeCacheQuery(trimmedQuery);
   if (input.actor && input.requireExactMatch) {
     const assignedRecords = await loadAssignedOpenRecords(input.actor.employeeId);
@@ -1295,7 +1316,7 @@ async function resolveRecordOrThrow(input: RecordResolutionInput) {
               ? `${candidate.title} (${candidate.listTitle})`
               : candidate.title,
           ),
-          `Multiple assigned records matched "${input.query}". Be more specific.`,
+          `Multiple assigned records matched "${originalQuery}". Be more specific.`,
         ),
       );
     }
@@ -1330,7 +1351,7 @@ async function resolveRecordOrThrow(input: RecordResolutionInput) {
             ? `${candidate.title} (${candidate.listTitle})`
             : candidate.title,
         ),
-        `Multiple exact records matched "${input.query}". Be more specific.`,
+        `Multiple exact records matched "${originalQuery}". Be more specific.`,
       ),
     );
   }
@@ -1366,7 +1387,7 @@ async function resolveRecordOrThrow(input: RecordResolutionInput) {
               ? `${candidate.title} (${candidate.listTitle})`
               : candidate.title,
           ),
-          `Multiple exact records matched "${input.query}". Be more specific.`,
+          `Multiple exact records matched "${originalQuery}". Be more specific.`,
         ),
       );
     }
@@ -1380,9 +1401,9 @@ async function resolveRecordOrThrow(input: RecordResolutionInput) {
                 ? `${candidate.title} (${candidate.listTitle})`
                 : candidate.title,
             ),
-            `I could not find an exact record title match for "${input.query}". Re-run the command with one of these current titles:`,
+            `I could not find an exact record title match for "${originalQuery}". Re-run the command with one of these current titles:`,
           )
-        : `I could not find an exact record title match for "${input.query}". Re-run the command with the full current client title.`,
+        : `I could not find an exact record title match for "${originalQuery}". Re-run the command with the full current client title.`,
     );
   }
 
@@ -1418,7 +1439,7 @@ async function resolveRecordOrThrow(input: RecordResolutionInput) {
               ? `${candidate.title} (${candidate.listTitle})`
               : candidate.title,
           ),
-          `Multiple exact records matched "${input.query}". Be more specific.`,
+          `Multiple exact records matched "${originalQuery}". Be more specific.`,
         ),
       );
     }
@@ -1427,7 +1448,7 @@ async function resolveRecordOrThrow(input: RecordResolutionInput) {
   }
   if (!resolution) {
     throw new ValidationError(
-      `No cached Blue record matched "${input.query}". Sync the workspace index and try again.`,
+      `No cached Blue record matched "${originalQuery}". Sync the workspace index and try again.`,
     );
   }
 
@@ -1437,7 +1458,7 @@ async function resolveRecordOrThrow(input: RecordResolutionInput) {
         actor: input.actor,
         transport: input.transport,
         continuationAction: input.continuationAction,
-        originalQuery: input.query.trim(),
+        originalQuery,
         pendingParameters: input.pendingParameters,
         candidates: resolution.candidates,
       });
@@ -1449,7 +1470,7 @@ async function resolveRecordOrThrow(input: RecordResolutionInput) {
             ? `${candidate.title} (${candidate.listTitle})`
             : candidate.title,
         ),
-        `Multiple records matched "${input.query}". Be more specific.`,
+        `Multiple records matched "${originalQuery}". Be more specific.`,
       ),
     );
   }
@@ -1466,6 +1487,33 @@ async function resolveRecordOrThrow(input: RecordResolutionInput) {
   }
 
   return resolution.match;
+}
+
+function assertNoBulkDestructiveWrite(message: string) {
+  const safetyBlock = getPreAuthSafetyBlock(message);
+  if (safetyBlock) {
+    throw new ValidationError(safetyBlock.responseText);
+  }
+}
+
+function normalizeRecordLookupQuery(query: string) {
+  const cleaned = query
+    .trim()
+    .replace(/^(?:the|a|an)\s+/i, "")
+    .replace(/\s+(?:client|file|lead|record)$/i, "")
+    .trim();
+  const normalized = normalizeCacheQuery(cleaned);
+
+  if (
+    normalized === "smoke test" ||
+    normalized === "aya smoke test" ||
+    normalized === "aya smoke" ||
+    normalized.endsWith(" smoke test")
+  ) {
+    return "AYA SMOKE TEST";
+  }
+
+  return cleaned || query.trim();
 }
 
 async function resolveDirectRecordReference(

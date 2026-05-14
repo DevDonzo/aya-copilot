@@ -109,7 +109,9 @@ export async function resolveActorIdentity(input: {
   }
 
   if (employeeName) {
-    const employee = await findEmployeeByName(employeeName);
+    const employee = await findEmployeeByName(
+      normalizeEmployeeLookupName(employeeName),
+    );
     if (employee) {
       return toEmployeeIdentity(employee);
     }
@@ -153,6 +155,16 @@ function normalizeHeaderIdentityValue(value?: string | null) {
 
   return normalized;
 }
+
+function normalizeEmployeeLookupName(value: string) {
+  return EMPLOYEE_NAME_ALIASES.get(value.trim().toLowerCase()) ?? value;
+}
+
+const EMPLOYEE_NAME_ALIASES = new Map([
+  ["rehann", "Rehan S"],
+  ["rehanns", "Rehan S"],
+  ["rehan saeed", "Rehan S"],
+]);
 
 async function resolveEmployeeByEmail(email: string, autoLinkByEmail: boolean) {
   const linked = await findEmployeeByIdentity("email", email);

@@ -618,10 +618,14 @@ function normalizeValue(value: string) {
 
 export function parseAuditRow(row: EmployeeAuditLogRow): ParsedActivityItem {
   const responseJson = safeParseJson(row.response_json);
-  const data = isObject(responseJson) && isObject(responseJson.data)
-    ? responseJson.data
-    : null;
-  const intent = row.detected_intent ?? null;
+  const agentStep = extractAgentActivityStep(responseJson, row.detected_intent);
+  const data =
+    isObject(agentStep?.data)
+      ? agentStep.data
+      : isObject(responseJson) && isObject(responseJson.data)
+        ? responseJson.data
+        : null;
+  const intent = agentStep?.intent ?? row.detected_intent ?? null;
   const employeeId = row.employee_id ?? null;
   const employeeName = row.display_name?.trim() || "Unknown employee";
   const recordId = typeof data?.recordId === "string" ? data.recordId : null;
@@ -813,4 +817,50 @@ function safeParseJson(value: string | null) {
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+function extractAgentActivityStep(
+  responseJson: unknown,
+  detectedIntent: string | null,
+) {
+  if (!isObject(responseJson) || !Array.isArray(responseJson.steps)) {
+    return null;
+  }
+
+  const successfulSteps = responseJson.steps
+    .filter(isObject)
+    .filter((step) => step.outcome === "success");
+  const detectedStep = successfulSteps.find(
+    (step) => step.intent === detectedIntent && isObject(step.data),
+  );
+  const activityStep =
+    detectedStep ??
+    [...successfulSteps]
+      .reverse()
+      .find((step) => isActivityIntent(step.intent) && isObject(step.data));
+
+  if (
+    !activityStep ||
+    typeof activityStep.intent !== "string" ||
+    !isObject(activityStep.data)
+  ) {
+    return null;
+  }
+
+  return {
+    intent: activityStep.intent,
+    data: activityStep.data,
+  };
+}
+
+function isActivityIntent(intent: unknown) {
+  return (
+    intent === "comments.create" ||
+    intent === "records.move" ||
+    intent === "records.create" ||
+    intent === "records.detail" ||
+    intent === "comments.list_recent" ||
+    intent === "records.follow_up" ||
+    intent === "records.list_assigned"
+  );
 }

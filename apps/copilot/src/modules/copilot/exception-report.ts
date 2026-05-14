@@ -118,11 +118,12 @@ function evaluateRecordExceptions(row: CachedRecordRow): ExceptionRecordItem | n
   const rawRecord = safeParseJson(row.raw_json);
   const assignees = extractAssignees(rawRecord);
   const fields = extractFieldMap(rawRecord);
+  const visibleText = collectVisibleContactText(row, rawRecord);
   const rules = getRulesForStage(row.list_title);
   const issues: ExceptionIssue[] = [];
 
   for (const key of rules) {
-    if (isFieldMissing(key, row, fields, assignees)) {
+    if (isFieldMissing(key, row, fields, assignees, visibleText)) {
       issues.push({
         key,
         label: FIELD_LABELS[key],
@@ -177,6 +178,7 @@ function isFieldMissing(
   row: CachedRecordRow,
   fields: Map<string, unknown>,
   assignees: string[],
+  visibleText: string,
 ) {
   switch (key) {
     case "assignee":
@@ -184,9 +186,9 @@ function isFieldMissing(
     case "client_name":
       return !readName(fields);
     case "email":
-      return !readStringField(fields, ["email"]);
+      return !readStringField(fields, ["email"]) && !hasVisibleEmail(visibleText);
     case "phone":
-      return !readStringField(fields, ["phone"]);
+      return !readStringField(fields, ["phone"]) && !hasVisiblePhone(visibleText);
     case "finance_amount":
       return !readPositiveNumberField(fields, ["finance amount", "finance amount 1"]);
     case "due_date":
@@ -222,13 +224,8 @@ function readStringField(fields: Map<string, unknown>, labels: string[]) {
 
 function readPositiveNumberField(fields: Map<string, unknown>, labels: string[]) {
   for (const label of labels) {
-    const value = fields.get(label);
-    const number =
-      typeof value === "number"
-        ? value
-        : typeof value === "string"
-          ? Number(value.replace(/[^0-9.]/g, ""))
-          : NaN;
+    const value = normalizeFieldValue(fields.get(label));
+    const number = Number(value.replace(/[^0-9.]/g, ""));
     if (Number.isFinite(number) && number > 0) {
       return number;
     }
@@ -278,10 +275,53 @@ function extractFieldMap(rawRecord: unknown) {
     if (!isObject(field) || typeof field.name !== "string") {
       continue;
     }
-    fieldMap.set(normalizeLabel(field.name), field.value ?? field.number ?? null);
+    fieldMap.set(normalizeLabel(field.name), extractCustomFieldValue(field));
   }
 
   return fieldMap;
+}
+
+function collectVisibleContactText(row: CachedRecordRow, rawRecord: unknown) {
+  const chunks = [row.title];
+
+  if (isObject(rawRecord)) {
+    for (const key of ["title", "text", "html", "description", "notes"]) {
+      const value = normalizeFieldValue(rawRecord[key]);
+      if (value) {
+        chunks.push(stripHtml(value));
+      }
+    }
+
+    if (Array.isArray(rawRecord.customFields)) {
+      for (const field of rawRecord.customFields) {
+        if (isObject(field)) {
+          const value = extractCustomFieldValue(field);
+          if (value) {
+            chunks.push(stripHtml(value));
+          }
+        }
+      }
+    }
+  }
+
+  return chunks.join(" ");
+}
+
+function hasVisibleEmail(value: string) {
+  return /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(value);
+}
+
+function hasVisiblePhone(value: string) {
+  const phoneLikePattern =
+    /(?:\+?1[\s.-]?)?(?:\(\d{3}\)|\d{3})[\s.-]?\d{3}[\s.-]?\d{4}/g;
+  for (const match of value.matchAll(phoneLikePattern)) {
+    const digits = match[0].replace(/\D+/g, "");
+    if (digits.length === 10 || (digits.length === 11 && digits.startsWith("1"))) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function summarizeFieldCounts(items: ExceptionRecordItem[]) {
@@ -428,20 +468,81 @@ function normalizeLabel(value: string) {
   return value.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
-function normalizeFieldValue(value: unknown) {
+function normalizeFieldValue(value: unknown): string {
   if (value == null) {
     return "";
   }
   if (typeof value === "string") {
-    return value === "(empty)" ? "" : value.trim();
+    const trimmed = value.trim();
+    return trimmed.toLowerCase() === "(empty)" ? "" : trimmed;
   }
   if (typeof value === "number") {
     return Number.isFinite(value) ? String(value) : "";
   }
+  if (typeof value === "boolean") {
+    return value ? "true" : "";
+  }
+  if (Array.isArray(value)) {
+    return value
+      .map(normalizeFieldValue)
+      .filter(Boolean)
+      .join(", ");
+  }
   if (isObject(value) && typeof value.startDate === "string") {
     return value.startDate;
   }
-  return JSON.stringify(value);
+  if (isObject(value)) {
+    for (const key of [
+      "value",
+      "text",
+      "email",
+      "phone",
+      "number",
+      "amount",
+      "title",
+      "name",
+      "label",
+      "startDate",
+      "endDate",
+    ]) {
+      const normalized = normalizeFieldValue(value[key]);
+      if (normalized) {
+        return normalized;
+      }
+    }
+
+    return Object.values(value)
+      .map(normalizeFieldValue)
+      .filter(Boolean)
+      .join(", ");
+  }
+
+  return "";
+}
+
+function extractCustomFieldValue(field: Record<string, any>) {
+  for (const key of [
+    "value",
+    "text",
+    "email",
+    "phone",
+    "number",
+    "amount",
+    "currency",
+    "startDate",
+    "endDate",
+  ]) {
+    const normalized = normalizeFieldValue(field[key]);
+    if (normalized) {
+      return normalized;
+    }
+  }
+
+  return "";
+}
+
+function stripHtml(value: string) {
+  return value.replace(/<[^>]*>/g, " ");
 }
 
 function safeParseJson(value: string | null) {

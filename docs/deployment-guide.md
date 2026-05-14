@@ -419,10 +419,21 @@ Edit `env/aya.env` and set:
 - `BLUE_COMPANY_ID`
 - `AUTH_BOOTSTRAP_KEY`
 - `BLUE_WEBHOOK_SECRET`
+- `OPENAI_API_KEY`
+- `AYA_CHAT_RUNTIME`
+- `AYA_AGENT_MODEL`
+- `AYA_AGENT_MAX_STEPS`
+- `AYA_AGENT_TIMEOUT_MS`
 
 Keep the deployment constrained to the approved workspace:
 
 - `BLUE_WORKSPACE_ID=cmn524yr800e101mh7kn44mhf`
+
+Recommended chat runtime rollout:
+
+- `AYA_CHAT_RUNTIME=agent_with_planner_fallback`
+- keep `AYA_AGENT_MAX_STEPS=5` and `AYA_AGENT_TIMEOUT_MS=15000` unless production logs show a specific need to tune them
+- set `AYA_CHAT_RUNTIME=planner` for immediate rollback to the deterministic planner
 
 Operational note:
 

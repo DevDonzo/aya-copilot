@@ -117,44 +117,51 @@ export interface AgentStepResultSummary {
 export async function planCopilotIntent(
   request: IntentPlannerRequest,
 ): Promise<IntentPlan | null> {
+  const deterministicPlan = planEmployeeIntent(request);
+  if (deterministicPlan && shouldUseDeterministicAgentPlan(deterministicPlan)) {
+    return {
+      ...deterministicPlan,
+      matchedSignals: [
+        ...deterministicPlan.matchedSignals,
+        "deterministic-priority",
+      ],
+    };
+  }
+
   const llmPlan = await planEmployeeIntentWithLlm(request);
   if (llmPlan) {
     return llmPlan;
   }
 
-  return planEmployeeIntent(request);
+  return deterministicPlan;
 }
 
 export async function planCopilotAgent(
   request: IntentPlannerRequest,
 ): Promise<AgentPlan | null> {
+  const compoundPlan = buildDeterministicCompoundAgentPlan(request);
+  if (compoundPlan) {
+    return compoundPlan;
+  }
+
+  const deterministicPlan = planEmployeeIntent(request);
+  if (deterministicPlan && shouldUseDeterministicAgentPlan(deterministicPlan)) {
+    return toSingleStepAgentPlan(
+      deterministicPlan,
+      "deterministic-priority",
+    );
+  }
+
   const llmPlan = await planAgentWithLlm(request);
   if (llmPlan) {
     return llmPlan;
   }
 
-  const fallbackPlan = planEmployeeIntent(request);
-  if (!fallbackPlan) {
+  if (!deterministicPlan) {
     return null;
   }
 
-  return {
-    goal: "Complete the user's Aya/Blue request.",
-    confidence: fallbackPlan.confidence,
-    requiresClarification: fallbackPlan.requiresClarification,
-    clarificationQuestion: fallbackPlan.clarificationQuestion,
-    steps: fallbackPlan.requiresClarification
-      ? []
-      : [
-          {
-            id: "step_1",
-            intent: fallbackPlan.intent,
-            parameters: fallbackPlan.parameters,
-            purpose: "Run the supported Aya action.",
-          },
-        ],
-    matchedSignals: [...fallbackPlan.matchedSignals, "deterministic-fallback"],
-  };
+  return toSingleStepAgentPlan(deterministicPlan, "deterministic-fallback");
 }
 
 export async function planEmployeeIntentWithLlm(
@@ -393,6 +400,114 @@ function cleanParameters(
   return Object.fromEntries(
     Object.entries(value).filter(([, item]) => item !== null),
   ) as Record<string, string | number | boolean | undefined>;
+}
+
+function shouldUseDeterministicAgentPlan(plan: IntentPlan) {
+  if (plan.requiresClarification) {
+    return true;
+  }
+
+  return (
+    plan.intent === "notifications.feed" ||
+    plan.intent === "records.team_follow_up" ||
+    plan.intent === "summary.team_day" ||
+    plan.intent === "summary.no_activity_day" ||
+    plan.intent === "activity.workspace_report" ||
+    plan.intent === "activity.record_report" ||
+    plan.intent === "records.exception_report" ||
+    plan.intent === "comments.list_recent" ||
+    plan.intent === "records.detail" ||
+    plan.intent === "records.move" ||
+    plan.intent === "records.assign" ||
+    plan.intent === "records.complete" ||
+    plan.intent === "records.set_due_date" ||
+    plan.intent === "comments.create"
+  );
+}
+
+function toSingleStepAgentPlan(plan: IntentPlan, signal: string): AgentPlan {
+  return {
+    goal: "Complete the user's Aya/Blue request.",
+    confidence: plan.confidence,
+    requiresClarification: plan.requiresClarification,
+    clarificationQuestion: plan.clarificationQuestion,
+    steps: plan.requiresClarification
+      ? []
+      : [
+          {
+            id: "step_1",
+            intent: plan.intent,
+            parameters: plan.parameters,
+            purpose: "Run the supported Aya action.",
+          },
+        ],
+    matchedSignals: [...plan.matchedSignals, signal],
+  };
+}
+
+function buildDeterministicCompoundAgentPlan(
+  request: IntentPlannerRequest,
+): AgentPlan | null {
+  const message = request.message.trim();
+  const commentsAndFollowUp = message.match(
+    /^(?:find|search(?: for)?|look up)\s+(.+?),?\s+summarize\s+(?:recent\s+)?comments?,?\s+(?:then\s+)?(?:tell me\s+)?(?:the\s+)?next follow[- ]?up[.?!]?$/i,
+  );
+  if (commentsAndFollowUp?.[1]) {
+    const recordQuery = commentsAndFollowUp[1].trim();
+    return {
+      goal: "Find the record, summarize recent comments, and identify a practical next follow-up.",
+      confidence: 0.94,
+      requiresClarification: false,
+      steps: [
+        {
+          id: "step_1",
+          intent: "comments.list_recent",
+          parameters: { recordQuery },
+          purpose: "Summarize recent comments for the exact record.",
+        },
+        {
+          id: "step_2",
+          intent: "records.detail",
+          parameters: {
+            recordQuery,
+            detailMode: "briefing",
+            briefingFocus: "general",
+          },
+          purpose: "Use record details to identify likely next follow-up context.",
+        },
+      ],
+      finalResponseInstructions:
+        "Summarize the comments and state the most practical next follow-up from the returned record details. If no explicit next follow-up exists, say that clearly.",
+      matchedSignals: ["deterministic-compound:comments-follow-up"],
+    };
+  }
+
+  const searchAndCallPrep = message.match(
+    /^(?:search(?: for)?|find|look up)\s+(.+?)\s+and\s+(?:prep|prepare|brief)\s+me\s+(?:for\s+)?(?:a\s+)?call[.?!]?$/i,
+  );
+  if (searchAndCallPrep?.[1]) {
+    return {
+      goal: "Find the record and prepare a concise call brief.",
+      confidence: 0.94,
+      requiresClarification: false,
+      steps: [
+        {
+          id: "step_1",
+          intent: "records.detail",
+          parameters: {
+            recordQuery: searchAndCallPrep[1].trim(),
+            detailMode: "call_prep",
+          },
+          purpose: "Load the record through the direct record detail path for call prep.",
+        },
+      ],
+      finalResponseInstructions:
+        "Return the call prep from the record detail. Do not mention internal search or cache behavior.",
+      matchedSignals: ["deterministic-compound:search-call-prep"],
+    };
+  }
+
+  return null;
 }
 
 async function callPlannerLlm(

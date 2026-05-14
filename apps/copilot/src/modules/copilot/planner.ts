@@ -172,6 +172,23 @@ function resolveNotificationsIntent(
   request: IntentPlannerRequest,
 ): IntentCandidate | null {
   const rawMessage = request.message.trim();
+
+  const namedTarget =
+    rawMessage.match(/^(?:show|check|get)(?: me)?\s+([a-z][a-z .-]*?)(?:'s|s)\s+(?:notifications|alerts)[.?!]?$/i)?.[1]?.trim() ??
+    rawMessage.match(/^(?:show|check|get)(?: me)?\s+(?:notifications|alerts)\s+(?:for|of)\s+([a-z][a-z .-]*?)[.?!]?$/i)?.[1]?.trim();
+
+  if (namedTarget && !TEAM_TARGETS.has(normalize(namedTarget))) {
+    return candidate(
+      "notifications.feed",
+      97,
+      0.92,
+      {
+        employeeName: normalizeEmployeeTarget(namedTarget, request),
+      },
+      ["notifications:employee"],
+    );
+  }
+
   if (
     /^(?:show|check|get)(?: me)?\s+(?:my\s+)?notifications[.?!]?$/i.test(rawMessage) ||
     /^(?:show|check|get)(?: me)?\s+(?:my\s+)?alerts[.?!]?$/i.test(rawMessage)
@@ -227,6 +244,8 @@ function resolveTeamSummaryIntent(
   if (
     TEAM_SUMMARY_MESSAGES.has(message) ||
     /^who did what today\??$/.test(message) ||
+    /^summari[sz]e (?:the )?team(?: today)?\??$/.test(message) ||
+    /^team summary(?: today)?\??$/.test(message) ||
     ((message.includes("what changed") || message.includes("what happened")) &&
       message.includes("today"))
   ) {
@@ -265,8 +284,8 @@ function resolveTeamFollowUpIntent(
   ) {
     return candidate(
       "records.team_follow_up",
-      94,
-      0.9,
+      98,
+      0.93,
       {
         date:
           typeof dateRange.dateStart === "string" &&
@@ -499,6 +518,10 @@ function resolveEmployeeActivityIntent(
     activityMatch(
       rawMessage,
       String.raw`^(?:show(?: me)?|tell me|give me)\s+(.+?)'?s activity`,
+    )?.[1]?.trim() ??
+    activityMatch(
+      rawMessage,
+      String.raw`^(?:show(?: me)?|tell me|give me)\s+(.+?)'?s work`,
     )?.[1]?.trim() ??
     activityMatch(rawMessage, String.raw`^what exactly did (.+) do`)?.[1]?.trim() ??
     activityMatch(rawMessage, String.raw`^what did (.+) do`)?.[1]?.trim();
@@ -1827,9 +1850,11 @@ function normalizeEmployeeTarget(
     .replace(/\s+(?:please|pls)$/i, "")
     .trim();
   const normalized = normalize(cleaned);
-  return isSelfEmployeeTarget(normalized)
-    ? request.actor.displayName
-    : cleaned;
+  if (isSelfEmployeeTarget(normalized)) {
+    return request.actor.displayName;
+  }
+
+  return EMPLOYEE_NAME_ALIASES.get(normalized) ?? cleaned;
 }
 
 function isSelfEmployeeTarget(value: string) {
@@ -2042,6 +2067,8 @@ function normalizeIntentMessage(input: string) {
 const SELF_IDENTITY_MESSAGES = new Set([
   "who am i",
   "who am i?",
+  "who am i signed in as",
+  "who am i signed in as?",
   "whoami",
   "who's signed in",
   "who is signed in",
@@ -2058,6 +2085,9 @@ const TEAM_SUMMARY_MESSAGES = new Set([
   "what did the team do today?",
   "what did we do today",
   "what did we do today?",
+  "summarize the team today",
+  "summarize team today",
+  "team summary today",
 ]);
 
 const REPORTING_OVERVIEW_MESSAGES = new Set([
@@ -2072,6 +2102,13 @@ const REPORTING_OVERVIEW_MESSAGES = new Set([
 ]);
 
 const TEAM_TARGETS = new Set(["everyone", "the team", "team", "we"]);
+const EMPLOYEE_NAME_ALIASES = new Map([
+  ["rehann", "Rehan S"],
+  ["rehanns", "Rehan S"],
+  ["rehan", "Rehan S"],
+  ["rehan s", "Rehan S"],
+  ["rehan saeed", "Rehan S"],
+]);
 const SELF_EMPLOYEE_TARGETS = new Set([
   "i",
   "me",

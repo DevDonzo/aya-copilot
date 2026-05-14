@@ -60,6 +60,8 @@ Core values:
 - `AYA_MCP_API_KEY`
 - `AYA_HOSTINGER_MCP_API_KEY`
 - `OPENAI_API_KEY`
+- `AYA_CHAT_RUNTIME=agent_with_planner_fallback`
+- `AYA_AGENT_MODEL=gpt-5.4`
 - `LIBRECHAT_MONGO_URI`
 - `LIBRECHAT_MONGO_DB_NAME`
 

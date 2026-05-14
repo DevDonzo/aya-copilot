@@ -95,6 +95,69 @@ describe("detectIntent", () => {
     });
   });
 
+  it("maps overdue assignment questions to the team follow-up queue", () => {
+    const result = detectIntent({
+      actor: adminActor,
+      message: "who has overdue assignments?",
+      nowIso: fixedNowIso,
+    });
+
+    expect(result).toMatchObject({
+      intent: "records.team_follow_up",
+      parameters: {
+        date: "2026-04-09",
+      },
+    });
+  });
+
+  it("maps team summary phrasing without clarification", () => {
+    const result = planEmployeeIntent({
+      actor: adminActor,
+      message: "summarize the team today",
+      nowIso: fixedNowIso,
+    });
+
+    expect(result).toMatchObject({
+      intent: "summary.team_day",
+      requiresClarification: false,
+    });
+  });
+
+  it("maps named notification requests to that employee", () => {
+    const result = planEmployeeIntent({
+      actor,
+      message: "show Rehan's notifications",
+      nowIso: fixedNowIso,
+    });
+
+    expect(result).toMatchObject({
+      intent: "notifications.feed",
+      parameters: {
+        employeeName: "Rehan S",
+      },
+      requiresClarification: false,
+    });
+  });
+
+  it("repairs a common employee-name typo in work-today requests", () => {
+    const result = planEmployeeIntent({
+      actor: adminActor,
+      message: "show me Rehann's work today",
+      nowIso: fixedNowIso,
+    });
+
+    expect(result).toMatchObject({
+      intent: "activity.employee_report",
+      parameters: {
+        employeeName: "Rehan S",
+        activityFocus: "all",
+        dateStart: "2026-04-09",
+        dateEnd: "2026-04-09",
+      },
+      requiresClarification: false,
+    });
+  });
+
   it("matches follow-up queue requests", () => {
     const result = detectIntent({
       actor,

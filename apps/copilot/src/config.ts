@@ -71,6 +71,10 @@ const runtimeEnv = {
   AYA_MCP_API_KEY: process.env.AYA_MCP_API_KEY,
   AYA_HOSTINGER_MCP_API_KEY: process.env.AYA_HOSTINGER_MCP_API_KEY,
   OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+  AYA_CHAT_RUNTIME: process.env.AYA_CHAT_RUNTIME,
+  AYA_AGENT_MODEL: process.env.AYA_AGENT_MODEL,
+  AYA_AGENT_MAX_STEPS: process.env.AYA_AGENT_MAX_STEPS,
+  AYA_AGENT_TIMEOUT_MS: process.env.AYA_AGENT_TIMEOUT_MS,
   AYA_LLM_PLANNER_ENABLED: process.env.AYA_LLM_PLANNER_ENABLED,
   AYA_LLM_PLANNER_MODEL: process.env.AYA_LLM_PLANNER_MODEL,
   AYA_LLM_PLANNER_TIMEOUT_MS: process.env.AYA_LLM_PLANNER_TIMEOUT_MS,
@@ -108,6 +112,12 @@ const configSchema = z.object({
   AYA_MCP_API_KEY: z.string().optional(),
   AYA_HOSTINGER_MCP_API_KEY: z.string().optional(),
   OPENAI_API_KEY: z.string().optional(),
+  AYA_CHAT_RUNTIME: z
+    .enum(["planner", "agent", "agent_with_planner_fallback"])
+    .default("planner"),
+  AYA_AGENT_MODEL: z.string().default("gpt-5.4"),
+  AYA_AGENT_MAX_STEPS: z.coerce.number().int().min(1).max(8).default(5),
+  AYA_AGENT_TIMEOUT_MS: z.coerce.number().default(15_000),
   AYA_LLM_PLANNER_ENABLED: z
     .string()
     .default("true")

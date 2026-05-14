@@ -7,6 +7,79 @@ describe("Aya copilot message flow", () => {
     vi.resetModules();
   });
 
+  it("uses the AI SDK agent tools for write intents and returns credential guidance", async () => {
+    const env = createTestEnvironment({
+      AYA_CHAT_RUNTIME: "agent",
+      OPENAI_API_KEY: "test-openai-key",
+    });
+
+    try {
+      vi.doMock("ai", async () => {
+        const actual = await vi.importActual<typeof import("ai")>("ai");
+
+        return {
+          ...actual,
+          generateText: vi.fn(
+            async (options: {
+              tools: Record<
+                string,
+                { execute: (input: Record<string, unknown>) => Promise<Record<string, unknown>> }
+              >;
+            }) => {
+              const toolOutput = await options.tools.addClientComment.execute({
+                recordQuery: "AYA SMOKE TEST",
+                text: "QA local retest write check 2026-05-14",
+              });
+
+              return {
+                text:
+                  typeof toolOutput.errorMessage === "string"
+                    ? toolOutput.errorMessage
+                    : String(toolOutput.responseText ?? ""),
+                totalUsage: {
+                  inputTokens: 10,
+                  outputTokens: 6,
+                  totalTokens: 16,
+                },
+              };
+            },
+          ),
+        };
+      });
+
+      const { ensureEmployee, initializeDatabase } = await import("../../src/db.js");
+
+      await initializeDatabase();
+      await ensureEmployee({
+        employeeId: "employee_1",
+        displayName: "Hamza Paracha",
+        email: "hamza@ayafinancial.com",
+        roleName: "employee",
+      });
+
+      const { handleInboundMessage } = await import(
+        "../../src/messages/handle-message.js"
+      );
+
+      const response = await handleInboundMessage({
+        actorEmployeeId: "employee_1",
+        message:
+          "add a note to AYA SMOKE TEST saying QA local retest write check 2026-05-14",
+      });
+
+      expect(response).toMatchObject({
+        matched: true,
+        intent: "comments.create",
+      });
+      expect(response.responseText).toContain(
+        "Your Blue account is not connected for write actions yet.",
+      );
+    } finally {
+      vi.doUnmock("ai");
+      env.cleanup();
+    }
+  });
+
   it("keeps active client context across detail and comment follow-ups", async () => {
     const env = createTestEnvironment();
 
@@ -1168,6 +1241,279 @@ describe("Aya copilot message flow", () => {
     }
   });
 
+  it("does not include records with structured phone or email values in missing-contact reports", async () => {
+    const env = createTestEnvironment();
+
+    try {
+      const {
+        ensureEmployee,
+        initializeDatabase,
+        upsertBlueRecordsCache,
+      } = await import("../../src/db.js");
+
+      await initializeDatabase();
+      await ensureEmployee({
+        employeeId: "admin_1",
+        displayName: "Admin User",
+        email: "admin@ayafinancial.com",
+        roleName: "admin",
+      });
+
+      await upsertBlueRecordsCache({
+        workspaceId: "cmn524yr800e101mh7kn44mhf",
+        items: [
+          {
+            id: "record_structured_contact",
+            title: "Structured Contact File",
+            normalizedTitle: "structured contact file",
+            listId: "list_leads",
+            listTitle: "0.3 Leads (3rd FU)",
+            dueAt: "2026-04-12T23:59:59.999Z",
+            updatedAt: "2026-04-09T12:00:00.000Z",
+            archived: false,
+            done: false,
+            rawJson: JSON.stringify({
+              users: [{ fullName: "Sarah Khan", email: "sarah@ayafinancial.com" }],
+              customFields: [
+                { name: "Contact Name", value: { text: "Structured Client" } },
+                { name: "Email", value: { email: "structured@example.com" } },
+                { name: "Phone", value: { phone: "+1 (416) 555-0100" } },
+                { name: "Finance Amount 1", value: { number: 325000 } },
+              ],
+            }),
+          },
+          {
+            id: "record_missing_phone",
+            title: "Missing Phone File",
+            normalizedTitle: "missing phone file",
+            listId: "list_leads",
+            listTitle: "0.3 Leads (3rd FU)",
+            dueAt: "2026-04-12T23:59:59.999Z",
+            updatedAt: "2026-04-09T12:30:00.000Z",
+            archived: false,
+            done: false,
+            rawJson: JSON.stringify({
+              users: [{ fullName: "Rehan S", email: "rehan@ayafinancial.com" }],
+              customFields: [
+                { name: "Contact Name", value: "Phone Missing Client" },
+                { name: "Email", value: "phone.missing@example.com" },
+                { name: "Phone", value: "" },
+                { name: "Finance Amount 1", value: 400000 },
+              ],
+            }),
+          },
+          {
+            id: "record_missing_email",
+            title: "Missing Email File",
+            normalizedTitle: "missing email file",
+            listId: "list_leads",
+            listTitle: "0.3 Leads (3rd FU)",
+            dueAt: "2026-04-12T23:59:59.999Z",
+            updatedAt: "2026-04-09T13:00:00.000Z",
+            archived: false,
+            done: false,
+            rawJson: JSON.stringify({
+              users: [{ fullName: "Hamza Paracha", email: "hamza@ayafinancial.com" }],
+              customFields: [
+                { name: "Contact Name", value: "Email Missing Client" },
+                { name: "Email", value: "" },
+                { name: "Phone", value: "+1 647 555 0101" },
+                { name: "Finance Amount 1", value: 410000 },
+              ],
+            }),
+          },
+          {
+            id: "record_visible_phone",
+            title: "Visible Phone File",
+            normalizedTitle: "visible phone file",
+            listId: "list_leads",
+            listTitle: "0.3 Leads (3rd FU)",
+            dueAt: "2026-04-12T23:59:59.999Z",
+            updatedAt: "2026-04-09T13:30:00.000Z",
+            archived: false,
+            done: false,
+            rawJson: JSON.stringify({
+              text: "Client phone is 905-869-3458.",
+              users: [{ fullName: "Sarah Khan", email: "sarah@ayafinancial.com" }],
+              customFields: [
+                { name: "Contact Name", value: "Visible Phone Client" },
+                { name: "Email", value: "visible.phone@example.com" },
+                { name: "Phone", value: "" },
+                { name: "Finance Amount 1", value: 420000 },
+              ],
+            }),
+          },
+          {
+            id: "record_visible_email",
+            title: "Visible Email File",
+            normalizedTitle: "visible email file",
+            listId: "list_leads",
+            listTitle: "0.3 Leads (3rd FU)",
+            dueAt: "2026-04-12T23:59:59.999Z",
+            updatedAt: "2026-04-09T14:00:00.000Z",
+            archived: false,
+            done: false,
+            rawJson: JSON.stringify({
+              text: "Client email is khalilPhysio@gmail.com.",
+              users: [{ fullName: "Hamza Paracha", email: "hamza@ayafinancial.com" }],
+              customFields: [
+                { name: "Contact Name", value: "Visible Email Client" },
+                { name: "Email", value: "" },
+                { name: "Phone", value: "+1 647 555 0102" },
+                { name: "Finance Amount 1", value: 430000 },
+              ],
+            }),
+          },
+        ],
+      });
+
+      const { handleInboundMessage } = await import(
+        "../../src/messages/handle-message.js"
+      );
+
+      const phoneResponse = await handleInboundMessage({
+        actorEmployeeId: "admin_1",
+        message: "which records are missing phone?",
+      });
+      expect(phoneResponse).toMatchObject({
+        matched: true,
+        intent: "records.exception_report",
+      });
+      expect(phoneResponse.responseText).toContain("Records missing phone: 1.");
+      expect(phoneResponse.responseText).toContain("Missing Phone File");
+      expect(phoneResponse.responseText).not.toContain("Structured Contact File");
+      expect(phoneResponse.responseText).not.toContain("Visible Phone File");
+
+      const emailResponse = await handleInboundMessage({
+        actorEmployeeId: "admin_1",
+        message: "which records are missing email?",
+      });
+      expect(emailResponse).toMatchObject({
+        matched: true,
+        intent: "records.exception_report",
+      });
+      expect(emailResponse.responseText).toContain("Records missing email: 1.");
+      expect(emailResponse.responseText).toContain("Missing Email File");
+      expect(emailResponse.responseText).not.toContain("Structured Contact File");
+      expect(emailResponse.responseText).not.toContain("Visible Email File");
+    } finally {
+      env.cleanup();
+    }
+  });
+
+  it("denies employees reading another employee's notifications", async () => {
+    const env = createTestEnvironment();
+
+    try {
+      const { ensureEmployee, initializeDatabase } = await import("../../src/db.js");
+
+      await initializeDatabase();
+      await ensureEmployee({
+        employeeId: "employee_1",
+        displayName: "Hamza Paracha",
+        email: "hamza@ayafinancial.com",
+        roleName: "employee",
+      });
+      await ensureEmployee({
+        employeeId: "employee_2",
+        displayName: "Rehan S",
+        email: "rehan@ayafinancial.com",
+        roleName: "employee",
+      });
+
+      const { handleInboundMessage } = await import(
+        "../../src/messages/handle-message.js"
+      );
+
+      const response = await handleInboundMessage({
+        actorEmployeeId: "employee_1",
+        message: "show Rehan's notifications",
+      });
+
+      expect(response).toMatchObject({
+        matched: true,
+        intent: "notifications.feed",
+        responseText: "You do not have permission to do that.",
+      });
+    } finally {
+      env.cleanup();
+    }
+  });
+
+  it("counts agent-audited comments in workspace comment reporting", async () => {
+    const env = createTestEnvironment();
+
+    try {
+      const {
+        createId,
+        ensureEmployee,
+        initializeDatabase,
+        insertBotAuditLog,
+      } = await import("../../src/db.js");
+
+      await initializeDatabase();
+      await ensureEmployee({
+        employeeId: "admin_1",
+        displayName: "Admin User",
+        email: "admin@ayafinancial.com",
+        roleName: "admin",
+      });
+      await ensureEmployee({
+        employeeId: "employee_1",
+        displayName: "Hamza Paracha",
+        email: "hamza@ayafinancial.com",
+        roleName: "employee",
+      });
+
+      await insertBotAuditLog({
+        id: createId("audit"),
+        employeeId: "employee_1",
+        transport: "web",
+        inboundText: "add note to AYA SMOKE TEST: smoke note",
+        detectedIntent: "comments.create",
+        adapter: "aya-agent",
+        commandName: "agent.execute",
+        outcome: "success",
+        responseText: "Added comment to AYA SMOKE TEST.",
+        responseJson: {
+          steps: [
+            {
+              stepId: "step_1",
+              intent: "comments.create",
+              outcome: "success",
+              data: {
+                recordId: "record_smoke",
+                recordTitle: "AYA SMOKE TEST",
+                text: "smoke note",
+              },
+            },
+          ],
+        },
+      });
+
+      const { handleInboundMessage } = await import(
+        "../../src/messages/handle-message.js"
+      );
+
+      const response = await handleInboundMessage({
+        actorEmployeeId: "admin_1",
+        message: "who commented today?",
+      });
+
+      expect(response).toMatchObject({
+        matched: true,
+        intent: "activity.workspace_report",
+      });
+      expect(response.responseText).toContain("Workspace comments for");
+      expect(response.responseText).toContain("Hamza Paracha (1)");
+      expect(response.responseText).toContain(
+        "Hamza Paracha: commented on AYA SMOKE TEST: smoke note",
+      );
+    } finally {
+      env.cleanup();
+    }
+  });
+
   it("returns an admin client activity report with exact people who touched the file", async () => {
     const env = createTestEnvironment();
 
@@ -1621,6 +1967,27 @@ describe("Aya copilot message flow", () => {
             "I cannot perform bulk destructive actions like moving, deleting, completing, assigning, or updating every record at once. Pick one specific client/file or a clearly bounded QA record in the allowed workspace.",
         });
       }
+    } finally {
+      env.cleanup();
+    }
+  });
+
+  it("refuses direct write-action bulk moves before checking Blue write credentials", async () => {
+    const env = createTestEnvironment();
+
+    try {
+      const { moveClientToStage } = await import(
+        "../../src/modules/copilot/actions.js"
+      );
+
+      await expect(
+        moveClientToStage({
+          recordQuery: "every record",
+          targetListQuery: "Done",
+        }),
+      ).rejects.toThrow(
+        "I cannot perform bulk destructive actions like moving, deleting, completing, assigning, or updating every record at once.",
+      );
     } finally {
       env.cleanup();
     }

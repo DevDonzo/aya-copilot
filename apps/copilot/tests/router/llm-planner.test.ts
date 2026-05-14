@@ -196,4 +196,78 @@ describe("LLM intent planner", () => {
       env.cleanup();
     }
   });
+
+  it("keeps deterministic team reporting ahead of the LLM agent planner", async () => {
+    const env = createTestEnvironment({
+      OPENAI_API_KEY: "test-openai-key",
+      AYA_LLM_PLANNER_ENABLED: "true",
+    });
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    try {
+      const { planCopilotAgent } = await import(
+        "../../src/modules/copilot/llm-planner.js"
+      );
+
+      const result = await planCopilotAgent({
+        actor,
+        message: "who has overdue assignments?",
+        nowIso: fixedNowIso,
+        hasActiveRecordContext: false,
+      });
+
+      expect(result).toMatchObject({
+        steps: [
+          {
+            intent: "records.team_follow_up",
+          },
+        ],
+        matchedSignals: expect.arrayContaining(["deterministic-priority"]),
+      });
+      expect(fetchMock).not.toHaveBeenCalled();
+    } finally {
+      env.cleanup();
+    }
+  });
+
+  it("plans exact search-and-call-prep requests without stale cache detours", async () => {
+    const env = createTestEnvironment({
+      OPENAI_API_KEY: "test-openai-key",
+      AYA_LLM_PLANNER_ENABLED: "true",
+    });
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    try {
+      const { planCopilotAgent } = await import(
+        "../../src/modules/copilot/llm-planner.js"
+      );
+
+      const result = await planCopilotAgent({
+        actor,
+        message: "search for AYA SMOKE TEST and prep me for a call",
+        nowIso: fixedNowIso,
+        hasActiveRecordContext: false,
+      });
+
+      expect(result).toMatchObject({
+        steps: [
+          {
+            intent: "records.detail",
+            parameters: {
+              recordQuery: "AYA SMOKE TEST",
+              detailMode: "call_prep",
+            },
+          },
+        ],
+        matchedSignals: expect.arrayContaining([
+          "deterministic-compound:search-call-prep",
+        ]),
+      });
+      expect(fetchMock).not.toHaveBeenCalled();
+    } finally {
+      env.cleanup();
+    }
+  });
 });

@@ -1,16 +1,13 @@
 import { createId } from "../../db.js";
+import { config } from "../../config.js";
 import type {
   BlueRequestAuth,
   EmployeeIdentity,
   IntentName,
   IntentPlan,
 } from "../../domain/types.js";
-import {
-  normalizeBlueRequestAuth,
-} from "../blue/request-auth.js";
-import {
-  getActiveRecordContextForActor,
-} from "../disambiguation/active-record-context.js";
+import { normalizeBlueRequestAuth } from "../blue/request-auth.js";
+import { getActiveRecordContextForActor } from "../disambiguation/active-record-context.js";
 import { rememberCopilotTurnMemory } from "./memory.js";
 import {
   finalizeAgentResponseWithLlm,
@@ -60,6 +57,8 @@ import {
 import { getPreAuthSafetyBlock } from "./safety.js";
 import { insertBotAuditLog } from "../../store/audit-store.js";
 import { AppError, PermissionError } from "../../app/errors.js";
+import { runAyaToolAgent } from "./agent/runtime.js";
+import type { AyaAgentToolTrace } from "./agent/types.js";
 
 export interface InboundMessagePayload {
   transport?: string;
@@ -213,6 +212,19 @@ export async function handleInboundMessage(
     });
   }
 
+  const agentRuntimeResponse = await executeAyaAgentRuntimeMessage({
+    actor,
+    transport,
+    blueAuth,
+    payload,
+    auditPayload,
+    request: agentRequest,
+    activeRecordContext,
+  });
+  if (agentRuntimeResponse) {
+    return agentRuntimeResponse;
+  }
+
   const agentPlan = await planCopilotAgent(agentRequest);
   return await executeAgentMessage({
     actor,
@@ -228,6 +240,7 @@ export async function handleInboundMessage(
 interface AgentStepTrace extends AgentStepResultSummary {
   purpose?: string;
   repairedFromStepId?: string;
+  data?: unknown;
 }
 
 interface AgentRunResult {
@@ -291,6 +304,181 @@ async function respondToPendingSelection(input: {
     plan: selectionPlan,
     data: pending.data,
   };
+}
+
+async function executeAyaAgentRuntimeMessage(input: {
+  actor: EmployeeIdentity;
+  transport: string;
+  blueAuth: BlueRequestAuth | null;
+  payload: InboundMessagePayload;
+  auditPayload: ReturnType<typeof redactPayloadForAudit>;
+  request: IntentPlannerRequest;
+  activeRecordContext?: {
+    recordId: string;
+    recordTitle: string;
+    listTitle?: string | null;
+  } | null;
+}): Promise<MessageResponse | null> {
+  const runtime = config.AYA_CHAT_RUNTIME;
+  if (runtime === "planner") {
+    return null;
+  }
+
+  try {
+    const result = await runAyaToolAgent({
+      actor: input.actor,
+      transport: input.transport,
+      blueAuth: input.blueAuth,
+      message: input.payload.message,
+      nowIso: input.request.nowIso,
+      hasActiveRecordContext: Boolean(input.request.hasActiveRecordContext),
+      activeRecordContext: input.activeRecordContext,
+    });
+
+    if (!result.matched && runtime === "agent_with_planner_fallback") {
+      await recordAudit({
+        actor: input.actor,
+        transport: input.transport,
+        inboundText: input.payload.message,
+        adapter: "ai-sdk-agent",
+        outcome: "fallback",
+        responseText:
+          "AI SDK agent did not select a supported action; falling back to planner.",
+        requestJson: {
+          payload: input.auditPayload,
+          runtime,
+          model: result.model,
+        },
+        responseJson: {
+          runtime: "ai-sdk-agent",
+          model: result.model,
+          toolCalls: result.toolCalls,
+          usage: result.usage,
+        },
+      });
+      return null;
+    }
+
+    const outcome = !result.matched
+      ? "unmatched"
+      : result.toolCalls.some((trace) => trace.outcome === "error")
+        ? "error"
+        : "success";
+    const plan = result.intent
+      ? {
+          intent: result.intent,
+          confidence: 0.95,
+          parameters: {},
+          requiresClarification: false,
+          matchedSignals: ["ai-sdk-agent"],
+        } satisfies IntentPlan
+      : undefined;
+
+    await recordAudit({
+      actor: input.actor,
+      transport: input.transport,
+      inboundText: input.payload.message,
+      detectedIntent: result.intent,
+      adapter: "ai-sdk-agent",
+      outcome,
+      responseText: result.responseText,
+      commandName: "agent.execute",
+      commandArgs: JSON.stringify({
+        runtime,
+        model: result.model,
+        toolCount: result.toolCalls.length,
+        intents: result.toolCalls
+          .map((trace) => trace.intent)
+          .filter(Boolean),
+      }),
+      requestJson: {
+        payload: input.auditPayload,
+        runtime,
+        model: result.model,
+      },
+      responseJson: {
+        runtime: "ai-sdk-agent",
+        model: result.model,
+        steps: toAgentRuntimeAuditSteps(result.toolCalls),
+        toolCalls: result.toolCalls,
+        usage: result.usage,
+        visibleResponseText: result.responseText,
+      },
+    });
+
+    await rememberCopilotTurnMemory({
+      actor: input.actor,
+      transport: input.transport,
+      message: input.payload.message,
+      responseText: result.responseText,
+      intent: result.intent,
+    });
+
+    return {
+      matched: result.matched,
+      intent: result.intent,
+      actor: input.actor,
+      responseText: result.responseText,
+      plan,
+      data: result.data,
+    };
+  } catch (error) {
+    if (runtime === "agent_with_planner_fallback") {
+      await recordAudit({
+        actor: input.actor,
+        transport: input.transport,
+        inboundText: input.payload.message,
+        adapter: "ai-sdk-agent",
+        outcome: "fallback",
+        responseText: formatAgentErrorMessage(error),
+        requestJson: {
+          payload: input.auditPayload,
+          runtime,
+        },
+        responseJson: {
+          runtime: "ai-sdk-agent",
+          errorMessage: formatAgentErrorMessage(error),
+        },
+      });
+      return null;
+    }
+
+    const responseText = formatAgentErrorMessage(error);
+    await recordAudit({
+      actor: input.actor,
+      transport: input.transport,
+      inboundText: input.payload.message,
+      adapter: "ai-sdk-agent",
+      outcome: "error",
+      responseText,
+      requestJson: {
+        payload: input.auditPayload,
+        runtime,
+      },
+      responseJson: {
+        runtime: "ai-sdk-agent",
+        errorMessage: responseText,
+      },
+    });
+
+    return {
+      matched: true,
+      actor: input.actor,
+      responseText,
+    };
+  }
+}
+
+function toAgentRuntimeAuditSteps(toolCalls: AyaAgentToolTrace[]) {
+  return toolCalls.map((trace, index) => ({
+    stepId: `tool_${index + 1}`,
+    intent: trace.intent,
+    parameters: trace.input,
+    outcome: trace.outcome,
+    responseText: trace.responseText,
+    errorMessage: trace.errorMessage,
+    data: trace.resultData ?? trace.resultSummary,
+  }));
 }
 
 async function executeAgentMessage(input: {
@@ -375,7 +563,15 @@ async function executeAgentMessage(input: {
     firstPlan ??= result.plan;
 
     if (result.ok) {
-      stepTraces.push(toStepTrace(step, "success", result.execution.responseText));
+      stepTraces.push(
+        toStepTrace(
+          step,
+          "success",
+          result.execution.responseText,
+          undefined,
+          result.execution.data,
+        ),
+      );
       lastSuccess = {
         plan: result.plan,
         responseText: result.execution.responseText,
@@ -425,6 +621,8 @@ async function executeAgentMessage(input: {
             repair.step,
             "success",
             retryResult.execution.responseText,
+            undefined,
+            retryResult.execution.data,
           ),
           repairedFromStepId: step.id,
         });
@@ -637,6 +835,7 @@ function toStepTrace(
   outcome: "success" | "error",
   responseText?: string,
   errorMessage?: string,
+  data?: unknown,
 ): AgentStepTrace {
   return {
     stepId: step.id,
@@ -646,6 +845,7 @@ function toStepTrace(
     outcome,
     responseText,
     errorMessage,
+    data,
   };
 }
 

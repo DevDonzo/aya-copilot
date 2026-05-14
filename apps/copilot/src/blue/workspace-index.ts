@@ -365,7 +365,14 @@ function normalizePhone(input?: string | null) {
 }
 
 function extractRecordContact(
-  fields: Array<{ name?: string | null; value?: unknown }>,
+  fields: Array<{
+    name?: string | null;
+    value?: unknown;
+    text?: unknown;
+    email?: unknown;
+    phone?: unknown;
+    number?: unknown;
+  }>,
 ) {
   let email: string | null = null;
   let phone: string | null = null;
@@ -374,7 +381,9 @@ function extractRecordContact(
     const label = String(field.name ?? "")
       .trim()
       .toLowerCase();
-    const value = normalizeFieldValue(field.value);
+    const value = normalizeFieldValue(
+      field.value ?? field.text ?? field.email ?? field.phone ?? field.number,
+    );
     if (!value) {
       continue;
     }
@@ -389,14 +398,47 @@ function extractRecordContact(
   return { email, phone };
 }
 
-function normalizeFieldValue(value: unknown) {
+function normalizeFieldValue(value: unknown): string {
   if (value == null) {
     return "";
   }
   if (typeof value === "string") {
-    return value === "(empty)" ? "" : value.trim();
+    const trimmed = value.trim();
+    return trimmed.toLowerCase() === "(empty)" ? "" : trimmed;
   }
-  return JSON.stringify(value);
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? String(value) : "";
+  }
+  if (Array.isArray(value)) {
+    return value
+      .map(normalizeFieldValue)
+      .filter(Boolean)
+      .join(", ");
+  }
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    for (const key of [
+      "value",
+      "text",
+      "email",
+      "phone",
+      "number",
+      "title",
+      "name",
+      "label",
+    ]) {
+      const normalized = normalizeFieldValue(record[key]);
+      if (normalized) {
+        return normalized;
+      }
+    }
+
+    return Object.values(record)
+      .map(normalizeFieldValue)
+      .filter(Boolean)
+      .join(", ");
+  }
+  return "";
 }
 
 function scoreListMatch(

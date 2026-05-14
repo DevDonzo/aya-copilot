@@ -69,25 +69,16 @@ export async function getActiveRecordContextForActor(
 
   const row = await getActiveRecordContext(actor.employeeId, transport);
   if (!row) {
-    return null;
+    return await getMemoryRecordContext(actor, transport);
   }
 
   if (new Date(row.expires_at).getTime() <= Date.now()) {
-    await deleteActiveRecordContext(actor.employeeId);
-    return null;
+    await deleteActiveRecordContext(actor.employeeId, row.transport);
+    return await getMemoryRecordContext(actor, transport);
   }
 
   if (transport && row.transport !== transport) {
-    const memory = await getCopilotMemoryForActor(actor, transport);
-    if (!memory?.currentRecordId || !memory.currentRecordTitle) {
-      return null;
-    }
-    return {
-      transport: memory.transport,
-      recordId: memory.currentRecordId,
-      recordTitle: memory.currentRecordTitle,
-      listTitle: memory.currentListTitle ?? null,
-    };
+    return await getMemoryRecordContext(actor, transport);
   }
 
   return {
@@ -95,6 +86,23 @@ export async function getActiveRecordContextForActor(
     recordId: row.record_id,
     recordTitle: row.record_title,
     listTitle: row.list_title,
+  };
+}
+
+async function getMemoryRecordContext(
+  actor: EmployeeIdentity,
+  transport?: string,
+): Promise<ActiveRecordContext | null> {
+  const memory = await getCopilotMemoryForActor(actor, transport);
+  if (!memory?.currentRecordId || !memory.currentRecordTitle) {
+    return null;
+  }
+
+  return {
+    transport: memory.transport,
+    recordId: memory.currentRecordId,
+    recordTitle: memory.currentRecordTitle,
+    listTitle: memory.currentListTitle ?? null,
   };
 }
 

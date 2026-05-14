@@ -67,8 +67,10 @@ describe("blue request auth helpers", () => {
   it("validates Blue credentials against the signed-in actor", async () => {
     const env = createTestEnvironment();
     const fetchCurrentBlueUser = vi.fn();
+    const fetchWorkspaceLists = vi.fn();
     vi.doMock("../../../src/modules/blue/graphql/client.js", () => ({
       fetchCurrentBlueUser,
+      fetchWorkspaceLists,
     }));
 
     try {
@@ -145,6 +147,57 @@ describe("blue request auth helpers", () => {
         fullName: "Hamza Paracha",
         projectUserRole: null,
       });
+      fetchWorkspaceLists.mockResolvedValueOnce([
+        { id: "list_1", title: "Leads", position: 1, updatedAt: "2026-05-14" },
+      ]);
+      await expect(
+        requireValidatedBlueRequestAuth(
+          { tokenId: "token_1", tokenSecret: "secret_1" },
+          {
+            employeeId: "employee_1",
+            displayName: "Hamza Paracha",
+            email: "hamza@ayafinancial.com",
+            roleName: "employee",
+          },
+        ),
+      ).resolves.toEqual({ tokenId: "token_1", tokenSecret: "secret_1" });
+
+      expect(fetchWorkspaceLists).toHaveBeenCalledWith({
+        workspaceId: "cmn524yr800e101mh7kn44mhf",
+        auth: { tokenId: "token_1", tokenSecret: "secret_1" },
+      });
+
+      fetchCurrentBlueUser.mockResolvedValueOnce({
+        id: "employee_1",
+        uid: "employee_1",
+        email: "hamza@ayafinancial.com",
+        fullName: "Hamza Paracha",
+        projectUserRole: {
+          id: "role_1",
+          name: "Viewer",
+          isRecordsEnabled: false,
+        },
+      });
+      await expect(
+        requireValidatedBlueRequestAuth(
+          { tokenId: "token_1", tokenSecret: "secret_1" },
+          {
+            employeeId: "employee_1",
+            displayName: "Hamza Paracha",
+            email: "hamza@ayafinancial.com",
+            roleName: "employee",
+          },
+        ),
+      ).rejects.toThrow(BLUE_AUTH_WORKSPACE_REQUIRED_MESSAGE);
+
+      fetchCurrentBlueUser.mockResolvedValueOnce({
+        id: "employee_1",
+        uid: "employee_1",
+        email: "hamza@ayafinancial.com",
+        fullName: "Hamza Paracha",
+        projectUserRole: null,
+      });
+      fetchWorkspaceLists.mockRejectedValueOnce(new Error("forbidden"));
       await expect(
         requireValidatedBlueRequestAuth(
           { tokenId: "token_1", tokenSecret: "secret_1" },

@@ -1,7 +1,7 @@
 import { AuthError, ExternalServiceError } from "../../app/errors.js";
 import { config } from "../../config.js";
 import type { BlueRequestAuth, EmployeeIdentity } from "../../domain/types.js";
-import { fetchCurrentBlueUser } from "./graphql/client.js";
+import { fetchCurrentBlueUser, fetchWorkspaceLists } from "./graphql/client.js";
 
 const unresolvedPlaceholderPattern = /^\{\{.+\}\}$/;
 const blueTokenIdPattern = /^[0-9a-f]{32}$/i;
@@ -107,7 +107,7 @@ export async function requireValidatedBlueRequestAuth(
     throw new AuthError(BLUE_AUTH_INVALID_MESSAGE);
   }
 
-  if (!blueUser.projectUserRole || blueUser.projectUserRole.isRecordsEnabled === false) {
+  if (blueUser.projectUserRole?.isRecordsEnabled === false) {
     throw new AuthError(BLUE_AUTH_WORKSPACE_REQUIRED_MESSAGE);
   }
 
@@ -115,7 +115,29 @@ export async function requireValidatedBlueRequestAuth(
     throw new AuthError(BLUE_AUTH_MISMATCH_MESSAGE);
   }
 
+  if (!blueUser.projectUserRole) {
+    await requireWorkspaceAccessProbe(requestAuth);
+  }
+
   return requestAuth;
+}
+
+async function requireWorkspaceAccessProbe(auth: BlueRequestAuth) {
+  /**
+   * Blue may omit currentUser.projectUserRole for valid personal tokens.
+   * When that happens, prove access with a minimal read against the allowed
+   * workspace instead of blocking a user who can actually reach the workspace.
+   */
+  await fetchWorkspaceLists({
+    workspaceId: config.BLUE_WORKSPACE_ID,
+    auth,
+  }).catch((error: unknown) => {
+    if (isBlueCredentialRejection(error)) {
+      throw new AuthError(BLUE_AUTH_WORKSPACE_REQUIRED_MESSAGE);
+    }
+
+    throw error;
+  });
 }
 
 function blueUserMatchesActor(

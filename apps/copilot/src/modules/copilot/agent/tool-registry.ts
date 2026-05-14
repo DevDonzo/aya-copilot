@@ -5,12 +5,19 @@ import type { IntentName } from "../../../domain/types.js";
 import {
   addCommentToClient,
   assignRecord,
+  assignTask,
   answerReportingQuestion,
   completeRecordAssignment,
+  completeTaskAssignment,
+  createClientRecord,
   getClientComments,
   getClientDetail,
   getEmployeeAssignmentReport,
+  getEmployeeDailyBrief,
+  getEmployeeDaySummary,
+  getEmployeeFollowUpQueue,
   getEmployeeNotificationFeed,
+  getEmployeeWorkload,
   getReportingOverview,
   getRecordActivityReport,
   getTeamDaySummary,
@@ -20,6 +27,7 @@ import {
   moveClientToStage,
   searchClients,
   setRecordDueDate,
+  setTaskDueDate,
 } from "../actions.js";
 import {
   enforceAyaToolPolicy,
@@ -159,6 +167,35 @@ export function createAyaAgentTools(
         }),
     }),
 
+    createClientRecord: tool({
+      description:
+        "Create exactly one new Blue client/file from fields the user provided. Do not invent missing phone, email, amount, notes, or names.",
+      inputSchema: z.object({
+        fullName: z.string().optional(),
+        firstName: z.string().optional(),
+        lastName: z.string().optional(),
+        phone: z.string().optional(),
+        email: z.string().optional(),
+        financeAmount: z.number().positive().optional(),
+        notes: z.string().optional(),
+        targetListQuery: z.string().optional(),
+      }),
+      execute: async (input) =>
+        runTool(context, traces, {
+          toolName: "createClientRecord",
+          intent: "records.create",
+          input,
+          policy: { write: true },
+          execute: async () =>
+            createClientRecord({
+              ...input,
+              actor: context.actor,
+              blueAuth: context.blueAuth,
+              transport: context.transport,
+            }),
+        }),
+    }),
+
     moveClientToStage: tool({
       description:
         "Move exactly one Blue client/file to a different pipeline stage/list. Never use for all/every records.",
@@ -210,6 +247,34 @@ export function createAyaAgentTools(
         }),
     }),
 
+    assignTask: tool({
+      description:
+        "Assign exactly one checklist task on a Blue client/file to one Aya employee. Identify both the client/file and task when possible; use active record context if the client/file is omitted.",
+      inputSchema: z.object({
+        recordQuery: z.string().optional(),
+        taskQuery: z.string().min(1),
+        assigneeName: z.string().min(1),
+        useActiveRecordContext: z.boolean().optional(),
+      }),
+      execute: async (input) =>
+        runTool(context, traces, {
+          toolName: "assignTask",
+          intent: "tasks.assign",
+          input,
+          policy: { write: true },
+          execute: async () =>
+            assignTask({
+              recordQuery: input.recordQuery,
+              taskQuery: input.taskQuery,
+              assigneeName: input.assigneeName,
+              useActiveRecordContext: input.useActiveRecordContext,
+              actor: context.actor,
+              blueAuth: context.blueAuth,
+              transport: context.transport,
+            }),
+        }),
+    }),
+
     setClientDueDate: tool({
       description: "Set a due date on exactly one Blue client/file.",
       inputSchema: z.object({
@@ -254,6 +319,146 @@ export function createAyaAgentTools(
               useActiveRecordContext: input.useActiveRecordContext,
               actor: context.actor,
               blueAuth: context.blueAuth,
+              transport: context.transport,
+            }),
+        }),
+    }),
+
+    completeTask: tool({
+      description:
+        "Mark exactly one checklist task complete/done on a Blue client/file. Identify both the client/file and task when possible; use active record context if the client/file is omitted.",
+      inputSchema: z.object({
+        recordQuery: z.string().optional(),
+        taskQuery: z.string().min(1),
+        useActiveRecordContext: z.boolean().optional(),
+      }),
+      execute: async (input) =>
+        runTool(context, traces, {
+          toolName: "completeTask",
+          intent: "tasks.complete",
+          input,
+          policy: { write: true },
+          execute: async () =>
+            completeTaskAssignment({
+              recordQuery: input.recordQuery,
+              taskQuery: input.taskQuery,
+              useActiveRecordContext: input.useActiveRecordContext,
+              actor: context.actor,
+              blueAuth: context.blueAuth,
+              transport: context.transport,
+            }),
+        }),
+    }),
+
+    setTaskDueDate: tool({
+      description:
+        "Set a due date on exactly one checklist task on a Blue client/file. Identify both the client/file and task when possible; use active record context if the client/file is omitted.",
+      inputSchema: z.object({
+        recordQuery: z.string().optional(),
+        taskQuery: z.string().min(1),
+        dueDate: z.string().min(1),
+        useActiveRecordContext: z.boolean().optional(),
+      }),
+      execute: async (input) =>
+        runTool(context, traces, {
+          toolName: "setTaskDueDate",
+          intent: "tasks.set_due_date",
+          input,
+          policy: { write: true },
+          execute: async () =>
+            setTaskDueDate({
+              recordQuery: input.recordQuery,
+              taskQuery: input.taskQuery,
+              dueDate: input.dueDate,
+              useActiveRecordContext: input.useActiveRecordContext,
+              actor: context.actor,
+              blueAuth: context.blueAuth,
+              transport: context.transport,
+            }),
+        }),
+    }),
+
+    getEmployeeDailyBrief: tool({
+      description:
+        "Show the signed-in employee or a named employee's daily brief: workload, assignments, follow-ups, notifications, and day summary. Employees may only read their own brief.",
+      inputSchema: z.object({
+        employeeName: z.string().optional(),
+        date: z.string().optional(),
+      }),
+      execute: async (input) =>
+        runTool(context, traces, {
+          toolName: "getEmployeeDailyBrief",
+          intent: "brief.daily",
+          input,
+          policy: { employeeNameField: "employeeName" },
+          execute: async () =>
+            getEmployeeDailyBrief({
+              employeeName: input.employeeName ?? context.actor.displayName,
+              date: input.date,
+              transport: context.transport,
+            }),
+        }),
+    }),
+
+    getEmployeeDaySummary: tool({
+      description:
+        "Show activity summary for the signed-in employee or a named employee on a date. Employees may only read their own summary.",
+      inputSchema: z.object({
+        employeeName: z.string().optional(),
+        date: z.string().optional(),
+      }),
+      execute: async (input) =>
+        runTool(context, traces, {
+          toolName: "getEmployeeDaySummary",
+          intent: "summary.employee_day",
+          input,
+          policy: { employeeNameField: "employeeName" },
+          execute: async () =>
+            getEmployeeDaySummary({
+              employeeName: input.employeeName ?? context.actor.displayName,
+              date: input.date,
+              transport: context.transport,
+            }),
+        }),
+    }),
+
+    getEmployeeWorkload: tool({
+      description:
+        "Show open Blue records assigned to the signed-in employee or a named employee. Employees may only read their own workload.",
+      inputSchema: z.object({
+        employeeName: z.string().optional(),
+      }),
+      execute: async (input) =>
+        runTool(context, traces, {
+          toolName: "getEmployeeWorkload",
+          intent: "records.list_assigned",
+          input,
+          policy: { employeeNameField: "employeeName" },
+          execute: async () =>
+            getEmployeeWorkload({
+              employeeName: input.employeeName ?? context.actor.displayName,
+              transport: context.transport,
+            }),
+        }),
+    }),
+
+    getEmployeeFollowUpQueue: tool({
+      description:
+        "Show follow-up queue for the signed-in employee or a named employee. Employees may only read their own follow-ups.",
+      inputSchema: z.object({
+        employeeName: z.string().optional(),
+        date: z.string().optional(),
+      }),
+      execute: async (input) =>
+        runTool(context, traces, {
+          toolName: "getEmployeeFollowUpQueue",
+          intent: "records.follow_up",
+          input,
+          policy: { employeeNameField: "employeeName" },
+          execute: async () =>
+            getEmployeeFollowUpQueue({
+              employeeName: input.employeeName ?? context.actor.displayName,
+              date: input.date,
               transport: context.transport,
             }),
         }),

@@ -43,7 +43,7 @@ export async function runAyaToolAgent(
     "I completed the request, but Aya did not return a readable summary.";
 
   return {
-    matched: toolCalls.length > 0 || Boolean(result.text.trim()),
+    matched: toolCalls.length > 0,
     intent: lastToolCall?.intent,
     responseText,
     data: lastToolCall?.resultSummary,

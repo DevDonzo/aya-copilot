@@ -8,6 +8,8 @@ export function buildAyaAgentSystemPrompt(context: AyaAgentContext) {
     "If a tool reports missing Blue write credentials, explain that personal Blue credentials are required.",
     "Ask one short clarification question when a record, employee, or action is ambiguous.",
     "Use active record context for phrases like this client, this file, this record, it, or that one.",
+    "For task/checklist actions, identify both the client/file and the task when possible. If the client/file is missing and active record context exists, use it.",
+    "For creating records, collect only the fields the user provided; do not invent phone, email, amount, or notes.",
     "Never perform or assist bulk destructive actions such as moving, assigning, completing, deleting, or updating every record.",
     "Keep answers concise, operational, and user-facing. Do not mention tool names, schemas, or internal traces unless explicitly asked.",
     `Signed-in user: ${context.actor.displayName} (${context.actor.roleName ?? "employee"}${context.actor.email ? `, ${context.actor.email}` : ""}).`,

@@ -1157,24 +1157,26 @@ function createAyaMcpServer() {
     {
       title: "Assign Checklist Task",
       description:
-        "Assign a specific checklist item (task) within a record to an employee. Use this when the user says 'assign task X to Y'.",
+        "Assign a specific checklist item (task) within a record to an employee. Use this when the user says 'assign task X on client Y to Z'.",
       inputSchema: {
-        entityQuery: z.string().min(1).describe("The task name/query"),
+        recordQuery: z.string().optional().describe("The record/client name or query"),
+        taskQuery: z.string().min(1).describe("The checklist task name/query"),
         assigneeName: z.string().min(1).describe("The name of the employee to assign it to"),
       },
     },
-    async ({ entityQuery, assigneeName }, extra) => {
+    async ({ recordQuery, taskQuery, assigneeName }, extra) => {
       const actor = await requireToolActor(extra.requestInfo?.headers);
       const blueAuth = getHeaderBlueAuth(extra.requestInfo?.headers);
       const result = await runAuditedMcpTool({
         actor,
         toolName: "aya_assign_task",
         intent: "tasks.assign",
-        inboundText: `assign task ${entityQuery} to ${assigneeName}`,
-        requestJson: { entityQuery, assigneeName },
+        inboundText: `assign task ${taskQuery}${recordQuery ? ` on ${recordQuery}` : ""} to ${assigneeName}`,
+        requestJson: { recordQuery, taskQuery, assigneeName },
         execute: () =>
           assignTask({
-            entityQuery,
+            recordQuery,
+            taskQuery,
             assigneeName,
             actor,
             blueAuth,

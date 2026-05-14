@@ -114,8 +114,8 @@ const configSchema = z.object({
   OPENAI_API_KEY: z.string().optional(),
   AYA_CHAT_RUNTIME: z
     .enum(["planner", "agent", "agent_with_planner_fallback"])
-    .default("planner"),
-  AYA_AGENT_MODEL: z.string().default("gpt-5.4"),
+    .default("agent_with_planner_fallback"),
+  AYA_AGENT_MODEL: z.string().default("gpt-4o"),
   AYA_AGENT_MAX_STEPS: z.coerce.number().int().min(1).max(8).default(5),
   AYA_AGENT_TIMEOUT_MS: z.coerce.number().default(15_000),
   AYA_LLM_PLANNER_ENABLED: z

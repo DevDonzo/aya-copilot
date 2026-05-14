@@ -368,7 +368,7 @@ Add config:
 
 ```text
 AYA_CHAT_RUNTIME=agent|planner
-AYA_AGENT_MODEL=openai/gpt-5.4 or provider-specific direct model
+AYA_AGENT_MODEL=gpt-4o for direct OpenAI, or provider/model for Gateway
 AYA_AGENT_MAX_STEPS=5
 AYA_AGENT_TIMEOUT_MS=15000
 AYA_AGENT_PROVIDER=openai|gateway
@@ -464,9 +464,9 @@ Why:
 Add the new runtime config:
 
 ```text
-AYA_CHAT_RUNTIME=agent
+AYA_CHAT_RUNTIME=agent_with_planner_fallback
 AYA_AGENT_PROVIDER=openai
-AYA_AGENT_MODEL=gpt-5.4
+AYA_AGENT_MODEL=gpt-4o
 AYA_AGENT_MAX_STEPS=5
 AYA_AGENT_TIMEOUT_MS=15000
 ```
@@ -475,7 +475,7 @@ If AI Gateway is used:
 
 ```text
 AYA_AGENT_PROVIDER=gateway
-AYA_AGENT_MODEL=openai/gpt-5.4
+AYA_AGENT_MODEL=openai/gpt-4o
 AI_GATEWAY_API_KEY=replace-with-vercel-ai-gateway-key
 ```
 
@@ -1103,7 +1103,7 @@ Reason:
 Use if needed:
 
 - `AI_GATEWAY_API_KEY`
-- plain model strings such as `openai/gpt-5.4`
+- plain model strings such as `openai/gpt-4o`
 
 Benefits:
 

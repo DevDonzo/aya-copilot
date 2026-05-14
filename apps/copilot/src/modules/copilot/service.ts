@@ -1704,10 +1704,13 @@ async function executePlan(input: {
 
     case "tasks.assign": {
       const result = await assignTask({
-        entityQuery:
-          typeof plan.parameters.entityQuery === "string"
-            ? plan.parameters.entityQuery
+        recordQuery:
+          typeof plan.parameters.recordQuery === "string"
+            ? plan.parameters.recordQuery
             : undefined,
+        taskQuery: String(
+          plan.parameters.taskQuery ?? plan.parameters.entityQuery ?? "",
+        ),
         assigneeName: String(plan.parameters.assigneeName ?? ""),
         useActiveRecordContext: plan.parameters.useActiveRecordContext === true,
         actor,

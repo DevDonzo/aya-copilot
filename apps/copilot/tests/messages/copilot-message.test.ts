@@ -700,6 +700,7 @@ describe("Aya copilot message flow", () => {
 
   it("runs LLM agent steps without exposing the internal trace", async () => {
     const env = createTestEnvironment({
+      AYA_CHAT_RUNTIME: "planner",
       OPENAI_API_KEY: "test-openai-key",
       AYA_LLM_PLANNER_ENABLED: "true",
     });

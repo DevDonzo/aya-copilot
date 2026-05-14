@@ -20,4 +20,18 @@ describe("config safety", () => {
       env.cleanup();
     }
   });
+
+  it("defaults chat runtime to agent with planner fallback on gpt-4o", async () => {
+    const env = createTestEnvironment();
+
+    try {
+      const { config } = await import("../src/config.js");
+
+      expect(config.AYA_CHAT_RUNTIME).toBe("agent_with_planner_fallback");
+      expect(config.AYA_AGENT_MODEL).toBe("gpt-4o");
+      expect(config.AYA_AGENT_MAX_STEPS).toBe(5);
+    } finally {
+      env.cleanup();
+    }
+  });
 });

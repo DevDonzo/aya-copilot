@@ -926,7 +926,8 @@ export async function assignRecord(input: {
 
 export async function assignTask(input: {
   recordId?: string;
-  entityQuery?: string;
+  recordQuery?: string;
+  taskQuery: string;
   assigneeName: string;
   useActiveRecordContext?: boolean;
   actor?: EmployeeIdentity | null;
@@ -934,12 +935,12 @@ export async function assignTask(input: {
   transport?: string;
 }) {
   assertNoBulkDestructiveWrite(
-    `assign ${input.entityQuery ?? input.recordId ?? ""} to ${input.assigneeName}`,
+    `assign ${input.taskQuery} on ${input.recordQuery ?? input.recordId ?? ""} to ${input.assigneeName}`,
   );
   const writeAuth = resolveBlueWriteAuth(input.blueAuth);
-  const record = await resolveRecordOrThrow({
-    query: input.entityQuery,
-    fieldName: "entityQuery",
+  const { taskItem, record } = await resolveChecklistItemOrThrow({
+    recordQuery: input.recordId ?? input.recordQuery,
+    taskQuery: input.taskQuery,
     actor: input.actor ?? null,
     transport: input.transport ?? "mcp",
     continuationAction: "tasks.assign",
@@ -947,7 +948,6 @@ export async function assignTask(input: {
       assigneeName: input.assigneeName,
     },
     useActiveRecordContext: input.useActiveRecordContext,
-    requireExactMatch: true,
   });
 
   const assignee = await resolveActorIdentityService({
@@ -955,34 +955,10 @@ export async function assignTask(input: {
     transport: input.transport ?? "mcp",
   });
 
-  // Load record detail to find the checklist item
-  const detail = await fetchRecordDetail(config.BLUE_WORKSPACE_ID, record.id);
-  const checklists = detail.record?.checklists ?? [];
-  let targetItem: { id: string; title: string } | null = null;
-
-  // Simple heuristic: search for item by name in all checklists
-  for (const checklist of checklists) {
-    for (const item of checklist.items) {
-      if (
-        item.title.toLowerCase().includes(input.entityQuery?.toLowerCase() || "")
-      ) {
-        targetItem = item;
-        break;
-      }
-    }
-    if (targetItem) break;
-  }
-
-  if (!targetItem) {
-    throw new ValidationError(
-      `Could not find a task matching "${input.entityQuery}" in ${record.title}.`,
-    );
-  }
-
   await executeBlueWrite(() =>
     setChecklistItemAssignees({
       workspaceId: config.BLUE_WORKSPACE_ID,
-      todoChecklistItemId: targetItem.id,
+      todoChecklistItemId: taskItem.id,
       assigneeIds: [assignee.employeeId],
       auth: writeAuth,
     }),
@@ -991,11 +967,12 @@ export async function assignTask(input: {
   return {
     ok: true,
     recordId: record.id,
-    taskId: targetItem.id,
-    taskTitle: targetItem.title,
+    recordTitle: record.title,
+    taskId: taskItem.id,
+    taskTitle: taskItem.title,
     assigneeId: assignee.employeeId,
     assigneeName: assignee.displayName,
-    responseText: `Assigned task "${targetItem.title}" to ${assignee.displayName}.`,
+    responseText: `Assigned task "${taskItem.title}" on ${record.title} to ${assignee.displayName}.`,
   };
 }
 

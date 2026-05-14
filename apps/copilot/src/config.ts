@@ -78,6 +78,7 @@ const runtimeEnv = {
   AYA_LLM_PLANNER_ENABLED: process.env.AYA_LLM_PLANNER_ENABLED,
   AYA_LLM_PLANNER_MODEL: process.env.AYA_LLM_PLANNER_MODEL,
   AYA_LLM_PLANNER_TIMEOUT_MS: process.env.AYA_LLM_PLANNER_TIMEOUT_MS,
+  BLUE_GRAPHQL_TIMEOUT_MS: process.env.BLUE_GRAPHQL_TIMEOUT_MS,
 };
 
 const configSchema = z.object({
@@ -92,12 +93,13 @@ const configSchema = z.object({
     .string()
     .default("false")
     .transform((value) => value.toLowerCase() === "true"),
-  BLUE_INGEST_INTERVAL_MS: z.coerce.number().default(60_000),
+  BLUE_INGEST_INTERVAL_MS: z.coerce.number().default(3_600_000),
   BLUE_RECORD_SYNC_LIMIT_PER_LIST: z.coerce.number().default(500),
   BLUE_GRAPHQL_PAGE_SIZE: z.coerce.number().default(200),
   BLUE_GRAPHQL_MAX_CONCURRENCY: z.coerce.number().default(4),
   BLUE_GRAPHQL_RETRY_ATTEMPTS: z.coerce.number().default(5),
   BLUE_GRAPHQL_RETRY_BASE_MS: z.coerce.number().default(300),
+  BLUE_GRAPHQL_TIMEOUT_MS: z.coerce.number().default(15_000),
   BLUE_REPORT_FALLBACK_IDS: z
     .string()
     .default(defaultDemoReportFallbackIds)
@@ -212,6 +214,7 @@ function assertConfigSafety<T extends {
   ALLOW_SYSTEM_BLUE_WRITE_FALLBACK: boolean;
   ALLOW_BOOTSTRAP_PROVISIONING: boolean;
   AYA_MCP_API_KEY?: string;
+  BLUE_WEBHOOK_PUBLIC_URL?: string;
 }>(parsed: T) {
   if (parsed.BLUE_WORKSPACE_ID === forbiddenBlueWorkspaceId) {
     throw new Error(
@@ -240,6 +243,10 @@ function assertConfigSafety<T extends {
       throw new Error(
         "BLUE_COMPANY_ID, BLUE_CLIENT_ID, and BLUE_AUTH_TOKEN must be set in production",
       );
+    }
+
+    if (!parsed.BLUE_WEBHOOK_PUBLIC_URL) {
+      throw new Error("BLUE_WEBHOOK_PUBLIC_URL must be set in production");
     }
 
     if (parsed.ALLOW_SYSTEM_BLUE_WRITE_FALLBACK) {

@@ -47,13 +47,14 @@ This Hostinger package uses explicit bind mounts so storage is easy to find and 
 
 Persistent data lives under:
 
-- `deploy/hostinger/data/aya`
-- `deploy/hostinger/data/mongodb`
-- `deploy/hostinger/data/meilisearch`
-- `deploy/hostinger/data/librechat/uploads`
-- `deploy/hostinger/data/librechat/logs`
+- `/srv/aya/aya`
+- `/srv/aya/mongodb`
+- `/srv/aya/meilisearch`
+- `/srv/aya/librechat/uploads`
+- `/srv/aya/librechat/logs`
+- `/srv/aya/backups`
 
-Aya's SQLite database lives inside `deploy/hostinger/data/aya`.
+Aya's SQLite database lives inside `/srv/aya/aya`.
 
 ## 1. Provision The VPS
 
@@ -76,7 +77,8 @@ From the Aya repo root on the VPS:
 
 ```bash
 cd Blue/apps/copilot/deploy/hostinger
-mkdir -p data/aya data/mongodb data/meilisearch data/librechat/uploads data/librechat/logs
+sudo mkdir -p /srv/aya/aya /srv/aya/mongodb /srv/aya/meilisearch /srv/aya/librechat/uploads /srv/aya/librechat/logs /srv/aya/backups
+sudo chown -R "$USER":"$USER" /srv/aya
 cp env/aya.env.example env/aya.env
 cp env/librechat.env.example env/librechat.env
 cp config/librechat.yaml.example config/librechat.yaml
@@ -108,7 +110,10 @@ Edit `deploy/hostinger/env/aya.env` and set:
 - `BLUE_COMPANY_ID`
 - `ALLOW_SYSTEM_BLUE_WRITE_FALLBACK=false`
 - `AUTH_BOOTSTRAP_KEY`
+- `BLUE_WEBHOOK_PUBLIC_URL`
 - `BLUE_WEBHOOK_SECRET`
+- `BLUE_GRAPHQL_TIMEOUT_MS=15000`
+- `BLUE_INGEST_INTERVAL_MS=3600000`
 
 Keep:
 
@@ -124,6 +129,7 @@ Edit `deploy/hostinger/env/librechat.env`:
 - set `DOMAIN_CLIENT` and `DOMAIN_SERVER` to the final chat hostname, typically `https://copilot.ayafinancial.com`
 - replace all secrets
 - set `OPENAI_API_KEY`; the default LibreChat model spec uses OpenAI `gpt-4o-mini`
+- set `MONGO_INITDB_ROOT_PASSWORD`, then use the same value in `MONGO_URI` and `LIBRECHAT_MONGO_URI`
 - to enable Google login, set `ALLOW_SOCIAL_LOGIN=true`, `ALLOW_SOCIAL_REGISTRATION=true`, `GOOGLE_CLIENT_ID`, and `GOOGLE_CLIENT_SECRET`
 - register the exact Google redirect URI as `${DOMAIN_SERVER}/oauth/google/callback`; LibreChat does not serve the callback at `/api/auth/oauth/google/callback`
 
@@ -131,6 +137,14 @@ Edit `deploy/hostinger/config/librechat.yaml` if needed.
 The checked-in `aya_ops` MCP server key is a LibreChat compatibility identifier for the Aya Copilot connection. It includes per-user `Blue Token ID` and `Blue Token Secret` fields. Employees should save their own Blue personal token once in the Aya Copilot server settings so Blue write actions are attributed to the correct user.
 
 ## 5. Bring Up The Stack
+
+If you are upgrading an existing no-auth Mongo volume, there is usually no existing Mongo password. Before restarting the stack with `mongod --auth`, generate one and create the admin user while the old no-auth Mongo container is still running:
+
+```bash
+./enable-mongo-auth.sh
+```
+
+The script updates `env/librechat.env` and `env/aya.env`, creates the Mongo admin user in the currently running no-auth Mongo container, and prints no secret. New deployments can use the example env files directly after replacing the Mongo password placeholders.
 
 From `deploy/hostinger/`:
 
@@ -150,7 +164,7 @@ Expected:
 
 - Aya listens on `127.0.0.1:3010`
 - LibreChat listens on `127.0.0.1:3080`
-- storage is written into `deploy/hostinger/data/`
+- storage is written into `/srv/aya/`
 
 ## 6. Optional Cloudflare Tunnel
 
@@ -167,14 +181,24 @@ Keep Aya admin behind the same private path or a stricter hostname.
 
 Back up at minimum:
 
-- `deploy/hostinger/data/aya`
-- `deploy/hostinger/data/mongodb`
-- `deploy/hostinger/data/librechat/uploads`
+- `/srv/aya/aya`
+- `/srv/aya/mongodb`
+- `/srv/aya/librechat/uploads`
+- `/srv/aya/librechat/logs`
 
-For this pilot, VPS snapshots plus periodic copies of `deploy/hostinger/data/` are enough.
+Run the checked-in backup wrapper from `deploy/hostinger/`:
+
+```bash
+./backup.sh
+```
+
+The default target is `/srv/aya/backups/<utc timestamp>/`. Copy those artifacts off the VPS to S3, Cloudflare R2, Backblaze B2, or a managed snapshot target. Restore testing should include at least one SQLite restore and one Mongo archive restore before the system is treated as operationally protected.
+
+For this pilot, nightly backups plus Hostinger VPS snapshots before major changes are enough.
 
 ## 8. Notes
 
-- SQLite is file-based and stored inside `data/aya`
+- SQLite is file-based and stored inside `/srv/aya/aya`
 - this is suitable for a small internal pilot
 - if the team outgrows it later, the next move is Postgres/Redis plus split services
+- `apps/librechat/docker-compose.yml` is a local development compose file only; production should use this Hostinger bundle or an equivalent hardened production compose.

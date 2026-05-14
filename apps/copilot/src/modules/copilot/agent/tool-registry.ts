@@ -46,6 +46,22 @@ export function createAyaAgentTools(
   traces: AyaAgentToolTrace[],
 ) {
   return {
+    respondDirectly: tool({
+      description:
+        "Use only when no other Aya operation tool applies, such as a greeting or a brief clarification. Do not use for identity, Blue CRM data, reports, summaries, reads, writes, or safety-sensitive requests.",
+      inputSchema: z.object({
+        responseText: z.string().min(1).max(1000),
+      }),
+      execute: async (input) =>
+        runTool(context, traces, {
+          toolName: "respondDirectly",
+          input,
+          execute: async () => ({
+            responseText: input.responseText,
+          }),
+        }),
+    }),
+
     getSignedInUser: tool({
       description:
         "Return the signed-in Aya user identity. Use for 'who am I signed in as' and account questions.",
@@ -88,6 +104,7 @@ export function createAyaAgentTools(
               query: input.query,
               limit: input.limit,
               actor: context.actor,
+              blueAuth: context.blueAuth,
               transport: context.transport,
             }),
         }),
@@ -114,6 +131,7 @@ export function createAyaAgentTools(
             getClientDetail({
               ...input,
               actor: context.actor,
+              blueAuth: context.blueAuth,
               transport: context.transport,
             }),
         }),
@@ -137,6 +155,7 @@ export function createAyaAgentTools(
             getClientComments({
               ...input,
               actor: context.actor,
+              blueAuth: context.blueAuth,
               transport: context.transport,
             }),
         }),
@@ -581,6 +600,7 @@ export function createAyaAgentTools(
             getRecordActivityReport({
               ...input,
               actor: context.actor,
+              blueAuth: context.blueAuth,
               transport: context.transport,
             }),
         }),
@@ -656,14 +676,15 @@ export function createAyaAgentTools(
 
 async function runTool<TInput extends Record<string, unknown>>(context: AyaAgentContext, traces: AyaAgentToolTrace[], input: {
   toolName: string;
-  intent: IntentName;
+  intent?: IntentName;
   input: TInput;
   policy?: AyaToolPolicy;
   execute: () => Promise<unknown>;
 }) {
   try {
-    enforceAyaToolPolicy(
+    await enforceAyaToolPolicy(
       context,
+      input.intent,
       { intent: input.intent, ...input.input },
       input.policy ?? {},
     );

@@ -34,7 +34,10 @@ import {
   getReportingOverview,
 } from "../reporting/service.js";
 import type { BlueRequestAuth, EmployeeIdentity, IntentName } from "../domain/types.js";
-import { normalizeBlueRequestAuth } from "../modules/blue/request-auth.js";
+import {
+  normalizeBlueRequestAuth,
+  requireValidatedBlueRequestAuth,
+} from "../modules/blue/request-auth.js";
 import { getPreAuthSafetyBlock } from "../modules/copilot/safety.js";
 import { formatUnmappedEmployeeMessage } from "../modules/identity/service.js";
 
@@ -170,6 +173,13 @@ function getHeaderBlueAuth(
   });
 }
 
+async function requireHeaderBlueAuth(
+  headers: Record<string, string | string[] | undefined> | undefined,
+  actor?: EmployeeIdentity | null,
+): Promise<BlueRequestAuth> {
+  return await requireValidatedBlueRequestAuth(getHeaderBlueAuth(headers), actor);
+}
+
 function getHeaderConversationKey(
   headers: Record<string, string | string[] | undefined> | undefined,
 ) {
@@ -231,6 +241,46 @@ async function requireAdminToolActor(
   }
 
   return actor;
+}
+
+function enforceSelfOrAdminEmployeeScope(
+  actor: EmployeeIdentity,
+  target: {
+    employeeId?: string;
+    employeeEmail?: string;
+    employeeName?: string;
+  },
+) {
+  if (actor.roleName === "admin") {
+    return;
+  }
+
+  const targetId = target.employeeId?.trim().toLowerCase();
+  if (targetId && targetId !== actor.employeeId.trim().toLowerCase()) {
+    throw new AppError("Requests for other employees require admin access.", {
+      statusCode: 403,
+      code: "PERMISSION_DENIED",
+    });
+  }
+
+  const targetEmail = target.employeeEmail?.trim().toLowerCase();
+  if (targetEmail && targetEmail !== actor.email?.trim().toLowerCase()) {
+    throw new AppError("Requests for other employees require admin access.", {
+      statusCode: 403,
+      code: "PERMISSION_DENIED",
+    });
+  }
+
+  const targetName = resolveRequestedEmployeeName(target.employeeName, actor);
+  if (
+    targetName &&
+    targetName.trim().toLowerCase() !== actor.displayName.trim().toLowerCase()
+  ) {
+    throw new AppError("Requests for other employees require admin access.", {
+      statusCode: 403,
+      code: "PERMISSION_DENIED",
+    });
+  }
 }
 
 function getHeaderValue(
@@ -471,6 +521,7 @@ function createAyaMcpServer() {
       extra,
     ) => {
       const actor = await requireToolActor(extra.requestInfo?.headers);
+      await requireHeaderBlueAuth(extra.requestInfo?.headers, actor);
       const targetName = employeeName ?? actor.displayName;
       if (
         actor.roleName !== "admin" &&
@@ -506,11 +557,18 @@ function createAyaMcpServer() {
       },
     },
     async ({ query, limit }, extra) => {
-      const actor = await getHeaderActor(extra.requestInfo?.headers);
-      const result = await searchClients({ query, limit, actor, transport: "mcp" });
+      const actor = await requireToolActor(extra.requestInfo?.headers);
+      const blueAuth = await requireHeaderBlueAuth(extra.requestInfo?.headers, actor);
+      const result = await searchClients({
+        query,
+        limit,
+        actor,
+        blueAuth,
+        transport: "mcp",
+      });
       const responseText =
         result.items.length === 0
-          ? `No cached Blue clients matched "${query}".`
+          ? `No current Blue clients matched "${query}".`
           : result.items
               .map(
                 (item: { title: string; listTitle: string }, index: number) =>
@@ -541,12 +599,14 @@ function createAyaMcpServer() {
       },
     },
     async ({ recordId, clientQuery, limit }, extra) => {
-      const actor = await getHeaderActor(extra.requestInfo?.headers);
+      const actor = await requireToolActor(extra.requestInfo?.headers);
+      const blueAuth = await requireHeaderBlueAuth(extra.requestInfo?.headers, actor);
       const result = await getClientComments({
         recordId,
         recordQuery: clientQuery,
         limit,
         actor,
+        blueAuth,
         transport: "mcp",
       });
       return {
@@ -571,11 +631,13 @@ function createAyaMcpServer() {
       },
     },
     async ({ recordId, clientQuery }, extra) => {
-      const actor = await getHeaderActor(extra.requestInfo?.headers);
+      const actor = await requireToolActor(extra.requestInfo?.headers);
+      const blueAuth = await requireHeaderBlueAuth(extra.requestInfo?.headers, actor);
       const result = await getClientDetail({
         recordId,
         recordQuery: clientQuery,
         actor,
+        blueAuth,
         transport: "mcp",
       });
 
@@ -618,7 +680,8 @@ function createAyaMcpServer() {
       { employeeId, employeeEmail, employeeName, date, dateStart, dateEnd, dateLabel, focus },
       extra,
     ) => {
-      await requireAdminToolActor(extra.requestInfo?.headers);
+      const actor = await requireAdminToolActor(extra.requestInfo?.headers);
+      await requireHeaderBlueAuth(extra.requestInfo?.headers, actor);
       const safeDateArgs = normalizeActivityReportDateArgs({ date, dateStart, dateEnd });
       const result = await getEmployeeActivityReport({
         employeeId,
@@ -661,7 +724,8 @@ function createAyaMcpServer() {
       },
     },
     async ({ date, dateStart, dateEnd, dateLabel, focus }, extra) => {
-      await requireAdminToolActor(extra.requestInfo?.headers);
+      const actor = await requireAdminToolActor(extra.requestInfo?.headers);
+      await requireHeaderBlueAuth(extra.requestInfo?.headers, actor);
       const safeDateArgs = normalizeWorkspaceActivityReportDateArgs({ date, dateStart, dateEnd });
       const result = await getWorkspaceActivityReport({
         ...safeDateArgs,
@@ -706,6 +770,7 @@ function createAyaMcpServer() {
     },
     async ({ recordId, clientQuery, date, dateStart, dateEnd, dateLabel, focus }, extra) => {
       const actor = await requireAdminToolActor(extra.requestInfo?.headers);
+      const blueAuth = await requireHeaderBlueAuth(extra.requestInfo?.headers, actor);
       const safeDateArgs = normalizeActivityReportDateArgs({ date, dateStart, dateEnd });
       const result = await getRecordActivityReport({
         recordId,
@@ -714,6 +779,7 @@ function createAyaMcpServer() {
         dateLabel,
         focus,
         actor,
+        blueAuth,
         transport: "mcp",
       });
 
@@ -738,7 +804,9 @@ function createAyaMcpServer() {
       },
     },
     async ({ employeeId, employeeEmail, employeeName, date }, extra) => {
-      const actor = await getHeaderActor(extra.requestInfo?.headers);
+      const actor = await requireToolActor(extra.requestInfo?.headers);
+      enforceSelfOrAdminEmployeeScope(actor, { employeeId, employeeEmail, employeeName });
+      await requireHeaderBlueAuth(extra.requestInfo?.headers, actor);
       const result = await getEmployeeDaySummary({
         employeeId: employeeId ?? actor?.employeeId,
         employeeEmail: employeeEmail ?? actor?.email,
@@ -764,7 +832,8 @@ function createAyaMcpServer() {
       },
     },
     async ({ date, inactiveOnly }, extra) => {
-      await requireAdminToolActor(extra.requestInfo?.headers);
+      const actor = await requireAdminToolActor(extra.requestInfo?.headers);
+      await requireHeaderBlueAuth(extra.requestInfo?.headers, actor);
       const result = await getTeamDaySummary({ date, inactiveOnly });
       return {
         content: [{ type: "text", text: result.summaryText }],
@@ -785,7 +854,8 @@ function createAyaMcpServer() {
       },
     },
     async ({ date, limitPerEmployee }, extra) => {
-      await requireAdminToolActor(extra.requestInfo?.headers);
+      const actor = await requireAdminToolActor(extra.requestInfo?.headers);
+      await requireHeaderBlueAuth(extra.requestInfo?.headers, actor);
       const result = await getTeamFollowUpQueue({ date, limitPerEmployee });
       return {
         content: [{ type: "text", text: result.responseText }],
@@ -803,9 +873,10 @@ function createAyaMcpServer() {
       inputSchema: {},
     },
     async (_args, extra) => {
-      await requireAdminToolActor(extra.requestInfo?.headers);
+      const actor = await requireAdminToolActor(extra.requestInfo?.headers);
+      const blueAuth = await requireHeaderBlueAuth(extra.requestInfo?.headers, actor);
       const result = await getReportingOverview({
-        auth: getHeaderBlueAuth(extra.requestInfo?.headers),
+        auth: blueAuth,
       });
       return {
         content: [{ type: "text", text: result.summaryText }],
@@ -825,10 +896,11 @@ function createAyaMcpServer() {
       },
     },
     async ({ question }, extra) => {
-      await requireAdminToolActor(extra.requestInfo?.headers);
+      const actor = await requireAdminToolActor(extra.requestInfo?.headers);
+      const blueAuth = await requireHeaderBlueAuth(extra.requestInfo?.headers, actor);
       const result = await answerReportingQuestion({
         question,
-        auth: getHeaderBlueAuth(extra.requestInfo?.headers),
+        auth: blueAuth,
       });
       return {
         content: [{ type: "text", text: result.answerText }],
@@ -851,7 +923,9 @@ function createAyaMcpServer() {
       },
     },
     async ({ employeeId, employeeEmail, employeeName, date }, extra) => {
-      const actor = await getHeaderActor(extra.requestInfo?.headers);
+      const actor = await requireToolActor(extra.requestInfo?.headers);
+      enforceSelfOrAdminEmployeeScope(actor, { employeeId, employeeEmail, employeeName });
+      await requireHeaderBlueAuth(extra.requestInfo?.headers, actor);
       const result = await getEmployeeFollowUpQueue({
         employeeId: employeeId ?? actor?.employeeId,
         employeeEmail: employeeEmail ?? actor?.email,
@@ -883,7 +957,9 @@ function createAyaMcpServer() {
       },
     },
     async ({ employeeId, employeeEmail, employeeName }, extra) => {
-      const actor = await getHeaderActor(extra.requestInfo?.headers);
+      const actor = await requireToolActor(extra.requestInfo?.headers);
+      enforceSelfOrAdminEmployeeScope(actor, { employeeId, employeeEmail, employeeName });
+      await requireHeaderBlueAuth(extra.requestInfo?.headers, actor);
       const result = await getEmployeeWorkload({
         employeeId: employeeId ?? actor?.employeeId,
         employeeEmail: employeeEmail ?? actor?.email,
@@ -910,7 +986,13 @@ function createAyaMcpServer() {
       },
     },
     async ({ employeeId, employeeEmail, employeeName, status }, extra) => {
-      const actor = await getHeaderActor(extra.requestInfo?.headers);
+      const actor = await requireToolActor(extra.requestInfo?.headers);
+      await requireHeaderBlueAuth(extra.requestInfo?.headers, actor);
+      enforceSelfOrAdminEmployeeScope(actor, {
+        employeeId,
+        employeeEmail,
+        employeeName,
+      });
       const targetName = employeeName ?? actor?.displayName;
       if (
         actor &&
@@ -954,6 +1036,7 @@ function createAyaMcpServer() {
     },
     async ({ employeeName, dateStart, dateEnd }, extra) => {
       const actor = await requireToolActor(extra.requestInfo?.headers);
+      await requireHeaderBlueAuth(extra.requestInfo?.headers, actor);
       
       if (employeeName && actor.roleName !== "admin" && employeeName.toLowerCase() !== actor.displayName.toLowerCase()) {
          throw new Error("Checking mentions for other employees requires admin access.");
@@ -1004,7 +1087,7 @@ function createAyaMcpServer() {
       extra,
     ) => {
       const actor = await requireToolActor(extra.requestInfo?.headers);
-      const blueAuth = getHeaderBlueAuth(extra.requestInfo?.headers);
+      const blueAuth = await requireHeaderBlueAuth(extra.requestInfo?.headers, actor);
       const result = await runAuditedMcpTool({
         actor,
         toolName: "aya_create_client_record",
@@ -1054,7 +1137,7 @@ function createAyaMcpServer() {
     },
     async ({ recordQuery, targetListQuery }, extra) => {
       const actor = await requireToolActor(extra.requestInfo?.headers);
-      const blueAuth = getHeaderBlueAuth(extra.requestInfo?.headers);
+      const blueAuth = await requireHeaderBlueAuth(extra.requestInfo?.headers, actor);
       const result = await runAuditedMcpTool({
         actor,
         toolName: "aya_move_client_to_stage",
@@ -1092,7 +1175,7 @@ function createAyaMcpServer() {
     },
     async ({ recordQuery, text }, extra) => {
       const actor = await requireToolActor(extra.requestInfo?.headers);
-      const blueAuth = getHeaderBlueAuth(extra.requestInfo?.headers);
+      const blueAuth = await requireHeaderBlueAuth(extra.requestInfo?.headers, actor);
       const result = await runAuditedMcpTool({
         actor,
         toolName: "aya_add_client_comment",
@@ -1130,7 +1213,7 @@ function createAyaMcpServer() {
     },
     async ({ entityQuery, assigneeName }, extra) => {
       const actor = await requireToolActor(extra.requestInfo?.headers);
-      const blueAuth = getHeaderBlueAuth(extra.requestInfo?.headers);
+      const blueAuth = await requireHeaderBlueAuth(extra.requestInfo?.headers, actor);
       const result = await runAuditedMcpTool({
         actor,
         toolName: "aya_assign_record",
@@ -1166,7 +1249,7 @@ function createAyaMcpServer() {
     },
     async ({ recordQuery, taskQuery, assigneeName }, extra) => {
       const actor = await requireToolActor(extra.requestInfo?.headers);
-      const blueAuth = getHeaderBlueAuth(extra.requestInfo?.headers);
+      const blueAuth = await requireHeaderBlueAuth(extra.requestInfo?.headers, actor);
       const result = await runAuditedMcpTool({
         actor,
         toolName: "aya_assign_task",

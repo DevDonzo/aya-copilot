@@ -62,6 +62,8 @@ Primary local chat setup:
 - [AYA_SETUP.md](/Users/hparacha/AyaFinancial/Blue/apps/librechat/docs/AYA_SETUP.md)
 - [docker-compose.yml](/Users/hparacha/AyaFinancial/Blue/apps/librechat/docker-compose.yml)
 
+The LibreChat compose file in `apps/librechat` is for local development only. Production should use the Hostinger bundle or an equivalent hardened compose with server-managed secrets and persistent data outside the repo tree.
+
 ### VPS / Hostinger
 
 Primary single-server deployment bundle:
@@ -70,7 +72,7 @@ Primary single-server deployment bundle:
 - [docker-compose.yml](/Users/hparacha/AyaFinancial/Blue/apps/copilot/deploy/hostinger/docker-compose.yml)
 - [deployment-guide.md](/Users/hparacha/AyaFinancial/Blue/docs/deployment-guide.md)
 
-The Hostinger deployment is designed around one VPS, Docker Compose, bind-mounted state, and optional Cloudflare protection in front.
+The Hostinger deployment is designed around one VPS, Docker Compose, bind-mounted state under `/srv/aya`, nightly backups, and optional Cloudflare protection in front.
 
 ## Workspace Safety
 

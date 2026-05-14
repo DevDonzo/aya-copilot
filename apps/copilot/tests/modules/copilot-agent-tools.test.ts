@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const actor = {
   employeeId: "employee_1",
@@ -10,6 +10,31 @@ const actor = {
 describe("Aya AI SDK tool registry", () => {
   beforeEach(() => {
     vi.resetModules();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({
+          data: {
+            currentUser: {
+              id: "employee_1",
+              uid: "employee_1",
+              email: "hamza@ayafinancial.com",
+              fullName: "Hamza Paracha",
+              projectUserRole: {
+                id: "role_member",
+                name: "Member",
+                isRecordsEnabled: true,
+              },
+            },
+          },
+        }),
+      })),
+    );
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it("maps core client read tools to trusted actions", async () => {
@@ -395,6 +420,39 @@ describe("Aya AI SDK tool registry", () => {
     });
   });
 
+  it("blocks CRM read tools without personal Blue credentials", async () => {
+    const searchClients = vi.fn().mockResolvedValue({
+      responseText: "1. AYA SMOKE TEST (Leads)",
+    });
+
+    vi.doMock("../../src/modules/copilot/actions.js", () =>
+      mockedActions({ searchClients }),
+    );
+
+    const traces: any[] = [];
+    const { createAyaAgentTools } = await import(
+      "../../src/modules/copilot/agent/tool-registry.js"
+    );
+    const tools = createAyaAgentTools(buildContext({ blueAuth: null }), traces);
+
+    const output = await tools.searchClients.execute({
+      query: "AYA SMOKE TEST",
+    });
+
+    expect(output).toMatchObject({
+      ok: false,
+    });
+    expect(output.errorMessage).toContain(
+      "Connect your Blue account before using Aya with CRM data.",
+    );
+    expect(searchClients).not.toHaveBeenCalled();
+    expect(traces[0]).toMatchObject({
+      toolName: "searchClients",
+      intent: "records.search",
+      outcome: "error",
+    });
+  });
+
   it("blocks employee-scoped read tools for other employees", async () => {
     const { createAyaAgentTools } = await import(
       "../../src/modules/copilot/agent/tool-registry.js"
@@ -452,11 +510,23 @@ describe("Aya AI SDK tool registry", () => {
   });
 });
 
-function buildContext() {
+function buildContext(
+  overrides: Partial<ReturnType<typeof buildDefaultContext>> = {},
+) {
+  return {
+    ...buildDefaultContext(),
+    ...overrides,
+  };
+}
+
+function buildDefaultContext() {
   return {
     actor,
     transport: "test",
-    blueAuth: null,
+    blueAuth: {
+      tokenId: "1234567890abcdef1234567890abcdef",
+      tokenSecret: "test-blue-secret",
+    },
     message: "test message",
     nowIso: "2026-05-14T00:00:00.000Z",
     hasActiveRecordContext: false,

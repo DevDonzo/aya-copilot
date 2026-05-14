@@ -1,7 +1,7 @@
 import type { FastifyPluginAsync } from "fastify";
 
 import { resolveEmployeeName } from "../blue/users-sync.js";
-import { ValidationError } from "../app/errors.js";
+import { PermissionError, ValidationError } from "../app/errors.js";
 import {
   employeeSummaryQuerySchema,
   teamSummaryQuerySchema,
@@ -15,14 +15,24 @@ export const summaryRoutes: FastifyPluginAsync = async (app) => {
 
   app.get("/summary/day", protectedRoute, async (request) => {
     const query = parseWithSchema(employeeSummaryQuerySchema, request.query);
+    const actor = request.employee;
+    if (!actor) {
+      throw new PermissionError();
+    }
+
     let employeeId = query.employeeId;
 
     if (!employeeId && query.employee) {
       employeeId = (await resolveEmployeeName(query.employee))?.id;
+      if (!employeeId) {
+        throw new ValidationError(`Employee not found: ${query.employee}`);
+      }
     }
 
-    if (!employeeId) {
-      throw new ValidationError("employeeId or employee is required");
+    employeeId ??= actor.employeeId;
+
+    if (actor.roleName !== "admin" && employeeId !== actor.employeeId) {
+      throw new PermissionError();
     }
 
     return await buildEmployeeDaySummary(
@@ -32,6 +42,10 @@ export const summaryRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.get("/summary/team", protectedRoute, async (request) => {
+    if (request.employee?.roleName !== "admin") {
+      throw new PermissionError();
+    }
+
     const query = parseWithSchema(teamSummaryQuerySchema, request.query);
     const date = query.date ?? getTorontoDateString();
     if (query.inactiveOnly) {

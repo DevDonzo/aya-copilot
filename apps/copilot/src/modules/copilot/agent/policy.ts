@@ -1,4 +1,9 @@
-import { AppError, PermissionError } from "../../../app/errors.js";
+import {
+  AppError,
+  ExternalServiceError,
+  PermissionError,
+} from "../../../app/errors.js";
+import { requireValidatedBlueRequestAuth } from "../../blue/request-auth.js";
 import { getPreAuthSafetyBlock } from "../safety.js";
 import type { AyaAgentContext } from "./types.js";
 
@@ -13,10 +18,12 @@ export interface AyaToolPolicy {
   adminOnly?: boolean;
   write?: boolean;
   employeeNameField?: string;
+  blueAuthRequired?: boolean;
 }
 
-export function enforceAyaToolPolicy(
+export async function enforceAyaToolPolicy(
   context: AyaAgentContext,
+  intent: string | undefined,
   input: Record<string, unknown>,
   policy: AyaToolPolicy,
 ) {
@@ -24,6 +31,14 @@ export function enforceAyaToolPolicy(
 
   if (policy.adminOnly && role !== "admin") {
     throw new PermissionError();
+  }
+
+  if (
+    policy.blueAuthRequired ||
+    policy.write ||
+    (intent != null && intent !== "identity.self")
+  ) {
+    await requireValidatedBlueRequestAuth(context.blueAuth, context.actor);
   }
 
   if (role !== "admin" && policy.employeeNameField) {
@@ -57,13 +72,13 @@ export function formatAyaToolError(error: unknown) {
     return "You do not have permission to do that.";
   }
 
+  if (error instanceof ExternalServiceError) {
+    return "I could not reach Blue right now. Try again in a minute. If this keeps happening, ask an admin to check Aya's Blue connection.";
+  }
+
   if (error instanceof AppError) {
     return error.message;
   }
 
-  if (error instanceof Error && error.message.trim()) {
-    return error.message;
-  }
-
-  return "The action failed before Aya could complete it.";
+  return "Aya could not complete that request. Try again in a minute. If it keeps happening, ask an admin to check the Aya logs.";
 }

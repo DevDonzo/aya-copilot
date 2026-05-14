@@ -2,9 +2,176 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createTestEnvironment } from "../helpers/test-env.js";
 
+const BLUE_AUTH_REQUIRED_MESSAGE =
+  "Connect your Blue account before using Aya with CRM data. Open the Aya MCP server settings and enter both your Blue Token ID and Blue Token Secret, then try again.";
+const HAMZA_BLUE_AUTH = {
+  actorBlueTokenId: "00000000000000000000000000000001",
+  actorBlueTokenSecret: "test-blue-secret-hamza",
+};
+const ADMIN_BLUE_AUTH = {
+  actorBlueTokenId: "00000000000000000000000000000002",
+  actorBlueTokenSecret: "test-blue-secret-admin",
+};
+
+function installDefaultBlueFetchMock() {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      const body = parseJsonBody(init?.body);
+      const query = typeof body.query === "string" ? body.query : "";
+
+      if (query.includes("AyaValidateBlueCredentials")) {
+        return jsonResponse({
+          data: {
+            currentUser: blueUserForToken(getHeader(init?.headers, "x-bloo-token-id")),
+          },
+        });
+      }
+
+      if (query.includes("WorkspaceLists")) {
+        return jsonResponse({
+          data: {
+            todoLists: [
+              {
+                id: "list_leads",
+                uid: "list_leads_uid",
+                title: "Leads",
+                position: 1,
+                createdAt: "2026-04-01T00:00:00.000Z",
+                updatedAt: "2026-04-02T00:00:00.000Z",
+                todosCount: 1,
+              },
+              {
+                id: "list_underwriting",
+                uid: "list_underwriting_uid",
+                title: "Underwriting",
+                position: 2,
+                createdAt: "2026-04-01T00:00:00.000Z",
+                updatedAt: "2026-04-02T00:00:00.000Z",
+                todosCount: 1,
+              },
+            ],
+          },
+        });
+      }
+
+      if (query.includes("WorkspaceListRecords")) {
+        return jsonResponse({
+          data: {
+            todoList: {
+              id: body.variables?.listId ?? "list_leads",
+              title:
+                body.variables?.listId === "list_underwriting"
+                  ? "Underwriting"
+                  : "Leads",
+              todos:
+                body.variables?.listId === "list_underwriting"
+                  ? []
+                  : [
+                      {
+                        id: "record_1",
+                        uid: "record_1_uid",
+                        title: "Hamza Client",
+                        text: "",
+                        html: "",
+                        startedAt: null,
+                        duedAt: null,
+                        commentCount: 0,
+                        archived: false,
+                        done: false,
+                        createdAt: "2026-04-01T00:00:00.000Z",
+                        updatedAt: "2026-04-02T00:00:00.000Z",
+                        users: [],
+                        tags: [],
+                        customFields: [],
+                        todoList: {
+                          id: "list_leads",
+                          uid: "list_leads_uid",
+                          title: "Leads",
+                          position: 1,
+                          updatedAt: "2026-04-02T00:00:00.000Z",
+                        },
+                      },
+                    ],
+            },
+          },
+        });
+      }
+
+      return jsonResponse({ data: {} });
+    }),
+  );
+}
+
+function blueUserForToken(tokenId: string | null) {
+  const baseRole = {
+    id: "role_1",
+    name: "Member",
+    isRecordsEnabled: true,
+  };
+  if (tokenId === ADMIN_BLUE_AUTH.actorBlueTokenId) {
+    return {
+      id: "admin_1",
+      uid: "admin_1",
+      email: "admin@ayafinancial.com",
+      fullName: "Admin User",
+      projectUserRole: baseRole,
+    };
+  }
+
+  return {
+    id: "employee_1",
+    uid: "employee_1",
+    email: "hamza@ayafinancial.com",
+    fullName: "Hamza Paracha",
+    projectUserRole: baseRole,
+  };
+}
+
+function parseJsonBody(body: BodyInit | null | undefined) {
+  if (typeof body !== "string") {
+    return {} as { query?: unknown; variables?: Record<string, unknown> };
+  }
+
+  try {
+    return JSON.parse(body) as {
+      query?: unknown;
+      variables?: Record<string, unknown>;
+    };
+  } catch {
+    return {} as { query?: unknown; variables?: Record<string, unknown> };
+  }
+}
+
+function getHeader(headers: HeadersInit | undefined, name: string) {
+  if (!headers) {
+    return null;
+  }
+  if (headers instanceof Headers) {
+    return headers.get(name);
+  }
+  if (Array.isArray(headers)) {
+    const entry = headers.find(([key]) => key.toLowerCase() === name.toLowerCase());
+    return entry?.[1] ?? null;
+  }
+
+  const record = headers as Record<string, string>;
+  return record[name] ?? record[name.toLowerCase()] ?? null;
+}
+
+function jsonResponse(payload: unknown) {
+  return {
+    ok: true,
+    status: 200,
+    json: async () => payload,
+  } as Response;
+}
+
 describe("Aya copilot message flow", () => {
   beforeEach(() => {
     vi.resetModules();
+    vi.unstubAllGlobals();
+    installDefaultBlueFetchMock();
   });
 
   it("uses the AI SDK agent tools for write intents and returns credential guidance", async () => {
@@ -71,9 +238,7 @@ describe("Aya copilot message flow", () => {
         matched: true,
         intent: "comments.create",
       });
-      expect(response.responseText).toContain(
-        "Your Blue account is not connected for write actions yet.",
-      );
+      expect(response.responseText).toContain(BLUE_AUTH_REQUIRED_MESSAGE);
     } finally {
       vi.doUnmock("ai");
       env.cleanup();
@@ -130,6 +295,60 @@ describe("Aya copilot message flow", () => {
       expect(response.responseText).toContain(
         "You are signed in as Hamza Paracha.",
       );
+    } finally {
+      vi.doUnmock("ai");
+      env.cleanup();
+    }
+  });
+
+  it("does not let planner fallback bypass the Blue credential gate", async () => {
+    const env = createTestEnvironment({
+      AYA_CHAT_RUNTIME: "agent_with_planner_fallback",
+      OPENAI_API_KEY: "test-openai-key",
+      AYA_LLM_PLANNER_ENABLED: "false",
+    });
+
+    try {
+      vi.doMock("ai", async () => {
+        const actual = await vi.importActual<typeof import("ai")>("ai");
+
+        return {
+          ...actual,
+          generateText: vi.fn(async () => ({
+            text: "I need more details.",
+            totalUsage: {
+              inputTokens: 10,
+              outputTokens: 5,
+              totalTokens: 15,
+            },
+          })),
+        };
+      });
+
+      const { ensureEmployee, initializeDatabase } = await import("../../src/db.js");
+
+      await initializeDatabase();
+      await ensureEmployee({
+        employeeId: "employee_1",
+        displayName: "Hamza Paracha",
+        email: "hamza@ayafinancial.com",
+        roleName: "employee",
+      });
+
+      const { handleInboundMessage } = await import(
+        "../../src/messages/handle-message.js"
+      );
+
+      const response = await handleInboundMessage({
+        actorEmployeeId: "employee_1",
+        message: "show me Hamza Client",
+      });
+
+      expect(response).toMatchObject({
+        matched: true,
+        intent: "records.detail",
+      });
+      expect(response.responseText).toContain(BLUE_AUTH_REQUIRED_MESSAGE);
     } finally {
       vi.doUnmock("ai");
       env.cleanup();
@@ -228,6 +447,7 @@ describe("Aya copilot message flow", () => {
 
       const detailResponse = await handleInboundMessage({
         actorEmployeeId: "employee_1",
+        ...HAMZA_BLUE_AUTH,
         message: "show me Hamza",
       });
 
@@ -241,6 +461,7 @@ describe("Aya copilot message flow", () => {
 
       const commentsResponse = await handleInboundMessage({
         actorEmployeeId: "employee_1",
+        ...HAMZA_BLUE_AUTH,
         message: "comments on this client",
       });
 
@@ -359,6 +580,7 @@ describe("Aya copilot message flow", () => {
 
       const response = await handleInboundMessage({
         actorEmployeeId: "employee_1",
+        ...HAMZA_BLUE_AUTH,
         message: "prep me for a call with Hamza",
       });
 
@@ -490,6 +712,7 @@ describe("Aya copilot message flow", () => {
 
       const response = await handleInboundMessage({
         actorEmployeeId: "employee_1",
+        ...HAMZA_BLUE_AUTH,
         message: "what's going on with Hamza",
       });
 
@@ -616,6 +839,7 @@ describe("Aya copilot message flow", () => {
 
       const response = await handleInboundMessage({
         actorEmployeeId: "employee_1",
+        ...HAMZA_BLUE_AUTH,
         message: "what needs follow up today",
       });
 
@@ -736,6 +960,7 @@ describe("Aya copilot message flow", () => {
 
       const response = await handleInboundMessage({
         actorEmployeeId: "admin_1",
+        ...ADMIN_BLUE_AUTH,
         message: "what assignments does Sarah have",
       });
 
@@ -760,7 +985,7 @@ describe("Aya copilot message flow", () => {
       OPENAI_API_KEY: "test-openai-key",
       AYA_LLM_PLANNER_ENABLED: "true",
     });
-    const fetchMock = vi
+    const openAiFetchMock = vi
       .fn()
       .mockResolvedValueOnce({
         ok: true,
@@ -807,6 +1032,18 @@ describe("Aya copilot message flow", () => {
           ],
         }),
       });
+    const fetchMock = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      const body = parseJsonBody(init?.body);
+      if (typeof body.query === "string" && body.query.includes("AyaValidateBlueCredentials")) {
+        return jsonResponse({
+          data: {
+            currentUser: blueUserForToken(getHeader(init?.headers, "x-bloo-token-id")),
+          },
+        });
+      }
+
+      return openAiFetchMock(url, init);
+    });
     vi.stubGlobal("fetch", fetchMock);
 
     try {
@@ -900,6 +1137,7 @@ describe("Aya copilot message flow", () => {
 
       const response = await handleInboundMessage({
         actorEmployeeId: "admin_1",
+        ...ADMIN_BLUE_AUTH,
         message: "find Sarah's open assignments and summarize them",
       });
 
@@ -914,7 +1152,7 @@ describe("Aya copilot message flow", () => {
       expect(response.responseText).not.toContain("assignments.report");
       expect(response.responseText).not.toContain("tool");
       expect(JSON.stringify(response.data)).not.toContain("step_1");
-      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(openAiFetchMock).toHaveBeenCalledTimes(2);
     } finally {
       vi.unstubAllGlobals();
       env.cleanup();
@@ -1020,6 +1258,7 @@ describe("Aya copilot message flow", () => {
 
       const response = await handleInboundMessage({
         actorEmployeeId: "admin_1",
+        ...ADMIN_BLUE_AUTH,
         message: "show me everything Hamza did today",
       });
 
@@ -1148,6 +1387,7 @@ describe("Aya copilot message flow", () => {
 
       const response = await handleInboundMessage({
         actorEmployeeId: "admin_1",
+        ...ADMIN_BLUE_AUTH,
         message: "who moved clients today",
       });
 
@@ -1263,6 +1503,7 @@ describe("Aya copilot message flow", () => {
 
       const response = await handleInboundMessage({
         actorEmployeeId: "admin_1",
+        ...ADMIN_BLUE_AUTH,
         message: "show me exception reports",
       });
 
@@ -1430,6 +1671,7 @@ describe("Aya copilot message flow", () => {
 
       const phoneResponse = await handleInboundMessage({
         actorEmployeeId: "admin_1",
+        ...ADMIN_BLUE_AUTH,
         message: "which records are missing phone?",
       });
       expect(phoneResponse).toMatchObject({
@@ -1443,6 +1685,7 @@ describe("Aya copilot message flow", () => {
 
       const emailResponse = await handleInboundMessage({
         actorEmployeeId: "admin_1",
+        ...ADMIN_BLUE_AUTH,
         message: "which records are missing email?",
       });
       expect(emailResponse).toMatchObject({
@@ -1484,6 +1727,7 @@ describe("Aya copilot message flow", () => {
 
       const response = await handleInboundMessage({
         actorEmployeeId: "employee_1",
+        ...HAMZA_BLUE_AUTH,
         message: "show Rehan's notifications",
       });
 
@@ -1554,6 +1798,7 @@ describe("Aya copilot message flow", () => {
 
       const response = await handleInboundMessage({
         actorEmployeeId: "admin_1",
+        ...ADMIN_BLUE_AUTH,
         message: "who commented today?",
       });
 
@@ -1695,6 +1940,7 @@ describe("Aya copilot message flow", () => {
 
       const response = await handleInboundMessage({
         actorEmployeeId: "admin_1",
+        ...ADMIN_BLUE_AUTH,
         message: "who touched Hamza Client today",
       });
 
@@ -1833,6 +2079,7 @@ describe("Aya copilot message flow", () => {
 
       const response = await handleInboundMessage({
         actorEmployeeId: "admin_1",
+        ...ADMIN_BLUE_AUTH,
         message:
           "show me the timeline for Hamza Client from 2026-04-08 to 2026-04-09",
       });
@@ -1968,11 +2215,13 @@ describe("Aya copilot message flow", () => {
 
       await handleInboundMessage({
         actorEmployeeId: "employee_1",
+        ...HAMZA_BLUE_AUTH,
         message: "show me Hamza",
       });
 
       const moveResponse = await handleInboundMessage({
         actorEmployeeId: "employee_1",
+        ...HAMZA_BLUE_AUTH,
         message: "move this to underwriting",
       });
 

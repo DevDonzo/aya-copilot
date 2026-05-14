@@ -83,9 +83,11 @@ export async function searchClients(
     query: string;
     limit?: number;
     actor?: EmployeeIdentity | null;
+    blueAuth?: BlueRequestAuth | null;
     transport?: string;
   },
 ) {
+  await refreshRecordIndexForSpecificLookup(input.blueAuth);
   const items = await searchRecordQuery(input.query, input.limit ?? 8);
 
   if (input.actor && items.length > 1) {
@@ -127,6 +129,7 @@ export async function getClientDetail(input: {
   detailMode?: "default" | "briefing" | "call_prep";
   briefingFocus?: "general" | "handoff" | "blockers" | "missing_docs";
   actor?: EmployeeIdentity | null;
+  blueAuth?: BlueRequestAuth | null;
   transport?: string;
 }) {
   const resolved =
@@ -147,9 +150,10 @@ export async function getClientDetail(input: {
             briefingFocus: input.briefingFocus ?? "general",
           },
           useActiveRecordContext: input.useActiveRecordContext,
+          blueAuth: input.blueAuth,
         });
 
-  const detail = await getBlueRecordDetail(resolved.id);
+  const detail = await getBlueRecordDetail(resolved.id, input.blueAuth);
   if (input.actor) {
     await rememberActiveRecordContext({
       actor: input.actor,
@@ -182,6 +186,7 @@ export async function getClientComments(input: {
   useActiveRecordContext?: boolean;
   limit?: number;
   actor?: EmployeeIdentity | null;
+  blueAuth?: BlueRequestAuth | null;
   transport?: string;
 }) {
   const resolved =
@@ -198,9 +203,10 @@ export async function getClientComments(input: {
           transport: input.transport ?? "mcp",
           continuationAction: "comments.list_recent",
           useActiveRecordContext: input.useActiveRecordContext,
+          blueAuth: input.blueAuth,
         });
 
-  const detail = await getBlueRecordDetail(resolved.id);
+  const detail = await getBlueRecordDetail(resolved.id, input.blueAuth);
   const comments = detail.recentActivity
     .filter((item) => item.commentText && item.commentText.trim())
     .slice(0, Math.min(input.limit ?? 8, 20))
@@ -329,6 +335,7 @@ export async function getRecordActivityReport(input: {
   dateLabel?: string;
   focus?: RecordActivityFocus;
   actor?: EmployeeIdentity | null;
+  blueAuth?: BlueRequestAuth | null;
   transport?: string;
 }) {
   const resolved =
@@ -345,6 +352,7 @@ export async function getRecordActivityReport(input: {
           transport: input.transport ?? "mcp",
           continuationAction: "activity.record_report",
           useActiveRecordContext: input.useActiveRecordContext,
+          blueAuth: input.blueAuth,
         });
 
   const range = normalizeActivityDateRange(input);
@@ -716,6 +724,7 @@ export async function moveClientToStage(input: {
           },
           useActiveRecordContext: input.useActiveRecordContext,
           requireExactMatch: true,
+          blueAuth: writeAuth,
         });
   const list = await resolveListOrThrow(input.targetListQuery);
   const indexedRecord = await getIndexedRecord(record.id);
@@ -795,6 +804,7 @@ export async function addCommentToClient(input: {
           },
           useActiveRecordContext: input.useActiveRecordContext,
           requireExactMatch: true,
+          blueAuth: writeAuth,
         });
   const comment = await executeBlueWrite(() =>
     createComment({
@@ -898,6 +908,7 @@ export async function assignRecord(input: {
     },
     useActiveRecordContext: input.useActiveRecordContext,
     requireExactMatch: true,
+    blueAuth: writeAuth,
   });
 
   const assignee = await resolveActorIdentityService({
@@ -948,6 +959,7 @@ export async function assignTask(input: {
       assigneeName: input.assigneeName,
     },
     useActiveRecordContext: input.useActiveRecordContext,
+    blueAuth: writeAuth,
   });
 
   const assignee = await resolveActorIdentityService({
@@ -993,6 +1005,7 @@ export async function completeRecordAssignment(input: {
     continuationAction: "records.complete",
     useActiveRecordContext: input.useActiveRecordContext,
     requireExactMatch: true,
+    blueAuth: writeAuth,
   });
 
   await executeBlueWrite(() =>
@@ -1031,6 +1044,7 @@ export async function completeTaskAssignment(input: {
     transport: input.transport ?? "mcp",
     useActiveRecordContext: input.useActiveRecordContext,
     continuationAction: "tasks.complete",
+    blueAuth: writeAuth,
   });
 
   await executeBlueWrite(() =>
@@ -1075,6 +1089,7 @@ export async function setRecordDueDate(input: {
     },
     useActiveRecordContext: input.useActiveRecordContext,
     requireExactMatch: true,
+    blueAuth: writeAuth,
   });
   const dueAt = toDueDateIso(input.dueDate);
 
@@ -1119,6 +1134,7 @@ export async function setTaskDueDate(input: {
     pendingParameters: {
       dueDate: input.dueDate,
     },
+    blueAuth: writeAuth,
   });
   const dueAt = toDueDateIso(input.dueDate);
 
@@ -1216,6 +1232,7 @@ interface RecordResolutionInput {
   pendingParameters?: Record<string, unknown>;
   useActiveRecordContext?: boolean;
   requireExactMatch?: boolean;
+  blueAuth?: BlueRequestAuth | null;
 }
 
 async function resolveRecordOrThrow(input: RecordResolutionInput) {
@@ -1262,6 +1279,7 @@ async function resolveRecordOrThrow(input: RecordResolutionInput) {
   const originalQuery = input.query.trim();
   const trimmedQuery = normalizeRecordLookupQuery(originalQuery);
   const normalizedQuery = normalizeCacheQuery(trimmedQuery);
+  await refreshRecordIndexForSpecificLookup(input.blueAuth);
   if (input.actor && input.requireExactMatch) {
     const assignedRecords = await loadAssignedOpenRecords(input.actor.employeeId);
     const exactAssignedMatches = assignedRecords.items
@@ -1425,7 +1443,7 @@ async function resolveRecordOrThrow(input: RecordResolutionInput) {
   }
   if (!resolution) {
     throw new ValidationError(
-      `No cached Blue record matched "${originalQuery}". Sync the workspace index and try again.`,
+      `No current Blue record matched "${originalQuery}". Check the client name or try the full current file title.`,
     );
   }
 
@@ -1464,6 +1482,12 @@ async function resolveRecordOrThrow(input: RecordResolutionInput) {
   }
 
   return resolution.match;
+}
+
+async function refreshRecordIndexForSpecificLookup(
+  auth?: BlueRequestAuth | null,
+) {
+  await syncWorkspaceIndex({ auth });
 }
 
 function assertNoBulkDestructiveWrite(message: string) {
@@ -1543,6 +1567,7 @@ async function resolveChecklistItemOrThrow(input: {
   continuationAction: string;
   pendingParameters?: Record<string, unknown>;
   useActiveRecordContext?: boolean;
+  blueAuth?: BlueRequestAuth | null;
 }): Promise<ResolvedChecklistTask> {
   const record = await resolveRecordOrThrow({
     query: input.recordQuery,
@@ -1556,9 +1581,14 @@ async function resolveChecklistItemOrThrow(input: {
     },
     useActiveRecordContext: input.useActiveRecordContext,
     requireExactMatch: true,
+    blueAuth: input.blueAuth,
   });
 
-  const detail = await fetchRecordDetail(config.BLUE_WORKSPACE_ID, record.id);
+  const detail = await fetchRecordDetail(
+    config.BLUE_WORKSPACE_ID,
+    record.id,
+    input.blueAuth,
+  );
   const normalizedTask = normalizeCacheQuery(input.taskQuery);
 
   for (const checklist of detail.record?.checklists ?? []) {
@@ -1591,7 +1621,7 @@ async function resolveListOrThrow(query: string) {
   const resolution = await resolveListQuery(query.trim());
   if (!resolution) {
     throw new ValidationError(
-      `No cached Blue list matched "${query}". Sync the workspace index and try again.`,
+      `No current Blue list matched "${query}". Check the stage/list name and try again.`,
     );
   }
 

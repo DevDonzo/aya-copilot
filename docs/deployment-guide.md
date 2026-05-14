@@ -326,11 +326,12 @@ The current Hostinger deployment includes:
 
 Persistent storage directories:
 
-- `deploy/hostinger/data/aya`
-- `deploy/hostinger/data/mongodb`
-- `deploy/hostinger/data/meilisearch`
-- `deploy/hostinger/data/librechat/uploads`
-- `deploy/hostinger/data/librechat/logs`
+- `/srv/aya/aya`
+- `/srv/aya/mongodb`
+- `/srv/aya/meilisearch`
+- `/srv/aya/librechat/uploads`
+- `/srv/aya/librechat/logs`
+- `/srv/aya/backups`
 
 ## Prerequisites
 
@@ -401,7 +402,8 @@ cp config/librechat.yaml.example config/librechat.yaml
 Create the storage folders before first boot:
 
 ```bash
-mkdir -p data/aya data/mongodb data/meilisearch data/librechat/uploads data/librechat/logs
+sudo mkdir -p /srv/aya/aya /srv/aya/mongodb /srv/aya/meilisearch /srv/aya/librechat/uploads /srv/aya/librechat/logs /srv/aya/backups
+sudo chown -R "$USER":"$USER" /srv/aya
 ```
 
 If using the Cloudflare template, also prepare:
@@ -418,7 +420,10 @@ Edit `env/aya.env` and set:
 - `BLUE_CLIENT_ID`
 - `BLUE_COMPANY_ID`
 - `AUTH_BOOTSTRAP_KEY`
+- `BLUE_WEBHOOK_PUBLIC_URL`
 - `BLUE_WEBHOOK_SECRET`
+- `BLUE_GRAPHQL_TIMEOUT_MS=15000`
+- `BLUE_INGEST_INTERVAL_MS=3600000`
 - `OPENAI_API_KEY`
 - `AYA_CHAT_RUNTIME`
 - `AYA_AGENT_MODEL`
@@ -452,6 +457,8 @@ Edit `env/librechat.env` and set:
 - `JWT_REFRESH_SECRET`
 - `MEILI_MASTER_KEY`
 - `OPENAI_API_KEY`
+- `MONGO_INITDB_ROOT_PASSWORD`
+- `MONGO_URI` with the same Mongo password and `authSource=admin`
 
 Generate secrets with:
 
@@ -467,6 +474,14 @@ Use:
 - 64 hex characters for `JWT_SECRET`
 - 64 hex characters for `JWT_REFRESH_SECRET`
 - 64 hex characters for `MEILI_MASTER_KEY`
+
+If you are upgrading an existing no-auth Mongo volume, there is usually no existing Mongo password. Before restarting the stack with authenticated Mongo, run:
+
+```bash
+./enable-mongo-auth.sh
+```
+
+That script generates a password if needed, writes it into `env/librechat.env` and `env/aya.env`, and creates the Mongo admin user in the currently running Mongo container. It does not print the password.
 
 The default LibreChat endpoint is `openAI`, the default LibreChat model is `gpt-4o-mini`, and the default Aya tool-calling agent model is `gpt-4o`.
 
@@ -493,7 +508,7 @@ Expected results:
 - all containers are up or healthy
 - Aya responds successfully on `127.0.0.1:3010/health`
 - LibreChat responds on `127.0.0.1:3080`
-- data appears under `deploy/hostinger/data/`
+- data appears under `/srv/aya/`
 - neither application is listening on a public interface
 
 ### 7. Install Cloudflare Tunnel
@@ -583,18 +598,19 @@ For a small internal team, short maintenance windows are usually the correct tra
 
 Minimum backup targets:
 
-- Aya SQLite data in `deploy/hostinger/data/aya`
-- LibreChat Mongo data in `deploy/hostinger/data/mongodb`
-- LibreChat uploads in `deploy/hostinger/data/librechat/uploads`
+- Aya SQLite data in `/srv/aya/aya`
+- LibreChat Mongo data in `/srv/aya/mongodb`
+- LibreChat uploads in `/srv/aya/librechat/uploads`
+- LibreChat logs in `/srv/aya/librechat/logs`
 
 Recommended baseline:
 
 - use Hostinger VPS snapshots before major changes
-- perform periodic backups of the important storage directories
-- store backups off the VM
+- run `./backup.sh` from `Blue/apps/copilot/deploy/hostinger` nightly
+- store `/srv/aya/backups/<timestamp>/` artifacts off the VM
 - test at least one restore path before relying on the system operationally
 
-For Aya Financial's size, this is enough. You do not need a complex backup platform if snapshots and periodic volume copies are done reliably.
+For Aya Financial's size, this is enough. You do not need a complex backup platform if nightly backups, off-VM copies, and VPS snapshots are done reliably.
 
 ## Failure Recovery
 

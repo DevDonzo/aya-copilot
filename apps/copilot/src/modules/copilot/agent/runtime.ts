@@ -26,8 +26,12 @@ export async function runAyaToolAgent(
     system: buildAyaAgentSystemPrompt(context),
     prompt: buildAyaAgentPrompt(context),
     tools: createAyaAgentTools(context, toolCalls),
+    prepareStep: ({ stepNumber }) => ({
+      toolChoice: stepNumber === 0 ? "required" : "auto",
+    }),
     stopWhen: stepCountIs(config.AYA_AGENT_MAX_STEPS),
     maxRetries: 0,
+    temperature: 0,
     timeout: config.AYA_AGENT_TIMEOUT_MS,
     experimental_include: {
       requestBody: false,
@@ -43,7 +47,7 @@ export async function runAyaToolAgent(
     "I completed the request, but Aya did not return a readable summary.";
 
   return {
-    matched: toolCalls.length > 0,
+    matched: toolCalls.some((trace) => Boolean(trace.intent)),
     intent: lastToolCall?.intent,
     responseText,
     data: lastToolCall?.resultSummary,

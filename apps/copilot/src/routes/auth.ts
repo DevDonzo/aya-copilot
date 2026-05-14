@@ -25,7 +25,9 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
 
   app.post("/auth/login", async (request, reply) => {
     const payload = parseWithSchema(loginBodySchema, request.body);
-    const login = await loginEmployee(payload.employeeName, payload.password);
+    const login = await loginEmployee(payload.employeeName, payload.password, {
+      sourceKey: getLoginSourceKey(request),
+    });
     const secureCookie = shouldUseSecureCookies(request);
     reply.setCookie("aya_session", login.sessionToken, {
       httpOnly: true,
@@ -82,8 +84,8 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
 };
 
 function shouldUseSecureCookies(request: FastifyRequest) {
-  if (config.NODE_ENV !== "production") {
-    return false;
+  if (config.NODE_ENV === "production") {
+    return true;
   }
 
   const forwardedProto = request.headers["x-forwarded-proto"];
@@ -104,4 +106,13 @@ function shouldUseSecureCookies(request: FastifyRequest) {
   }
 
   return false;
+}
+
+function getLoginSourceKey(request: FastifyRequest) {
+  const forwardedFor = request.headers["x-forwarded-for"];
+  if (typeof forwardedFor === "string" && forwardedFor.trim()) {
+    return forwardedFor.split(",")[0]?.trim();
+  }
+
+  return request.ip;
 }

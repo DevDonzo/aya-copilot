@@ -71,6 +71,7 @@ export async function blueGraphqlRequest<T>(
       try {
         const response = await fetch(config.BLUE_API_URL, {
           method: "POST",
+          signal: AbortSignal.timeout(config.BLUE_GRAPHQL_TIMEOUT_MS),
           headers: {
             "content-type": "application/json",
             "x-bloo-token-id": credentials.clientId,
@@ -390,7 +391,11 @@ export async function fetchWorkspaceListRecords(input: {
   return items;
 }
 
-export async function fetchRecordDetail(workspaceId: string, recordId: string) {
+export async function fetchRecordDetail(
+  workspaceId: string,
+  recordId: string,
+  auth?: BlueRequestAuth | null,
+) {
   const data = await blueGraphqlRequest<{
     todo: BlueRecord | null;
     commentList: {
@@ -481,7 +486,7 @@ export async function fetchRecordDetail(workspaceId: string, recordId: string) {
     {
       recordId,
     },
-    { projectId: workspaceId },
+    { projectId: workspaceId, auth },
   );
 
   return {
@@ -1770,6 +1775,42 @@ export async function checkBlueApiConnectivity(workspaceId: string) {
     ok: true,
     totalUsers: data.projectUserList.totalCount,
   };
+}
+
+export async function fetchCurrentBlueUser(auth: BlueRequestAuth) {
+  const data = await blueGraphqlRequest<{
+    currentUser: {
+      id: string;
+      uid?: string | null;
+      email?: string | null;
+      fullName?: string | null;
+      projectUserRole?: {
+        id?: string | null;
+        name?: string | null;
+        isRecordsEnabled?: boolean | null;
+      } | null;
+    };
+  }>(
+    `
+      query AyaValidateBlueCredentials($projectId: String) {
+        currentUser {
+          id
+          uid
+          email
+          fullName
+          projectUserRole(projectId: $projectId) {
+            id
+            name
+            isRecordsEnabled
+          }
+        }
+      }
+    `,
+    { projectId: config.BLUE_WORKSPACE_ID },
+    { projectId: config.BLUE_WORKSPACE_ID, auth },
+  );
+
+  return data.currentUser;
 }
 
 function resolveGraphqlCredentials(auth?: BlueRequestAuth | null) {

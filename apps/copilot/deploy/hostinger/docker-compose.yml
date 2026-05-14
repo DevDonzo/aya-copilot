@@ -10,12 +10,11 @@ services:
     environment:
       PORT: "3010"
       AYA_DATA_DIR: /app/data
-      LIBRECHAT_MONGO_URI: mongodb://mongodb:27017/LibreChat
       LIBRECHAT_MONGO_DB_NAME: LibreChat
     ports:
       - "127.0.0.1:3010:3010"
     volumes:
-      - ./data/aya:/app/data
+      - /srv/aya/aya:/app/data
     depends_on:
       - mongodb
     networks:
@@ -45,7 +44,6 @@ services:
     environment:
       HOST: 0.0.0.0
       NODE_ENV: production
-      MONGO_URI: mongodb://mongodb:27017/LibreChat
       MEILI_HOST: http://meilisearch:7700
     depends_on:
       - mongodb
@@ -55,8 +53,8 @@ services:
       - "127.0.0.1:3080:3080"
     volumes:
       - ./config/librechat.yaml:/app/librechat.yaml:ro
-      - ./data/librechat/uploads:/app/uploads
-      - ./data/librechat/logs:/app/api/logs
+      - /srv/aya/librechat/uploads:/app/uploads
+      - /srv/aya/librechat/logs:/app/api/logs
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
@@ -66,9 +64,11 @@ services:
     container_name: aya-chat-mongodb
     image: mongo:8.0.20
     restart: unless-stopped
-    command: mongod --noauth
+    command: mongod --auth
+    env_file:
+      - ./env/librechat.env
     volumes:
-      - ./data/mongodb:/data/db
+      - /srv/aya/mongodb:/data/db
     networks:
       - aya_private
 
@@ -82,7 +82,7 @@ services:
       MEILI_HOST: http://meilisearch:7700
       MEILI_NO_ANALYTICS: "true"
     volumes:
-      - ./data/meilisearch:/meili_data
+      - /srv/aya/meilisearch:/meili_data
     networks:
       - aya_private
 

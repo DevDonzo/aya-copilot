@@ -87,16 +87,11 @@ export const managerReportQuerySchema = z
     path: ["dateStart"],
   });
 
-export const employeeSummaryQuerySchema = z
-  .object({
-    employeeId: z.string().trim().min(1).optional(),
-    employee: z.string().trim().min(1).optional(),
-    date: z.string().trim().min(1).optional(),
-  })
-  .refine((value) => Boolean(value.employeeId || value.employee), {
-    message: "employeeId or employee is required",
-    path: ["employeeId"],
-  });
+export const employeeSummaryQuerySchema = z.object({
+  employeeId: z.string().trim().min(1).optional(),
+  employee: z.string().trim().min(1).optional(),
+  date: z.string().trim().min(1).optional(),
+});
 
 export const teamSummaryQuerySchema = z.object({
   date: z.string().trim().min(1).optional(),

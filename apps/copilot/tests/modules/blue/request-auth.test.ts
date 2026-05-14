@@ -57,9 +57,107 @@ describe("blue request auth helpers", () => {
       );
 
       expect(() => resolveBlueWriteAuth(null)).toThrow(
-        /Blue account is not connected for write actions yet/i,
+        /Connect your Blue account before using Aya with CRM data/i,
       );
     } finally {
+      env.cleanup();
+    }
+  });
+
+  it("validates Blue credentials against the signed-in actor", async () => {
+    const env = createTestEnvironment();
+    const fetchCurrentBlueUser = vi.fn();
+    vi.doMock("../../../src/modules/blue/graphql/client.js", () => ({
+      fetchCurrentBlueUser,
+    }));
+
+    try {
+      const {
+        BLUE_AUTH_INVALID_MESSAGE,
+        BLUE_AUTH_MISMATCH_MESSAGE,
+        BLUE_AUTH_WORKSPACE_REQUIRED_MESSAGE,
+        requireValidatedBlueRequestAuth,
+      } = await import("../../../src/modules/blue/request-auth.js");
+
+      fetchCurrentBlueUser.mockResolvedValueOnce({
+        id: "employee_1",
+        uid: "employee_1",
+        email: "hamza@ayafinancial.com",
+        fullName: "Hamza Paracha",
+        projectUserRole: {
+          id: "role_1",
+          name: "Member",
+          isRecordsEnabled: true,
+        },
+      });
+      await expect(
+        requireValidatedBlueRequestAuth(
+          { tokenId: "token_1", tokenSecret: "secret_1" },
+          {
+            employeeId: "employee_1",
+            displayName: "Hamza Paracha",
+            email: "hamza@ayafinancial.com",
+            roleName: "employee",
+          },
+        ),
+      ).resolves.toEqual({ tokenId: "token_1", tokenSecret: "secret_1" });
+
+      fetchCurrentBlueUser.mockRejectedValueOnce(new Error("invalid token"));
+      await expect(
+        requireValidatedBlueRequestAuth(
+          { tokenId: "token_1", tokenSecret: "wrong" },
+          {
+            employeeId: "employee_1",
+            displayName: "Hamza Paracha",
+            email: "hamza@ayafinancial.com",
+            roleName: "employee",
+          },
+        ),
+      ).rejects.toThrow(BLUE_AUTH_INVALID_MESSAGE);
+
+      fetchCurrentBlueUser.mockResolvedValueOnce({
+        id: "employee_2",
+        uid: "employee_2",
+        email: "other@ayafinancial.com",
+        fullName: "Other User",
+        projectUserRole: {
+          id: "role_1",
+          name: "Member",
+          isRecordsEnabled: true,
+        },
+      });
+      await expect(
+        requireValidatedBlueRequestAuth(
+          { tokenId: "token_2", tokenSecret: "secret_2" },
+          {
+            employeeId: "employee_1",
+            displayName: "Hamza Paracha",
+            email: "hamza@ayafinancial.com",
+            roleName: "employee",
+          },
+        ),
+      ).rejects.toThrow(BLUE_AUTH_MISMATCH_MESSAGE);
+
+      fetchCurrentBlueUser.mockResolvedValueOnce({
+        id: "employee_1",
+        uid: "employee_1",
+        email: "hamza@ayafinancial.com",
+        fullName: "Hamza Paracha",
+        projectUserRole: null,
+      });
+      await expect(
+        requireValidatedBlueRequestAuth(
+          { tokenId: "token_1", tokenSecret: "secret_1" },
+          {
+            employeeId: "employee_1",
+            displayName: "Hamza Paracha",
+            email: "hamza@ayafinancial.com",
+            roleName: "employee",
+          },
+        ),
+      ).rejects.toThrow(BLUE_AUTH_WORKSPACE_REQUIRED_MESSAGE);
+    } finally {
+      vi.doUnmock("../../../src/modules/blue/graphql/client.js");
       env.cleanup();
     }
   });

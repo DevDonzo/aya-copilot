@@ -110,6 +110,23 @@ jobs:
             if [ -f config/librechat.yaml ]; then
               perl -0pi -e 's/aya-ops-assistant/aya-copilot-assistant/g; s/Aya Ops/Aya Copilot/g; s/Aya Financial Assistant/Aya Copilot Assistant/g' config/librechat.yaml
             fi
+            mkdir -p /srv/aya/aya /srv/aya/mongodb /srv/aya/meilisearch /srv/aya/librechat/uploads /srv/aya/librechat/logs /srv/aya/backups
+            if [ -d data/aya ] && [ -z "$(find /srv/aya/aya -mindepth 1 -maxdepth 1 2>/dev/null)" ]; then
+              cp -a data/aya/. /srv/aya/aya/
+            fi
+            if [ -d data/mongodb ] && [ -z "$(find /srv/aya/mongodb -mindepth 1 -maxdepth 1 2>/dev/null)" ]; then
+              cp -a data/mongodb/. /srv/aya/mongodb/
+            fi
+            if [ -d data/meilisearch ] && [ -z "$(find /srv/aya/meilisearch -mindepth 1 -maxdepth 1 2>/dev/null)" ]; then
+              cp -a data/meilisearch/. /srv/aya/meilisearch/
+            fi
+            if [ -d data/librechat/uploads ] && [ -z "$(find /srv/aya/librechat/uploads -mindepth 1 -maxdepth 1 2>/dev/null)" ]; then
+              cp -a data/librechat/uploads/. /srv/aya/librechat/uploads/
+            fi
+            if [ -d data/librechat/logs ] && [ -z "$(find /srv/aya/librechat/logs -mindepth 1 -maxdepth 1 2>/dev/null)" ]; then
+              cp -a data/librechat/logs/. /srv/aya/librechat/logs/
+            fi
+            ./enable-mongo-auth.sh
             docker compose up -d --build --remove-orphans
             for i in $(seq 1 30); do
               if curl -fsS http://127.0.0.1:3010/health >/dev/null; then

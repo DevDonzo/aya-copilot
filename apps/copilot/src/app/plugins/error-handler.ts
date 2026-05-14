@@ -1,6 +1,7 @@
 import fp from "fastify-plugin";
 import { ZodError } from "zod";
 
+import { config } from "../../config.js";
 import { AppError, ValidationError } from "../errors.js";
 
 export const errorHandlerPlugin = fp(async (app) => {
@@ -31,7 +32,12 @@ export const errorHandlerPlugin = fp(async (app) => {
 
     request.log.error({ err: error }, "Unhandled Aya error");
     reply.status(500).send({
-      error: error instanceof Error ? error.message : "unknown error",
+      error:
+        config.NODE_ENV === "production"
+          ? "Internal server error"
+          : error instanceof Error
+            ? error.message
+            : "unknown error",
       code: "INTERNAL_ERROR",
       requestId: request.id,
     });

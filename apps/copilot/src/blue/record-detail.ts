@@ -1,4 +1,5 @@
 import { config } from "../config.js";
+import type { BlueRequestAuth } from "../domain/types.js";
 import { fetchRecordDetail } from "../modules/blue/graphql/client.js";
 
 interface DetailField {
@@ -43,10 +44,14 @@ export interface BlueRecordDetail {
   }>;
 }
 
-export async function getBlueRecordDetail(recordId: string) {
+export async function getBlueRecordDetail(
+  recordId: string,
+  auth?: BlueRequestAuth | null,
+) {
   const { record, comments } = await fetchRecordDetail(
     config.BLUE_WORKSPACE_ID,
     recordId,
+    auth,
   );
 
   if (!record) {

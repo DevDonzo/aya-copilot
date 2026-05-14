@@ -6,7 +6,10 @@ import type {
   IntentName,
   IntentPlan,
 } from "../../domain/types.js";
-import { normalizeBlueRequestAuth } from "../blue/request-auth.js";
+import {
+  normalizeBlueRequestAuth,
+  requireValidatedBlueRequestAuth,
+} from "../blue/request-auth.js";
 import { getActiveRecordContextForActor } from "../disambiguation/active-record-context.js";
 import { rememberCopilotTurnMemory } from "./memory.js";
 import {
@@ -56,7 +59,11 @@ import {
 } from "./actions.js";
 import { getPreAuthSafetyBlock } from "./safety.js";
 import { insertBotAuditLog } from "../../store/audit-store.js";
-import { AppError, PermissionError } from "../../app/errors.js";
+import {
+  AppError,
+  ExternalServiceError,
+  PermissionError,
+} from "../../app/errors.js";
 import { runAyaToolAgent } from "./agent/runtime.js";
 import type { AyaAgentToolTrace } from "./agent/types.js";
 
@@ -765,6 +772,7 @@ async function runAgentStep(input: {
 
   try {
     enforceIntentPermissions(input.actor, plan);
+    await enforceBlueCredentialsForIntent(plan.intent, input.blueAuth, input.actor);
     const execution = await executePlan({
       actor: input.actor,
       transport: input.transport,
@@ -980,15 +988,15 @@ function formatAgentErrorMessage(error: unknown) {
     return "You do not have permission to do that.";
   }
 
+  if (error instanceof ExternalServiceError) {
+    return "I could not reach Blue right now. Try again in a minute. If this keeps happening, ask an admin to check Aya's Blue connection.";
+  }
+
   if (error instanceof AppError) {
     return error.message;
   }
 
-  if (error instanceof Error && error.message.trim()) {
-    return error.message;
-  }
-
-  return "The action failed before Aya could complete it.";
+  return "Aya could not complete that request. Try again in a minute. If it keeps happening, ask an admin to check the Aya logs.";
 }
 
 function isNonRepairableAgentError(error: unknown) {
@@ -1078,6 +1086,18 @@ function enforceIntentPermissions(actor: EmployeeIdentity, plan: IntentPlan) {
   ) {
     throw new PermissionError();
   }
+}
+
+function enforceBlueCredentialsForIntent(
+  intent: IntentName,
+  blueAuth: BlueRequestAuth | null,
+  actor: EmployeeIdentity,
+) {
+  if (intent === "help.overview" || intent === "identity.self") {
+    return;
+  }
+
+  return requireValidatedBlueRequestAuth(blueAuth, actor);
 }
 
 async function executePlan(input: {
@@ -1204,6 +1224,7 @@ async function executePlan(input: {
             : undefined,
         focus,
         actor,
+        blueAuth,
         transport,
       });
       return {
@@ -1434,11 +1455,12 @@ async function executePlan(input: {
         query,
         limit: 5,
         actor,
+        blueAuth,
         transport,
       });
       const responseText =
         result.items.length === 0
-          ? `No cached Blue records matched "${query}".`
+          ? `No current Blue records matched "${query}".`
           : result.items
               .map(
                 (item, index) =>
@@ -1472,6 +1494,7 @@ async function executePlan(input: {
             ? plan.parameters.briefingFocus
             : undefined,
         actor,
+        blueAuth,
         transport,
       });
       return {
@@ -1640,6 +1663,7 @@ async function executePlan(input: {
             : undefined,
         useActiveRecordContext: plan.parameters.useActiveRecordContext === true,
         actor,
+        blueAuth,
         transport,
       });
       return {
@@ -1794,6 +1818,19 @@ async function continuePendingRecordChoice(
   }
 
   await clearPendingRecordChoiceForActor(actor, transport);
+  const continuationIntent = getPendingContinuationIntent(
+    pendingSelection.context.continuationAction,
+  );
+  if (continuationIntent) {
+    try {
+      await enforceBlueCredentialsForIntent(continuationIntent, blueAuth, actor);
+    } catch (error) {
+      return {
+        intent: continuationIntent,
+        responseText: formatAgentErrorMessage(error),
+      };
+    }
+  }
 
   switch (pendingSelection.context.continuationAction) {
     case "get_client_detail":
@@ -1817,6 +1854,7 @@ async function continuePendingRecordChoice(
             ? pendingSelection.context.pendingParameters.briefingFocus
             : undefined,
         actor,
+        blueAuth,
         transport,
       });
       return {
@@ -1830,6 +1868,7 @@ async function continuePendingRecordChoice(
       const result = await getClientComments({
         recordId: pendingSelection.candidate.id,
         actor,
+        blueAuth,
         transport,
       });
       return {
@@ -1878,6 +1917,24 @@ async function continuePendingRecordChoice(
       };
     }
 
+    default:
+      return null;
+  }
+}
+
+function getPendingContinuationIntent(
+  continuationAction: string,
+): IntentName | null {
+  switch (continuationAction) {
+    case "get_client_detail":
+    case "records.detail":
+      return "records.detail";
+    case "comments.list_recent":
+      return "comments.list_recent";
+    case "comments.create":
+      return "comments.create";
+    case "records.move":
+      return "records.move";
     default:
       return null;
   }

@@ -662,7 +662,11 @@ async function runTool<TInput extends Record<string, unknown>>(context: AyaAgent
   execute: () => Promise<unknown>;
 }) {
   try {
-    enforceAyaToolPolicy(context, input.input, input.policy ?? {});
+    enforceAyaToolPolicy(
+      context,
+      { intent: input.intent, ...input.input },
+      input.policy ?? {},
+    );
     const data = await input.execute();
     const responseText = extractResponseText(data);
     const resultSummary = summarizeToolResult(data);

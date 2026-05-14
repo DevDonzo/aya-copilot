@@ -80,6 +80,62 @@ describe("Aya copilot message flow", () => {
     }
   });
 
+  it("falls back to the planner when the AI SDK agent does not call a tool", async () => {
+    const env = createTestEnvironment({
+      AYA_CHAT_RUNTIME: "agent_with_planner_fallback",
+      OPENAI_API_KEY: "test-openai-key",
+      AYA_LLM_PLANNER_ENABLED: "false",
+    });
+
+    try {
+      vi.doMock("ai", async () => {
+        const actual = await vi.importActual<typeof import("ai")>("ai");
+
+        return {
+          ...actual,
+          generateText: vi.fn(async () => ({
+            text: "I need more details.",
+            totalUsage: {
+              inputTokens: 10,
+              outputTokens: 5,
+              totalTokens: 15,
+            },
+          })),
+        };
+      });
+
+      const { ensureEmployee, initializeDatabase } = await import("../../src/db.js");
+
+      await initializeDatabase();
+      await ensureEmployee({
+        employeeId: "employee_1",
+        displayName: "Hamza Paracha",
+        email: "hamza@ayafinancial.com",
+        roleName: "employee",
+      });
+
+      const { handleInboundMessage } = await import(
+        "../../src/messages/handle-message.js"
+      );
+
+      const response = await handleInboundMessage({
+        actorEmployeeId: "employee_1",
+        message: "who am I signed in as?",
+      });
+
+      expect(response).toMatchObject({
+        matched: true,
+        intent: "identity.self",
+      });
+      expect(response.responseText).toContain(
+        "You are signed in as Hamza Paracha.",
+      );
+    } finally {
+      vi.doUnmock("ai");
+      env.cleanup();
+    }
+  });
+
   it("keeps active client context across detail and comment follow-ups", async () => {
     const env = createTestEnvironment();
 

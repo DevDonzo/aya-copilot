@@ -443,6 +443,87 @@ describe("Aya copilot message flow", () => {
     }
   });
 
+  it("returns deterministic permission text when an agent tool is denied", async () => {
+    const env = createTestEnvironment({
+      AYA_CHAT_RUNTIME: "agent_with_planner_fallback",
+      OPENAI_API_KEY: "test-openai-key",
+      AYA_LLM_PLANNER_ENABLED: "false",
+    });
+
+    try {
+      vi.doMock("ai", async () => {
+        const actual = await vi.importActual<typeof import("ai")>("ai");
+
+        return {
+          ...actual,
+          generateText: vi.fn(
+            async (options: {
+              tools: Record<
+                string,
+                { execute: (input: Record<string, unknown>) => Promise<Record<string, unknown>> }
+              >;
+            }) => {
+              await options.tools.getTeamDaySummary.execute({});
+
+              return {
+                text: "I'm unable to access the team's activity summary for today.",
+                totalUsage: {
+                  inputTokens: 10,
+                  outputTokens: 8,
+                  totalTokens: 18,
+                },
+              };
+            },
+          ),
+        };
+      });
+
+      const { ensureEmployee, initializeDatabase } = await import("../../src/db.js");
+
+      await initializeDatabase();
+      await ensureEmployee({
+        employeeId: "employee_1",
+        displayName: "Rehan AYA",
+        email: null,
+        roleName: "employee",
+      });
+
+      const { handleInboundMessage } = await import(
+        "../../src/messages/handle-message.js"
+      );
+      const { listBotAuditLogsForDay } = await import("../../src/db.js");
+
+      const marker = `local denied agent tool ${Date.now()}`;
+      const response = await handleInboundMessage({
+        actorEmployeeId: "employee_1",
+        message: `what did the team do today ${marker}`,
+      });
+
+      expect(response).toMatchObject({
+        matched: true,
+        intent: "summary.team_day",
+        responseText: "You do not have permission to do that.",
+      });
+
+      const auditRows = await listBotAuditLogsForDay({
+        dateIso: new Date().toISOString().slice(0, 10),
+      });
+      const matchingRows = auditRows.filter((row) =>
+        row.inbound_text.includes(marker),
+      );
+
+      expect(matchingRows).toHaveLength(1);
+      expect(matchingRows[0]).toMatchObject({
+        adapter: "ai-sdk-agent",
+        outcome: "error",
+        detected_intent: "summary.team_day",
+      });
+    } finally {
+      vi.doUnmock("ai");
+      env.cleanup();
+    }
+  });
+
   it("does not let planner fallback bypass the Blue credential gate", async () => {
     const env = createTestEnvironment({
       AYA_CHAT_RUNTIME: "agent_with_planner_fallback",

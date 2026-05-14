@@ -59,8 +59,10 @@ export async function runAyaToolAgent(
   const hasDirectResponse = toolCalls.some(
     (trace) => trace.toolName === "respondDirectly" && trace.responseText,
   );
+  const forcedTraceResponseText = getForcedTraceResponseText(toolCalls);
   const fallbackResponseText = getFallbackResponseText(toolCalls);
   const responseText =
+    forcedTraceResponseText ||
     result.text.trim() ||
     fallbackResponseText ||
     "I completed the request, but Aya did not return a readable summary.";
@@ -90,6 +92,18 @@ function getFallbackResponseText(toolCalls: AyaAgentToolTrace[]) {
     latestReadableTrace?.errorMessage ??
     null
   );
+}
+
+function getForcedTraceResponseText(toolCalls: AyaAgentToolTrace[]) {
+  const latestTrace = [...toolCalls].reverse().find((trace) => trace.intent);
+  if (
+    latestTrace?.outcome === "error" &&
+    latestTrace.errorMessage === "You do not have permission to do that."
+  ) {
+    return latestTrace.errorMessage;
+  }
+
+  return null;
 }
 
 function buildRecoveredAgentResult(

@@ -21,7 +21,6 @@ It also contains deployment and reference material:
 - `docs/`: architecture, deployment, and product docs
 - `reference/`: exported schemas, API references, and research material
 - `scripts/`: workspace utilities and one-off repo automation
-- `.git-backups/`: archived nested git metadata from the repo flattening
 
 ## Top-Level Folder Conventions
 

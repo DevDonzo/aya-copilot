@@ -195,6 +195,7 @@ Normal operation:
 - Aya syncs the workspace index on startup
 - Aya polls for index/activity updates on an interval
 - webhooks can also push changes in when configured
+- specific client/file reads should prefer live Blue data or webhook-fresh cache when freshness matters
 
 Manual sync is for:
 
@@ -437,13 +438,17 @@ Keep the deployment constrained to the approved workspace:
 Recommended chat runtime rollout:
 
 - `AYA_CHAT_RUNTIME=agent_with_planner_fallback`
-- keep `AYA_AGENT_MAX_STEPS=5` and `AYA_AGENT_TIMEOUT_MS=15000` unless production logs show a specific need to tune them
+- keep `AYA_AGENT_MAX_STEPS=5`
+- use `AYA_AGENT_TIMEOUT_MS=30000` unless production logs show a specific need to tune it
 - set `AYA_CHAT_RUNTIME=planner` for immediate rollback to the deterministic planner
 
 Operational note:
 
 - do not point this deployment at the forbidden production Blue workspace
 - do not commit populated env files back into source control
+- Blue returns a webhook signing secret only when a webhook is created. If production has an enabled webhook but no stored `BLUE_WEBHOOK_SECRET` or `blue_webhook_subscriptions.secret_ref`, the app recreates the webhook on startup and stores the new secret.
+- A healthy webhook means Blue accepted the registration health check. Verify actual event delivery separately by creating a safe comment on a QA record and checking `/health` for a fresh `lastWebhookReceivedAt`.
+- API/MCP-driven record moves did not emit `TODO_MOVED` during final verification. If instant move freshness matters, test a UI-driven move and keep reconciliation enabled as the catch-up path.
 
 ### 5. Configure LibreChat
 

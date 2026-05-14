@@ -40,9 +40,12 @@ Reference exports, schemas, and supporting research artifacts.
 ```text
 Employee
   -> LibreChat
-    -> Aya MCP / HTTP
-      -> Blue GraphQL
-      -> SQLite
+    -> Aya MCP
+      -> Aya Copilot backend
+        -> Vercel AI SDK agent
+        -> policy/RBAC layer
+        -> Blue GraphQL
+        -> SQLite audit/cache
 
 LibreChat
   -> MongoDB
@@ -112,8 +115,11 @@ Any Blue write path should stay pinned to the allowed workspace only.
 
 - LibreChat is live and serving the Aya employee chat flow.
 - Aya Copilot is live behind LibreChat and Blue health checks are passing.
+- The production chat runtime is `AYA_CHAT_RUNTIME=agent_with_planner_fallback`.
+- The primary chat path is the Vercel AI SDK tool-calling agent using `gpt-4o`; the old planner remains only as temporary fallback during the observation window.
 - The separate visual admin dashboard has been removed.
 - Managers should ask workload, assignment, and activity questions directly in LibreChat.
+- Blue webhooks are registered, healthy, and have a stored signing secret. A real `COMMENT_CREATED` webhook was received after the latest deploy.
 - Blue writes are constrained to the allowed workspace only:
   - `03 - AYA x Hamza/ AI`
   - `cmn524yr800e101mh7kn44mhf`
@@ -142,5 +148,5 @@ Any Blue write path should stay pinned to the allowed workspace only.
 ### Known Issues / Caveats
 
 - Google OAuth was not treated as the primary production login path in the final handoff pass; password login is the verified path
-- the repository CI currently has message-flow tests that depend on live Blue access and can fail when the external Blue GraphQL call returns `502` or times out
+- API/MCP-driven record moves did not emit a `TODO_MOVED` webhook during the final verification. Blue webhook delivery itself is working; comment webhooks were received and cache freshness updated. Specific record reads should continue to prefer live Blue reads, and reconciliation remains the catch-up path for missed move events.
 - the repo is public, so any operational secrets, tokens, local env files, or runtime credentials must stay out of git

@@ -10,6 +10,7 @@ const actor = {
 describe("Aya AI SDK tool registry", () => {
   beforeEach(() => {
     vi.resetModules();
+    vi.stubEnv("BLUE_COMPANY_ID", "aya-test-company");
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => ({

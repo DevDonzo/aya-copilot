@@ -46,7 +46,7 @@ The AI SDK agent should handle normal traffic first. The old planner is only a s
 Current cleanup decision:
 
 - Keep `AYA_CHAT_RUNTIME=agent_with_planner_fallback` for the first production observation window.
-- Production audit inspection after the `27a0b0b` deploy showed `ai-sdk-agent` traffic and no unexpected fallback/old `aya-agent` rows for the final smoke checks.
+- Production audit inspection after the `dd9903b` deploy showed `ai-sdk-agent` traffic and no unexpected fallback/old `aya-agent` rows for the final deep-dive run.
 - Do not delete `planner.ts` or `llm-planner.ts` until production audit logs over the full observation window also show zero important fallback usage, or every fallback case is explicitly ported to an agent tool.
 - If fallback appears for important workflows, keep it temporarily and document the specific prompts/intents that still need porting.
 
@@ -147,10 +147,10 @@ This avoids "fast but stale" answers for one-client questions while keeping broa
 
 Current production status:
 
-- Deployed build: `27a0b0b`.
+- Deployed build: `dd9903b`.
 - Webhook registration is `HEALTHY` and enabled.
 - Startup repairs a Blue webhook that exists without a locally stored signing secret by recreating it and storing the new one-time secret.
-- A real `COMMENT_CREATED` webhook was received after the final deploy and updated `lastWebhookReceivedAt`.
+- Real `COMMENT_CREATED` webhooks were received after the final deploy and updated `lastWebhookReceivedAt`; the latest final deep-dive write updated it to `2026-05-14T21:58:49.870Z`.
 - API/MCP-driven record moves did not emit a `TODO_MOVED` webhook during final verification. There were no `/webhooks/blue` POST failures for that move; Blue simply did not deliver a move event for that path. Treat this as a Blue event-emission caveat, not an Aya signature/endpoint failure.
 - For demo-critical specific record state, the chatbot should use live Blue reads where possible. Hourly reconciliation remains the catch-up path for any missed webhook events.
 
@@ -181,22 +181,23 @@ Backups should run nightly at minimum. A restore test should be documented and p
 
 ## Final Deep-Dive Status
 
-Automated and local checks cover the hardening behavior that can be verified without real production employee Blue credentials:
+Final validation completed on `2026-05-14` against deployed build `dd9903b`.
 
-- TypeScript, unit, integration, build, and production-surface checks should pass before deployment.
-- No-Blue-credential CRM gates are covered by tests for searches, summaries, admin reports, writes, fallback bypass, MCP policy, and direct record routes.
-- Summary route RBAC, login lockout/audit, secure production cookies, generic production 500s, Blue GraphQL timeouts, and authenticated Mongo deployment scripts are covered by code/tests or script syntax checks.
-- Production health/login/MCP protection can be checked with `node scripts/verify_production.mjs`.
+Passed:
 
-Manual checks still required after deploy:
+- `apps/copilot`: `npm run check`, `npm test` (`145` tests), Docker production build.
+- `tools/blue-cli`: `go test ./...`.
+- Production surface: `node scripts/verify_production.mjs`.
+- Live chatbot deep-dive run `final-deep-dive-1778795831910`: identity, no-Blue-credential CRM gates, valid Blue credential read, valid Blue credential comments read, active-record follow-up write, direct comment write, missing-credential write block, bulk move refusal, bulk task-complete refusal, non-admin team-report denial, and invalid Blue credential guidance.
+- Production audit for `final-deep-dive-1778795831910`: `6` `ai-sdk-agent` successes, `6` expected `ai-sdk-agent` errors for credential/RBAC blocks, `2` pre-auth safety blocks, and no fallback or old `aya-agent` rows.
+- Production health after live writes: database OK, Blue API OK, webhook registration `HEALTHY`, webhook primary path true.
 
-- A normal employee with valid personal Blue Token ID and Secret can search/read only permitted data.
-- A valid credential write is attributed through that employee's Blue token.
-- A non-admin cannot read another employee or team report.
+Manual checks still useful after handoff:
+
 - An admin can read team/employee reports.
 - Blue webhook freshness updates after delivered Blue events; final verification confirmed `COMMENT_CREATED` delivery. API/MCP-driven moves did not deliver `TODO_MOVED` during final verification, so UI-driven move webhook behavior should be checked separately if instant move freshness is required.
 - Backup artifacts are copied off-VM and restored into a temporary location.
-- Production audit logs show agent successes, tool errors, permission blocks, missing/invalid Blue credential blocks, and any fallback usage.
+- Continue watching production audit logs for fallback usage during the observation window.
 
 ## Repo Cleanup Classification
 

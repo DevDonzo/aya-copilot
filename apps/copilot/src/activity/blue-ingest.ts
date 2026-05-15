@@ -64,6 +64,7 @@ export async function ingestBlueActivity(limit = 100) {
         employeeId: actor.employeeId,
         displayName: actor.displayName,
         email: actor.email,
+        roleName: actor.roleName,
         timezone: actor.timezone,
       });
 

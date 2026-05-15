@@ -9,6 +9,11 @@ export interface BlueEmployeeActor {
   timezone?: string | null;
 }
 
+const ayaAdminEmployeeEmails = new Set([
+  "rsaeed@ayafinancial.com",
+  "skhan@ayafinancial.com",
+]);
+
 const knownAyaEmployeeEmailsByName = new Map([
   ["abdullah albiz", "abdullaha@ayafinancial.com"],
   ["ajlan bilwani", "abilwani@ayafinancial.com"],
@@ -63,11 +68,14 @@ export function canonicalizeBlueEmployee(actor: BlueEmployeeActor) {
     canonical?.email ??
     actor.email?.trim() ??
     getKnownAyaEmployeeEmail(originalDisplayName);
+  const roleName =
+    email && ayaAdminEmployeeEmails.has(email.toLowerCase()) ? "admin" : undefined;
 
   return {
     employeeId: canonical?.employeeId ?? actor.id,
     displayName,
     email,
+    roleName,
     originalBlueUserId: actor.id,
     originalDisplayName,
     timezone: actor.timezone ?? "America/Toronto",

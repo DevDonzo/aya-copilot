@@ -268,6 +268,7 @@ describe("users sync", () => {
           employeeId: "cm2o7pr4f3tlroi9uexnouw44",
           displayName: "Rehan S",
           email: "rsaeed@ayafinancial.com",
+          roleName: "admin",
         }),
       );
       expect(mockUpsertIdentityLink).toHaveBeenCalledWith(
@@ -295,6 +296,37 @@ describe("users sync", () => {
         withEmail: 2,
         missingEmail: 0,
       });
+    } finally {
+      env.cleanup();
+    }
+  });
+
+  it("keeps Sarah as an Aya admin during employee sync", async () => {
+    const env = createTestEnvironment();
+    try {
+      mockFetchWorkspaceUsers.mockResolvedValue([
+        {
+          id: "cm65ljsi34kxamdq29x7507bb",
+          email: "",
+          firstName: "Sarah",
+          lastName: "Khan",
+          fullName: "Sarah Khan",
+          timezone: null,
+        } satisfies BlueUser,
+      ]);
+      mockFetchCompanyUsers.mockResolvedValue([]);
+
+      const { syncWorkspaceEmployees } = await import("../../src/blue/users-sync.js");
+      await syncWorkspaceEmployees();
+
+      expect(mockEnsureEmployee).toHaveBeenCalledWith(
+        expect.objectContaining({
+          employeeId: "cm65ljsi34kxamdq29x7507bb",
+          displayName: "Sarah Khan",
+          email: "skhan@ayafinancial.com",
+          roleName: "admin",
+        }),
+      );
     } finally {
       env.cleanup();
     }

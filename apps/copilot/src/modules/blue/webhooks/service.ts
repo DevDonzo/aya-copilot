@@ -311,6 +311,7 @@ async function maybeEnsureWebhookActor(
     employeeId: employee.employeeId,
     displayName: employee.displayName,
     email: employee.email,
+    roleName: employee.roleName,
     timezone: employee.timezone,
   });
 

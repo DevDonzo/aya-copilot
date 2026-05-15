@@ -58,7 +58,7 @@ describe("blue webhooks", () => {
         name: "AyaFinancial FinOps Bot",
         url: "https://copilot.test/webhooks/blue",
         events: ["TODO_MOVED"],
-        projectIds: ["cmn524yr800e101mh7kn44mhf"],
+        projectIds: ["cmhazc4rl1vkand1eonnmiyjy"],
         enabled: true,
         status: "HEALTHY",
         createdAt: "2026-05-14T00:00:00.000Z",
@@ -83,7 +83,7 @@ describe("blue webhooks", () => {
       await initializeDatabase();
       await upsertBlueWebhookSubscription({
         id: "subscription_old",
-        workspaceId: "cmn524yr800e101mh7kn44mhf",
+        workspaceId: "cmhazc4rl1vkand1eonnmiyjy",
         blueWebhookId: "webhook_old",
         url: "https://copilot.test/webhooks/blue",
         eventsJson: JSON.stringify(["TODO_MOVED"]),
@@ -108,7 +108,7 @@ describe("blue webhooks", () => {
       );
 
       const subscriptions = await listBlueWebhookSubscriptions(
-        "cmn524yr800e101mh7kn44mhf",
+        "cmhazc4rl1vkand1eonnmiyjy",
       );
       expect(
         subscriptions.find((item) => item.blue_webhook_id === "webhook_old"),
@@ -132,7 +132,7 @@ describe("blue webhooks", () => {
         name: "AyaFinancial FinOps Bot",
         url: "https://copilot.test/webhooks/blue",
         events: ["TODO_MOVED"],
-        projectIds: ["cmn524yr800e101mh7kn44mhf"],
+        projectIds: ["cmhazc4rl1vkand1eonnmiyjy"],
         enabled: true,
         status: "HEALTHY",
         createdAt: "2026-05-14T00:00:00.000Z",
@@ -157,7 +157,7 @@ describe("blue webhooks", () => {
       await initializeDatabase();
       await upsertBlueWebhookSubscription({
         id: "subscription_existing",
-        workspaceId: "cmn524yr800e101mh7kn44mhf",
+        workspaceId: "cmhazc4rl1vkand1eonnmiyjy",
         blueWebhookId: "webhook_existing",
         url: "https://copilot.test/webhooks/blue",
         eventsJson: JSON.stringify(["TODO_MOVED"]),
@@ -177,7 +177,7 @@ describe("blue webhooks", () => {
       );
 
       const subscriptions = await listBlueWebhookSubscriptions(
-        "cmn524yr800e101mh7kn44mhf",
+        "cmhazc4rl1vkand1eonnmiyjy",
       );
       expect(subscriptions[0]).toMatchObject({
         blue_webhook_id: "webhook_existing",

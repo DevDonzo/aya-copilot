@@ -28,8 +28,8 @@ LibreChat should not talk directly to Blue. It should talk to Aya.
 
 - method: `GET` and `POST`
 - path: `/mcp`
-- current scope: `03 - AYA x Hamza/ AI`
-- workspace ID: `cmn524yr800e101mh7kn44mhf`
+- current scope: `00- AYA Sales CRM 3`
+- workspace ID: `cmhazc4rl1vkand1eonnmiyjy`
 
 ## Exposed Aya Tools
 

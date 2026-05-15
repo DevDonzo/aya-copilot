@@ -126,7 +126,7 @@ describe("security-sensitive routes", () => {
         expiresAt: "2099-01-01T00:00:00.000Z",
       });
       await upsertBlueRecordsCache({
-        workspaceId: "cmn524yr800e101mh7kn44mhf",
+        workspaceId: "cmhazc4rl1vkand1eonnmiyjy",
         items: [
           {
             id: "record_1",

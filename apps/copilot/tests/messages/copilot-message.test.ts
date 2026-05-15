@@ -646,7 +646,7 @@ describe("Aya copilot message flow", () => {
         roleName: "employee",
       });
       await upsertBlueRecordsCache({
-        workspaceId: "cmn524yr800e101mh7kn44mhf",
+        workspaceId: "cmhazc4rl1vkand1eonnmiyjy",
         items: [
           {
             id: "record_1",
@@ -779,7 +779,7 @@ describe("Aya copilot message flow", () => {
         roleName: "employee",
       });
       await upsertBlueRecordsCache({
-        workspaceId: "cmn524yr800e101mh7kn44mhf",
+        workspaceId: "cmhazc4rl1vkand1eonnmiyjy",
         items: [
           {
             id: "record_1",
@@ -911,7 +911,7 @@ describe("Aya copilot message flow", () => {
         roleName: "employee",
       });
       await upsertBlueRecordsCache({
-        workspaceId: "cmn524yr800e101mh7kn44mhf",
+        workspaceId: "cmhazc4rl1vkand1eonnmiyjy",
         items: [
           {
             id: "record_1",
@@ -1653,7 +1653,7 @@ describe("Aya copilot message flow", () => {
       });
 
       await upsertBlueRecordsCache({
-        workspaceId: "cmn524yr800e101mh7kn44mhf",
+        workspaceId: "cmhazc4rl1vkand1eonnmiyjy",
         items: [
           {
             id: "record_sarah",
@@ -1781,7 +1781,7 @@ describe("Aya copilot message flow", () => {
       });
 
       await upsertBlueRecordsCache({
-        workspaceId: "cmn524yr800e101mh7kn44mhf",
+        workspaceId: "cmhazc4rl1vkand1eonnmiyjy",
         items: [
           {
             id: "record_structured_contact",
@@ -2071,7 +2071,7 @@ describe("Aya copilot message flow", () => {
         roleName: "employee",
       });
       await upsertBlueRecordsCache({
-        workspaceId: "cmn524yr800e101mh7kn44mhf",
+        workspaceId: "cmhazc4rl1vkand1eonnmiyjy",
         items: [
           {
             id: "record_hamza",
@@ -2224,7 +2224,7 @@ describe("Aya copilot message flow", () => {
         roleName: "employee",
       });
       await upsertBlueRecordsCache({
-        workspaceId: "cmn524yr800e101mh7kn44mhf",
+        workspaceId: "cmhazc4rl1vkand1eonnmiyjy",
         items: [
           {
             id: "record_hamza",
@@ -2378,7 +2378,7 @@ describe("Aya copilot message flow", () => {
         return {
           ...actual,
           syncWorkspaceIndex: vi.fn().mockResolvedValue({
-            workspaceId: "cmn524yr800e101mh7kn44mhf",
+            workspaceId: "cmhazc4rl1vkand1eonnmiyjy",
             mode: "incremental",
             listsSynced: 1,
             recordsSynced: 1,
@@ -2401,7 +2401,7 @@ describe("Aya copilot message flow", () => {
         roleName: "employee",
       });
       await upsertBlueListsCache({
-        workspaceId: "cmn524yr800e101mh7kn44mhf",
+        workspaceId: "cmhazc4rl1vkand1eonnmiyjy",
         items: [
           {
             id: "list_leads",
@@ -2418,7 +2418,7 @@ describe("Aya copilot message flow", () => {
         ],
       });
       await upsertBlueRecordsCache({
-        workspaceId: "cmn524yr800e101mh7kn44mhf",
+        workspaceId: "cmhazc4rl1vkand1eonnmiyjy",
         items: [
           {
             id: "record_1",

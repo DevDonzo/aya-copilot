@@ -81,10 +81,10 @@ The Hostinger deployment is designed around one VPS, Docker Compose, bind-mounte
 
 Blue writes are intentionally constrained during rollout.
 
-- Allowed workspace ID: `cmn524yr800e101mh7kn44mhf`
-- Allowed workspace name: `03 - AYA x Hamza/ AI`
-- Forbidden workspace ID: `cmhazc4rl1vkand1eonnmiyjy`
-- Forbidden workspace name: `AYA sales CRM 3`
+- Allowed workspace ID: `cmhazc4rl1vkand1eonnmiyjy`
+- Allowed workspace name: `00- AYA Sales CRM 3`
+- Protected legacy pilot workspace ID: `cmn524yr800e101mh7kn44mhf`
+- Protected legacy pilot workspace name: `03 - AYA x Hamza/ AI`
 
 Any Blue write path should stay pinned to the allowed workspace only.
 
@@ -121,8 +121,8 @@ Any Blue write path should stay pinned to the allowed workspace only.
 - Managers should ask workload, assignment, and activity questions directly in LibreChat.
 - Blue webhooks are registered, healthy, and have a stored signing secret. A real `COMMENT_CREATED` webhook was received after the latest deploy.
 - Blue writes are constrained to the allowed workspace only:
-  - `03 - AYA x Hamza/ AI`
-  - `cmn524yr800e101mh7kn44mhf`
+  - `00- AYA Sales CRM 3`
+  - `cmhazc4rl1vkand1eonnmiyjy`
 
 ### Signup Policy
 

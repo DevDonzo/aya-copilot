@@ -112,13 +112,13 @@ For the current handoff, make sure Rehan and Sarah are covered in both layers:
 
 Allowed Blue workspace:
 
+- name: `00- AYA Sales CRM 3`
+- ID: `cmhazc4rl1vkand1eonnmiyjy`
+
+Protected legacy pilot workspace:
+
 - name: `03 - AYA x Hamza/ AI`
 - ID: `cmn524yr800e101mh7kn44mhf`
-
-Forbidden Blue workspace:
-
-- name: `AYA sales CRM 3`
-- ID: `cmhazc4rl1vkand1eonnmiyjy`
 
 Do not remove or weaken these guardrails unless Aya explicitly approves a workspace cutover. A cutover must update code, docs, and environment configuration together.
 

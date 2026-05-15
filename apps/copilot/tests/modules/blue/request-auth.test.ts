@@ -163,7 +163,7 @@ describe("blue request auth helpers", () => {
       ).resolves.toEqual({ tokenId: "token_1", tokenSecret: "secret_1" });
 
       expect(fetchWorkspaceLists).toHaveBeenCalledWith({
-        workspaceId: "cmn524yr800e101mh7kn44mhf",
+        workspaceId: "cmhazc4rl1vkand1eonnmiyjy",
         auth: { tokenId: "token_1", tokenSecret: "secret_1" },
       });
 

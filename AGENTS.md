@@ -49,16 +49,16 @@ If deployment work is needed, prefer updating the checked-in examples and docs b
 
 ## Blue Workspace Safety
 
-- Allowed workspace name: `03 - AYA x Hamza/ AI`
-- Allowed workspace ID: `cmn524yr800e101mh7kn44mhf`
-- Forbidden workspace name: `AYA sales CRM 3`
-- Forbidden workspace ID: `cmhazc4rl1vkand1eonnmiyjy`
+- Allowed production workspace name: `00- AYA Sales CRM 3`
+- Allowed production workspace ID: `cmhazc4rl1vkand1eonnmiyjy`
+- Protected legacy pilot workspace name: `03 - AYA x Hamza/ AI`
+- Protected legacy pilot workspace ID: `cmn524yr800e101mh7kn44mhf`
 
 ## Hard Constraints
 
-1. Never create, update, move, comment on, tag, delete, or otherwise modify anything in `AYA sales CRM 3`.
+1. Never create, update, move, comment on, tag, delete, or otherwise modify anything outside `00- AYA Sales CRM 3` unless explicitly performing a documented migration/rollback task.
 2. Never perform write actions against all workspaces or an unspecified workspace.
-3. Before any write operation, confirm the target workspace ID is exactly `cmn524yr800e101mh7kn44mhf`.
+3. Before any write operation, confirm the target workspace ID is exactly `cmhazc4rl1vkand1eonnmiyjy`.
 4. If a Blue request is ambiguous about workspace scope, stop and ask instead of acting.
 5. Prefer workspace IDs over names when a tool accepts both.
 

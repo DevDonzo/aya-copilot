@@ -15,7 +15,7 @@ export function createTestEnvironment(
     BLUE_AUTH_TOKEN: "test-secret",
     BLUE_CLIENT_ID: "test-client",
     BLUE_COMPANY_ID: "test-company",
-    BLUE_WORKSPACE_ID: "cmn524yr800e101mh7kn44mhf",
+    BLUE_WORKSPACE_ID: "cmhazc4rl1vkand1eonnmiyjy",
     BLUE_WEBHOOK_PUBLIC_URL: "https://copilot.test/webhooks/blue",
     NODE_ENV: "test",
     PORT: "0",

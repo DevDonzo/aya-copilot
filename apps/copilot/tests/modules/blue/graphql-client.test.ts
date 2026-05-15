@@ -310,7 +310,7 @@ const server = setupServer(
             createdAt: "2026-03-25T00:00:00.000Z",
             updatedAt: "2026-03-26T00:00:00.000Z",
             lastGeneratedAt: "2026-03-27T00:00:00.000Z",
-            projectIds: ["cmn524yr800e101mh7kn44mhf"],
+            projectIds: ["cmhazc4rl1vkand1eonnmiyjy"],
             createdBy: {
               id: "user_1",
               email: "owner@example.com",
@@ -322,7 +322,7 @@ const server = setupServer(
                 id: "source_fallback_1",
                 name: "Leads",
                 sourceType: "TODOS",
-                projectIds: ["cmn524yr800e101mh7kn44mhf"],
+                projectIds: ["cmhazc4rl1vkand1eonnmiyjy"],
                 order: 1,
               },
             ],
@@ -354,7 +354,7 @@ const server = setupServer(
                     id: "source_1",
                     name: "Leads",
                     sourceType: "TODOS",
-                    projectIds: ["cmn524yr800e101mh7kn44mhf"],
+                    projectIds: ["cmhazc4rl1vkand1eonnmiyjy"],
                     order: 1,
                   },
                 ],
@@ -388,7 +388,7 @@ describe("blue graphql client mutations and workload query", () => {
     try {
       const { moveRecord } = await import("../../../src/modules/blue/graphql/client.js");
       const result = await moveRecord({
-        workspaceId: "cmn524yr800e101mh7kn44mhf",
+        workspaceId: "cmhazc4rl1vkand1eonnmiyjy",
         recordId: "todo_123",
         targetListId: "list_456",
       });
@@ -404,7 +404,7 @@ describe("blue graphql client mutations and workload query", () => {
         tokenId: "test-client",
         tokenSecret: "test-secret",
         companyId: "test-company",
-        projectId: "cmn524yr800e101mh7kn44mhf",
+        projectId: "cmhazc4rl1vkand1eonnmiyjy",
       });
     } finally {
       env.cleanup();
@@ -416,7 +416,7 @@ describe("blue graphql client mutations and workload query", () => {
     try {
       const { moveRecord } = await import("../../../src/modules/blue/graphql/client.js");
       await moveRecord({
-        workspaceId: "cmn524yr800e101mh7kn44mhf",
+        workspaceId: "cmhazc4rl1vkand1eonnmiyjy",
         recordId: "todo_123",
         targetListId: "list_456",
         auth: {
@@ -429,7 +429,7 @@ describe("blue graphql client mutations and workload query", () => {
         tokenId: "user-token-id",
         tokenSecret: "user-token-secret",
         companyId: "test-company",
-        projectId: "cmn524yr800e101mh7kn44mhf",
+        projectId: "cmhazc4rl1vkand1eonnmiyjy",
       });
     } finally {
       env.cleanup();
@@ -443,7 +443,7 @@ describe("blue graphql client mutations and workload query", () => {
         "../../../src/modules/blue/graphql/client.js"
       );
       await fetchWorkspaceLists({
-        workspaceId: "cmn524yr800e101mh7kn44mhf",
+        workspaceId: "cmhazc4rl1vkand1eonnmiyjy",
         auth: {
           tokenId: "user-token-id",
           tokenSecret: "user-token-secret",
@@ -454,7 +454,7 @@ describe("blue graphql client mutations and workload query", () => {
         tokenId: "user-token-id",
         tokenSecret: "user-token-secret",
         companyId: "test-company",
-        projectId: "cmn524yr800e101mh7kn44mhf",
+        projectId: "cmhazc4rl1vkand1eonnmiyjy",
       });
     } finally {
       env.cleanup();
@@ -484,7 +484,7 @@ describe("blue graphql client mutations and workload query", () => {
     try {
       const { createComment } = await import("../../../src/modules/blue/graphql/client.js");
       const result = await createComment({
-        workspaceId: "cmn524yr800e101mh7kn44mhf",
+        workspaceId: "cmhazc4rl1vkand1eonnmiyjy",
         recordId: "todo_123",
         text: "@Sarah Khan follow up",
       });
@@ -512,7 +512,7 @@ describe("blue graphql client mutations and workload query", () => {
         "../../../src/modules/blue/graphql/client.js"
       );
       const result = await listAssignedOpenRecords({
-        workspaceId: "cmn524yr800e101mh7kn44mhf",
+        workspaceId: "cmhazc4rl1vkand1eonnmiyjy",
         companyId: "test-company",
         assigneeId: "user_1",
       });
@@ -532,7 +532,7 @@ describe("blue graphql client mutations and workload query", () => {
         "../../../src/modules/blue/graphql/client.js"
       );
       const result = await listAssignedChecklistItems({
-        workspaceId: "cmn524yr800e101mh7kn44mhf",
+        workspaceId: "cmhazc4rl1vkand1eonnmiyjy",
         assigneeId: "user_1",
         done: false,
         todoDone: false,
@@ -558,7 +558,7 @@ describe("blue graphql client mutations and workload query", () => {
       const { fetchRecordDetail } = await import(
         "../../../src/modules/blue/graphql/client.js"
       );
-      const result = await fetchRecordDetail("cmn524yr800e101mh7kn44mhf", "todo_1");
+      const result = await fetchRecordDetail("cmhazc4rl1vkand1eonnmiyjy", "todo_1");
 
       expect(result.record?.title).toBe("Fatima Hammou");
       expect(result.comments[0]?.text).toBe("Latest update");
@@ -632,7 +632,7 @@ describe("blue graphql client mutations and workload query", () => {
                 createdAt: "2026-03-25T00:00:00.000Z",
                 updatedAt: "2026-03-26T00:00:00.000Z",
                 lastGeneratedAt: "2026-03-27T00:00:00.000Z",
-                projectIds: ["cmn524yr800e101mh7kn44mhf"],
+                projectIds: ["cmhazc4rl1vkand1eonnmiyjy"],
                 createdBy: {
                   id: "user_1",
                   email: "owner@example.com",
@@ -644,7 +644,7 @@ describe("blue graphql client mutations and workload query", () => {
                     id: `source_${reportId}`,
                     name: "Leads",
                     sourceType: "TODOS",
-                    projectIds: ["cmn524yr800e101mh7kn44mhf"],
+                    projectIds: ["cmhazc4rl1vkand1eonnmiyjy"],
                     order: 1,
                   },
                 ],

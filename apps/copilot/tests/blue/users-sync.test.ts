@@ -58,7 +58,7 @@ describe("users sync", () => {
       const { syncWorkspaceEmployees } = await import("../../src/blue/users-sync.js");
       const result = await syncWorkspaceEmployees();
 
-      expect(mockFetchWorkspaceUsers).toHaveBeenCalledWith("cmn524yr800e101mh7kn44mhf");
+      expect(mockFetchWorkspaceUsers).toHaveBeenCalledWith("cmhazc4rl1vkand1eonnmiyjy");
       expect(mockFetchCompanyUsers).toHaveBeenCalledWith("test-company");
       expect(mockEnsureEmployee).toHaveBeenCalledWith({
         employeeId: "emp_hamza",

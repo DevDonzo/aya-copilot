@@ -54,7 +54,7 @@ Use local untracked `.env` files. Do not commit secrets.
 
 Core values:
 
-- `BLUE_WORKSPACE_ID=cmn524yr800e101mh7kn44mhf`
+- `BLUE_WORKSPACE_ID=cmhazc4rl1vkand1eonnmiyjy`
 - `BLUE_API_URL`
 - `BLUE_AUTH_TOKEN` or the current Blue credential pair used by the integration
 - `AYA_MCP_API_KEY`
@@ -74,15 +74,15 @@ Safety values:
 
 Allowed workspace:
 
+- `00- AYA Sales CRM 3`
+- `cmhazc4rl1vkand1eonnmiyjy`
+
+Protected legacy pilot workspace:
+
 - `03 - AYA x Hamza/ AI`
 - `cmn524yr800e101mh7kn44mhf`
 
-Forbidden workspace:
-
-- `AYA sales CRM 3`
-- `cmhazc4rl1vkand1eonnmiyjy`
-
-The service should fail fast if configured with the forbidden workspace.
+The service should fail fast if configured with the protected legacy pilot workspace for production operation.
 
 ## Important Routes
 

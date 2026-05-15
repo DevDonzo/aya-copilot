@@ -9,7 +9,7 @@ describe("config safety", () => {
 
   it("refuses to boot with the forbidden Blue workspace", async () => {
     const env = createTestEnvironment({
-      BLUE_WORKSPACE_ID: "cmhazc4rl1vkand1eonnmiyjy",
+      BLUE_WORKSPACE_ID: "cmn524yr800e101mh7kn44mhf",
     });
 
     try {

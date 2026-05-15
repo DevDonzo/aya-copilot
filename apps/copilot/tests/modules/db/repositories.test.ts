@@ -73,13 +73,13 @@ describe("db repositories", () => {
 
       await initializeDatabase();
       await upsertBlueSyncState({
-        workspaceId: "cmn524yr800e101mh7kn44mhf",
+        workspaceId: "cmhazc4rl1vkand1eonnmiyjy",
         entityType: "records",
         lastIncrementalSyncAt: "2026-03-25T00:00:00.000Z",
         lastSeenUpdatedAt: "2026-03-25T00:01:00.000Z",
       });
 
-      const states = await listBlueSyncStates("cmn524yr800e101mh7kn44mhf");
+      const states = await listBlueSyncStates("cmhazc4rl1vkand1eonnmiyjy");
       expect(states).toHaveLength(1);
       expect(states[0]?.entity_type).toBe("records");
     } finally {

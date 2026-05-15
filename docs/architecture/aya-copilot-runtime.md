@@ -76,7 +76,7 @@ Aya also now keeps an active record context per employee session path, so follow
 - Employee-triggered writes still use employee Blue credentials when provided.
 - Audit logging is preserved, with planner data now captured alongside execution output.
 - Workspace safety remains constrained to the allowed Blue workspace:
-  - `cmn524yr800e101mh7kn44mhf`
+  - `cmhazc4rl1vkand1eonnmiyjy`
 
 ## Rollout Guidance
 

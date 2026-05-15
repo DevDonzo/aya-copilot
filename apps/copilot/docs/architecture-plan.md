@@ -12,14 +12,14 @@ The product should do three things well:
 
 This document is the end-state architecture plan, not a handoff and not just a note about the current repo state.
 
-## Current Safe Scope
+## Current Production Scope
 
-Until the product loop is stable, all Blue reads and writes stay in the pilot workspace only:
+Blue reads and writes now target the production CRM workspace:
 
-- workspace name: `03 - AYA x Hamza/ AI`
-- workspace ID: `cmn524yr800e101mh7kn44mhf`
+- workspace name: `00- AYA Sales CRM 3`
+- workspace ID: `cmhazc4rl1vkand1eonnmiyjy`
 
-The real workspace should not be touched until the bot is accurate, safe, and operationally useful in `03 - AYA x Hamza/ AI`.
+The old pilot workspace `03 - AYA x Hamza/ AI` (`cmn524yr800e101mh7kn44mhf`) is no longer the runtime target.
 
 ## Product Definition
 
@@ -283,11 +283,11 @@ Examples:
 
 ## Phased Delivery Plan
 
-### Phase 1: pilot workspace core
+### Phase 1: production workspace core
 
 Goal:
 
-prove that the assistant can safely read and write in `03 - AYA x Hamza/ AI`
+operate safely in `00- AYA Sales CRM 3`
 
 Deliver:
 
@@ -354,15 +354,14 @@ Deliver:
 - phone/call logs
 - unified employee timeline
 
-### Phase 6: production workspace rollout
+### Phase 6: production hardening
 
 Goal:
 
-move the same proven system from `03 - AYA x Hamza/ AI` to real CRM safely
+keep the production CRM rollout safe and observable
 
 Deliver:
 
-- workspace switch controls
 - production credentials
 - production audit checks
 - rollback plan

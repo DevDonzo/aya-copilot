@@ -4,8 +4,8 @@
 
 Build a chat-first employee and manager assistant for Aya Financial that uses Blue as the system of record, starting in the safe pilot workspace:
 
-- workspace name: `03 - AYA x Hamza/ AI`
-- workspace ID: `cmn524yr800e101mh7kn44mhf`
+- workspace name: `00- AYA Sales CRM 3`
+- workspace ID: `cmhazc4rl1vkand1eonnmiyjy`
 
 The bot should help employees work without opening the Blue dashboard and help managers understand who is doing what each day.
 
@@ -41,13 +41,13 @@ That means:
 
 ### Foundation
 
-- [x] Restrict work to `03 - AYA x Hamza/ AI`
+- [x] Restrict work to `00- AYA Sales CRM 3`
 - [x] Verify Blue auth for the current operator
 - [x] Add Blue activity access in the CLI
 - [x] Create the `aya-copilot` repo
 - [x] Add SQLite persistence
 - [x] Add Blue activity ingestion and polling
-- [x] Sync employees from `03 - AYA x Hamza/ AI`
+- [x] Sync employees from `00- AYA Sales CRM 3`
 
 ### Current Bot Core
 
@@ -101,7 +101,7 @@ That means:
 
 ## Rules
 
-- Every Blue write must stay scoped to `cmn524yr800e101mh7kn44mhf`.
+- Every Blue write must stay scoped to `cmhazc4rl1vkand1eonnmiyjy`.
 - The bot should execute one Blue adapter action per request.
 - The bot should prefer fixed command templates over free-form command generation.
 - Every inbound message and outbound action should be logged.

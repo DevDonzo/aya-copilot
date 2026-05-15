@@ -6,7 +6,7 @@ import { z } from "zod";
 
 const appRoot = path.resolve(import.meta.dirname, "..");
 const workspaceRoot = path.resolve(appRoot, "..", "..");
-const safeBlueWorkspaceId = "cmn524yr800e101mh7kn44mhf";
+const safeBlueWorkspaceId = "cmhazc4rl1vkand1eonnmiyjy";
 const defaultBlueWorkspaceId =
   process.env.BLUE_WORKSPACE_ID ?? safeBlueWorkspaceId;
 const defaultBlueReadWorkspaceId =
@@ -21,7 +21,7 @@ const blueConfigEnv = readSimpleEnvFile(
 const localBlueToken = readLocalBlueToken(
   path.join(workspaceRoot, ".local", "blue-api-token.json"),
 );
-const forbiddenBlueWorkspaceId = "cmhazc4rl1vkand1eonnmiyjy";
+const forbiddenBlueWorkspaceId = "cmn524yr800e101mh7kn44mhf";
 const resolvedBlueWorkspaceId =
   process.env.BLUE_WORKSPACE_ID ??
   blueConfigEnv.BLUE_WORKSPACE_ID ??
@@ -35,10 +35,7 @@ const resolvedBlueReadWorkspaceId =
   !process.env.BLUE_READ_WORKSPACE_ID
     ? resolvedBlueWorkspaceId
     : candidateBlueReadWorkspaceId;
-const defaultDemoReportFallbackIds =
-  resolvedBlueWorkspaceId === "cmn524yr800e101mh7kn44mhf"
-    ? "cmnhsqk54041rmo01sfcq7a2x,cmnhszrso04mpmk01kzu1jof1"
-    : "";
+const defaultDemoReportFallbackIds = "";
 
 const runtimeEnv = {
   ...blueConfigEnv,

@@ -550,7 +550,7 @@ function createAyaMcpServer() {
     {
       title: "Search Clients",
       description:
-        "Search cached Blue CRM records in the allowed Aya workspace `03 - AYA x Hamza/ AI`.",
+        "Search cached Blue CRM records in the allowed Aya workspace `00- AYA Sales CRM 3`.",
       inputSchema: {
         query: z.string().min(1),
         limit: z.number().int().min(1).max(20).default(8),
@@ -588,7 +588,7 @@ function createAyaMcpServer() {
     {
       title: "Get Client Comments",
       description:
-        "Show recent comments for a Blue CRM record in the allowed Aya workspace `03 - AYA x Hamza/ AI`. `clientQuery` can be a client name, record title, email, or phone number.",
+        "Show recent comments for a Blue CRM record in the allowed Aya workspace `00- AYA Sales CRM 3`. `clientQuery` can be a client name, record title, email, or phone number.",
       inputSchema: {
         recordId: z.string().optional(),
         clientQuery: z
@@ -703,7 +703,7 @@ function createAyaMcpServer() {
     {
       title: "Get Workspace Activity Report",
       description:
-        "Admin-only audit-backed workspace activity report for the allowed Aya workspace `03 - AYA x Hamza/ AI`. Use this when admins ask what happened today, who moved clients, who made comments, who created leads, or for a workspace activity timeline. For relative periods like today, yesterday, this week, last week, this month, or last month, leave date fields omitted unless the user typed an exact YYYY-MM-DD date.",
+        "Admin-only audit-backed workspace activity report for the allowed Aya workspace `00- AYA Sales CRM 3`. Use this when admins ask what happened today, who moved clients, who made comments, who created leads, or for a workspace activity timeline. For relative periods like today, yesterday, this week, last week, this month, or last month, leave date fields omitted unless the user typed an exact YYYY-MM-DD date.",
       inputSchema: {
         date: z
           .string()
@@ -745,7 +745,7 @@ function createAyaMcpServer() {
     {
       title: "Get Client Activity Report",
       description:
-        "Admin-only audit-backed client activity report for the allowed Aya workspace `03 - AYA x Hamza/ AI`. Use this when admins ask who touched a client, who commented on a file, what happened on a client, or for a client activity timeline. For relative periods like today, yesterday, this week, last week, this month, or last month, leave date fields omitted unless the user typed an exact YYYY-MM-DD date.",
+        "Admin-only audit-backed client activity report for the allowed Aya workspace `00- AYA Sales CRM 3`. Use this when admins ask who touched a client, who commented on a file, what happened on a client, or for a client activity timeline. For relative periods like today, yesterday, this week, last week, this month, or last month, leave date fields omitted unless the user typed an exact YYYY-MM-DD date.",
       inputSchema: {
         recordId: z.string().optional(),
         clientQuery: z
@@ -1061,7 +1061,7 @@ function createAyaMcpServer() {
     {
       title: "Create Client Record",
       description:
-        "Create a new lead/client record in the allowed Aya workspace `03 - AYA x Hamza/ AI`. Use targetListQuery if the user names the desired stage or list. Prefer explicit firstName and lastName. Normalize names to normal human casing, keep email lowercase, normalize phone formatting, and ask a short follow-up if the name is ambiguous. Do not invent purchase price or down payment. If this tool succeeds, do not call move, detail, or comments tools unless the user explicitly asks for another action.",
+        "Create a new lead/client record in the allowed Aya workspace `00- AYA Sales CRM 3`. Use targetListQuery if the user names the desired stage or list. Prefer explicit firstName and lastName. Normalize names to normal human casing, keep email lowercase, normalize phone formatting, and ask a short follow-up if the name is ambiguous. Do not invent purchase price or down payment. If this tool succeeds, do not call move, detail, or comments tools unless the user explicitly asks for another action.",
       inputSchema: {
         firstName: z.string().min(1).optional(),
         lastName: z.string().min(1).optional(),
@@ -1129,7 +1129,7 @@ function createAyaMcpServer() {
     {
       title: "Move Client To Stage",
       description:
-        "Move an existing Blue CRM record to another list in the allowed Aya workspace `03 - AYA x Hamza/ AI`. Use this only for an existing record that already exists in Blue. Do not use this immediately after successfully creating a new lead unless the user explicitly asks for a second separate move.",
+        "Move an existing Blue CRM record to another list in the allowed Aya workspace `00- AYA Sales CRM 3`. Use this only for an existing record that already exists in Blue. Do not use this immediately after successfully creating a new lead unless the user explicitly asks for a second separate move.",
       inputSchema: {
         recordQuery: z.string().min(1),
         targetListQuery: z.string().min(1),
@@ -1167,7 +1167,7 @@ function createAyaMcpServer() {
     {
       title: "Add Client Comment",
       description:
-        "Add a comment to a Blue CRM record in the allowed Aya workspace `03 - AYA x Hamza/ AI`.",
+        "Add a comment to a Blue CRM record in the allowed Aya workspace `00- AYA Sales CRM 3`.",
       inputSchema: {
         recordQuery: z.string().min(1),
         text: z.string().min(1),

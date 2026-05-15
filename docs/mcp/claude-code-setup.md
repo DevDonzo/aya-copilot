@@ -35,8 +35,8 @@ Use the rules in [blue-guardrails.md](./blue-guardrails.md) as your system promp
 
 Critical restriction:
 
-- Only allowed workspace: `03 - AYA x Hamza/ AI` with ID `cmn524yr800e101mh7kn44mhf`
-- Never touch `AYA sales CRM 3` with ID `cmhazc4rl1vkand1eonnmiyjy`
+- Only allowed workspace: `00- AYA Sales CRM 3` with ID `cmhazc4rl1vkand1eonnmiyjy`
+- Do not write to the legacy pilot workspace `03 - AYA x Hamza/ AI` with ID `cmn524yr800e101mh7kn44mhf` during production operation
 
 ## Important
 

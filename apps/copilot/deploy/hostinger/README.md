@@ -117,9 +117,9 @@ Edit `deploy/hostinger/env/aya.env` and set:
 
 Keep:
 
-- `BLUE_WORKSPACE_ID=cmn524yr800e101mh7kn44mhf`
+- `BLUE_WORKSPACE_ID=cmhazc4rl1vkand1eonnmiyjy`
 
-Do not point this deployment at the forbidden Blue workspace.
+Do not point this production deployment back at the legacy pilot workspace.
 Use a dedicated Aya integration/service account for these system-level Blue credentials, not a human employee account.
 
 ## 4. Configure LibreChat

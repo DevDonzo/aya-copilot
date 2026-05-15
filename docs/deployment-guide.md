@@ -435,7 +435,7 @@ Edit `env/aya.env` and set:
 
 Keep the deployment constrained to the approved workspace:
 
-- `BLUE_WORKSPACE_ID=cmn524yr800e101mh7kn44mhf`
+- `BLUE_WORKSPACE_ID=cmhazc4rl1vkand1eonnmiyjy`
 
 Recommended chat runtime rollout:
 
@@ -446,7 +446,7 @@ Recommended chat runtime rollout:
 
 Operational note:
 
-- do not point this deployment at the forbidden production Blue workspace
+- do not point this production deployment back at the legacy pilot workspace
 - do not commit populated env files back into source control
 - Blue returns a webhook signing secret only when a webhook is created. If production has an enabled webhook but no stored `BLUE_WEBHOOK_SECRET` or `blue_webhook_subscriptions.secret_ref`, the app recreates the webhook on startup and stores the new secret.
 - A healthy webhook means Blue accepted the registration health check. Verify actual event delivery separately by creating a safe comment on a QA record and checking `/health` for a fresh `lastWebhookReceivedAt`.

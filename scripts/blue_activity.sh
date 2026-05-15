@@ -2,7 +2,7 @@
 set -euo pipefail
 
 CONFIG_FILE="${HOME}/.config/blue/config.env"
-DEFAULT_PROJECT_ID="cmn524yr800e101mh7kn44mhf"
+DEFAULT_PROJECT_ID="cmhazc4rl1vkand1eonnmiyjy"
 
 if [[ ! -f "${CONFIG_FILE}" ]]; then
   echo "Missing Blue config at ${CONFIG_FILE}" >&2
@@ -28,13 +28,13 @@ usage() {
 Usage: blue_activity.sh [--project PROJECT_ID] [--user USER_ID] [--limit N] [--raw]
 
 Defaults to the allowed workspace:
-  cmn524yr800e101mh7kn44mhf
+  cmhazc4rl1vkand1eonnmiyjy
 
 Examples:
   ./scripts/blue_activity.sh
   ./scripts/blue_activity.sh --limit 50
   ./scripts/blue_activity.sh --user cm2or9cai0j7pcacvqx3kgvxz
-  ./scripts/blue_activity.sh --project cmn524yr800e101mh7kn44mhf --raw
+  ./scripts/blue_activity.sh --project cmhazc4rl1vkand1eonnmiyjy --raw
 EOF
 }
 

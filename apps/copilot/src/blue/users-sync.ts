@@ -16,6 +16,8 @@ import {
   applyKnownAyaEmployeeEmails,
   canonicalizeBlueEmployee,
   getDuplicateBlueEmployeeMappings,
+  getKnownAyaEmployeeSeeds,
+  type KnownAyaEmployeeSeed,
 } from "./employee-identity.js";
 
 export { applyKnownAyaEmployeeEmails } from "./employee-identity.js";
@@ -73,8 +75,13 @@ export async function syncWorkspaceEmployees() {
     );
   }
 
+  const syncedEmails = new Set<string>();
+
   for (const user of users) {
     const employee = canonicalizeBlueEmployee(user);
+    if (employee.email) {
+      syncedEmails.add(normalizeEmail(employee.email));
+    }
 
     await ensureEmployee({
       employeeId: employee.employeeId,
@@ -103,6 +110,8 @@ export async function syncWorkspaceEmployees() {
     }
   }
 
+  await ensureKnownAyaEmployeeSeeds(getKnownAyaEmployeeSeeds(), syncedEmails);
+
   for (const mapping of getDuplicateBlueEmployeeMappings()) {
     await reassignEmployeeReferences(mapping);
   }
@@ -112,6 +121,36 @@ export async function syncWorkspaceEmployees() {
     withEmail: countUsersWithEmail(users),
     missingEmail: missingEmailCount,
   };
+}
+
+async function ensureKnownAyaEmployeeSeeds(
+  seeds: KnownAyaEmployeeSeed[],
+  syncedEmails: Set<string>,
+) {
+  for (const seed of seeds) {
+    const email = normalizeEmail(seed.email);
+    if (syncedEmails.has(email)) {
+      continue;
+    }
+
+    await ensureEmployee({
+      employeeId: seed.employeeId,
+      displayName: seed.displayName,
+      email,
+      roleName: seed.roleName,
+      timezone: seed.timezone,
+    });
+
+    await upsertIdentityLink({
+      id: createId("ident"),
+      employeeId: seed.employeeId,
+      source: "email",
+      externalId: email,
+      externalLabel: seed.displayName,
+    });
+
+    syncedEmails.add(email);
+  }
 }
 
 export async function resolveEmployeeName(name: string) {
@@ -173,6 +212,10 @@ function buildUniqueNameMap(users: BlueUser[]) {
 
 function normalizeName(value?: string | null) {
   return value?.trim().replace(/\s+/g, " ").toLowerCase() ?? "";
+}
+
+function normalizeEmail(value: string) {
+  return value.trim().toLowerCase();
 }
 
 function countUsersMissingEmail(users: BlueUser[]) {

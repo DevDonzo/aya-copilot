@@ -9,6 +9,14 @@ export interface BlueEmployeeActor {
   timezone?: string | null;
 }
 
+export interface KnownAyaEmployeeSeed {
+  employeeId: string;
+  displayName: string;
+  email: string;
+  roleName?: string;
+  timezone?: string;
+}
+
 const ayaAdminEmployeeEmails = new Set([
   "rsaeed@ayafinancial.com",
   "skhan@ayafinancial.com",
@@ -41,6 +49,15 @@ const canonicalBlueEmployeesByDuplicateId = new Map([
     },
   ],
 ]);
+
+const knownAyaEmployeeSeeds: KnownAyaEmployeeSeed[] = [
+  {
+    employeeId: "aya_tahmyna_qazi",
+    displayName: "Tahmyna Qazi",
+    email: "tqazi@ayafinancial.com",
+    timezone: "America/Toronto",
+  },
+];
 
 export function applyKnownAyaEmployeeEmails(users: BlueUser[]) {
   return users.map((user) => {
@@ -89,6 +106,10 @@ export function getDuplicateBlueEmployeeMappings() {
       canonicalEmployeeId: canonical.employeeId,
     }),
   );
+}
+
+export function getKnownAyaEmployeeSeeds() {
+  return knownAyaEmployeeSeeds;
 }
 
 export function formatBlueActorName(actor?: BlueEmployeeActor | null) {

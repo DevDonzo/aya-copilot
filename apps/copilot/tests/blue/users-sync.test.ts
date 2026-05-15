@@ -237,6 +237,39 @@ describe("users sync", () => {
     ]);
   });
 
+  it("seeds known demo employees who are not returned by the Blue workspace", async () => {
+    const env = createTestEnvironment();
+    try {
+      mockFetchWorkspaceUsers.mockResolvedValue([]);
+      mockFetchCompanyUsers.mockResolvedValue([]);
+
+      const { syncWorkspaceEmployees } = await import("../../src/blue/users-sync.js");
+      const result = await syncWorkspaceEmployees();
+
+      expect(mockEnsureEmployee).toHaveBeenCalledWith({
+        employeeId: "aya_tahmyna_qazi",
+        displayName: "Tahmyna Qazi",
+        email: "tqazi@ayafinancial.com",
+        roleName: undefined,
+        timezone: "America/Toronto",
+      });
+      expect(mockUpsertIdentityLink).toHaveBeenCalledWith({
+        id: "ident_test",
+        employeeId: "aya_tahmyna_qazi",
+        source: "email",
+        externalId: "tqazi@ayafinancial.com",
+        externalLabel: "Tahmyna Qazi",
+      });
+      expect(result).toEqual({
+        fetched: 0,
+        withEmail: 0,
+        missingEmail: 0,
+      });
+    } finally {
+      env.cleanup();
+    }
+  });
+
   it("maps duplicate Blue user ids for the same employee to one canonical employee", async () => {
     const env = createTestEnvironment();
     try {

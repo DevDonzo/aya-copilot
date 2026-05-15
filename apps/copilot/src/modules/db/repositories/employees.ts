@@ -85,6 +85,18 @@ export async function listEmployees() {
     .execute();
 }
 
+export async function deactivateEmployeesExcept(employeeIds: string[]) {
+  if (!employeeIds.length) {
+    return;
+  }
+
+  await db
+    .updateTable("employees")
+    .set({ active: 0 })
+    .where("id", "not in", employeeIds)
+    .execute();
+}
+
 export async function findEmployeeByEmailColumn(email: string) {
   return await db
     .selectFrom("employees")

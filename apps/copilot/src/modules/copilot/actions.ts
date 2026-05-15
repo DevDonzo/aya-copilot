@@ -302,12 +302,17 @@ export async function getWorkspaceActivityReport(input: {
           dateStartIso: range.dateStart,
           dateEndIso: range.dateEnd,
         });
+  const activeEmployeeIds = new Set(
+    (await listEmployees()).map((employee) => employee.id),
+  );
 
   return buildWorkspaceActivityReport({
     dateStart: range.dateStart,
     dateEnd: range.dateEnd,
     dateLabel: range.dateLabel,
-    rows,
+    rows: rows.filter(
+      (row) => row.employee_id && activeEmployeeIds.has(row.employee_id),
+    ),
     focus: input.focus,
   });
 }

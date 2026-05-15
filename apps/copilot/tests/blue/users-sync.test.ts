@@ -5,6 +5,7 @@ import { createTestEnvironment } from "../helpers/test-env.js";
 
 const mockEnsureEmployee = vi.fn();
 const mockCreateId = vi.fn(() => "ident_test");
+const mockDeactivateEmployeesExcept = vi.fn();
 const mockFindEmployeeByName = vi.fn();
 const mockReassignEmployeeReferences = vi.fn();
 const mockUpsertIdentityLink = vi.fn();
@@ -14,6 +15,7 @@ const mockFetchCompanyUsers = vi.fn();
 vi.mock("../../src/db.js", () => ({
   ensureEmployee: mockEnsureEmployee,
   createId: mockCreateId,
+  deactivateEmployeesExcept: mockDeactivateEmployeesExcept,
   findEmployeeByName: mockFindEmployeeByName,
   reassignEmployeeReferences: mockReassignEmployeeReferences,
   upsertIdentityLink: mockUpsertIdentityLink,
@@ -68,6 +70,10 @@ describe("users sync", () => {
         email: "hamza.paracha@ayafinancial.com",
         timezone: "America/Toronto",
       });
+      expect(mockDeactivateEmployeesExcept).toHaveBeenCalledWith([
+        "emp_hamza",
+        "aya_tahmyna_qazi",
+      ]);
       expect(result).toEqual({
         fetched: 1,
         withEmail: 1,

@@ -1,5 +1,6 @@
 import {
   createId,
+  deactivateEmployeesExcept,
   ensureEmployee,
   findEmployeeByName,
   reassignEmployeeReferences,
@@ -76,9 +77,11 @@ export async function syncWorkspaceEmployees() {
   }
 
   const syncedEmails = new Set<string>();
+  const syncedEmployeeIds = new Set<string>();
 
   for (const user of users) {
     const employee = canonicalizeBlueEmployee(user);
+    syncedEmployeeIds.add(employee.employeeId);
     if (employee.email) {
       syncedEmails.add(normalizeEmail(employee.email));
     }
@@ -110,10 +113,18 @@ export async function syncWorkspaceEmployees() {
     }
   }
 
-  await ensureKnownAyaEmployeeSeeds(getKnownAyaEmployeeSeeds(), syncedEmails);
+  await ensureKnownAyaEmployeeSeeds(
+    getKnownAyaEmployeeSeeds(),
+    syncedEmails,
+    syncedEmployeeIds,
+  );
 
   for (const mapping of getDuplicateBlueEmployeeMappings()) {
     await reassignEmployeeReferences(mapping);
+  }
+
+  if (users.length > 0) {
+    await deactivateEmployeesExcept(Array.from(syncedEmployeeIds));
   }
 
   return {
@@ -126,12 +137,15 @@ export async function syncWorkspaceEmployees() {
 async function ensureKnownAyaEmployeeSeeds(
   seeds: KnownAyaEmployeeSeed[],
   syncedEmails: Set<string>,
+  syncedEmployeeIds: Set<string>,
 ) {
   for (const seed of seeds) {
     const email = normalizeEmail(seed.email);
     if (syncedEmails.has(email)) {
       continue;
     }
+
+    syncedEmployeeIds.add(seed.employeeId);
 
     await ensureEmployee({
       employeeId: seed.employeeId,

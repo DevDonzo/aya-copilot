@@ -14,9 +14,9 @@ Suggested structure:
 
 Current ops notes:
 
-- [handoff.md](/Users/hparacha/AyaFinancial/Blue/docs/internal/handoff.md)
-- [fix.md](/Users/hparacha/AyaFinancial/Blue/docs/internal/fix.md)
-- [final-deep-dive-test.md](/Users/hparacha/AyaFinancial/Blue/docs/internal/final-deep-dive-test.md)
-- [local-demo-runbook.md](/Users/hparacha/AyaFinancial/Blue/docs/internal/local-demo-runbook.md)
+- [handoff.md](handoff.md)
+- [fix.md](fix.md)
+- [final-deep-dive-test.md](final-deep-dive-test.md)
+- [local-demo-runbook.md](local-demo-runbook.md)
 
 Do not store secrets in these docs.

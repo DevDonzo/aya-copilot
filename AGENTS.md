@@ -2,7 +2,7 @@
 
 This repository is Aya Financial's workspace for the Blue CRM copilot stack.
 
-Use this file as the operating contract for any agent working in `/Users/hparacha/AyaFinancial/Blue`.
+Use this file as the operating contract for any agent working in this repository.
 
 ## Primary Rule
 

@@ -4,10 +4,10 @@ This setup uses your existing Blue credentials from `~/.config/blue/config.env`.
 
 ## Register Blue MCP In Claude Code
 
-Run:
+From the repository root, run:
 
 ```bash
-/Users/hparacha/AyaFinancial/Blue/scripts/add_blue_mcp_to_claude_code.sh
+./scripts/add_blue_mcp_to_claude_code.sh
 ```
 
 Then verify:
@@ -27,7 +27,7 @@ claude mcp add \
   -- blue https://mcp.blue.cc/mcp
 ```
 
-In your case the company slug is `aya`, and the helper script above pulls the token values from your local config so you do not need to paste them manually.
+For Aya Financial, the company slug is `aya`. The helper script above pulls token values from the local Blue CLI config so they do not need to be pasted manually.
 
 ## Guardrails
 

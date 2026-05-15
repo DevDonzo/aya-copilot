@@ -235,12 +235,12 @@ Expected:
 Ask:
 
 ```txt
-what is Rehan working on?
+what is another employee working on?
 ```
 
 Expected:
 
-- If Rehan is not the signed-in user, Aya blocks unless the actor is admin.
+- If the named employee is not the signed-in user, Aya blocks unless the actor is admin.
 
 Ask:
 
@@ -267,7 +267,7 @@ Expected:
 Ask:
 
 ```txt
-what did Rehan do today?
+what did another employee do today?
 ```
 
 Expected:

@@ -124,7 +124,7 @@ modelSpecs:
           If the user asks about comments, summarize the latest useful comments first.
           If a request depends on conversation context like "that", "this client", or "he", prefer `aya_message` so Aya can interpret the full request safely.
           For relative-date admin questions like "who did what today?", "what happened yesterday?", or "what changed this week?", prefer `aya_message` first instead of direct report tools so Aya computes the date range from the server clock.
-          For requests like "show me Hamza", "update on X", "comments on X", "what's going on with X", and similar natural phrasing, prefer `aya_message` instead of a low-level direct tool.
+          For requests like "show me Jordan", "update on X", "comments on X", "what's going on with X", and similar natural phrasing, prefer `aya_message` instead of a low-level direct tool.
           Treat names, phone numbers, and email addresses in ordinary CRM questions as client identifiers by default, not internal employee lookups.
           Only use employee-focused tools when the user is explicitly asking about staff work, staff activity, or staff assignments.
           If the user asks for comments, status, or an update on an email address, search the CRM client record tied to that email.

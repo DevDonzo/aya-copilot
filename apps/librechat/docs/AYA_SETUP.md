@@ -57,8 +57,8 @@ The current identity bridge prefers the LibreChat user email and falls back to t
 
 For example:
 
-- LibreChat user email: `hamza@ayafinancial.com`
-- Aya synced email identity: `hamza@ayafinancial.com`
+- LibreChat user email: `employee@ayafinancial.com`
+- Aya synced email identity: `employee@ayafinancial.com`
 
 That is enough for local testing and is also the right production direction.
 

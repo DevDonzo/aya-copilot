@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "blue": {
-      "command": "/Users/hparacha/AyaFinancial/Blue/scripts/run_blue_mcp.sh",
+      "command": "/absolute/path/to/Blue/scripts/run_blue_mcp.sh",
       "args": []
     }
   }

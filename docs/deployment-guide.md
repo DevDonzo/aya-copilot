@@ -147,7 +147,7 @@ Aya performs three different local syncs. These are not duplicates of Blue. They
 1. Employee sync
 
 - Source: Blue workspace members for `BLUE_WORKSPACE_ID`
-- Code: [users-sync.ts](/Users/hparacha/AyaFinancial/Blue/apps/copilot/src/blue/users-sync.ts)
+- Code: [users-sync.ts](../apps/copilot/src/blue/users-sync.ts)
 - Purpose:
   - create Aya's local employee directory
   - create identity links
@@ -156,7 +156,7 @@ Aya performs three different local syncs. These are not duplicates of Blue. They
 2. Workspace index sync
 
 - Source: Blue lists and records for `BLUE_WORKSPACE_ID`
-- Code: [workspace-index.ts](/Users/hparacha/AyaFinancial/Blue/apps/copilot/src/blue/workspace-index.ts)
+- Code: [workspace-index.ts](../apps/copilot/src/blue/workspace-index.ts)
 - Purpose:
   - fast search by client name, email, phone, and stage
   - disambiguation and follow-up context
@@ -165,13 +165,13 @@ Aya performs three different local syncs. These are not duplicates of Blue. They
 3. Activity ingest
 
 - Source: Blue activity feed for `BLUE_WORKSPACE_ID`
-- Code: [blue-ingest.ts](/Users/hparacha/AyaFinancial/Blue/apps/copilot/src/activity/blue-ingest.ts)
+- Code: [blue-ingest.ts](../apps/copilot/src/activity/blue-ingest.ts)
 - Purpose:
   - normalized local activity history
   - employee/admin reporting
   - timeline and audit-style questions over time ranges
 
-These syncs start automatically on boot in [server.ts](/Users/hparacha/AyaFinancial/Blue/apps/copilot/src/server.ts) and continue via polling in [blue-poller.ts](/Users/hparacha/AyaFinancial/Blue/apps/copilot/src/jobs/blue-poller.ts).
+These syncs start automatically on boot in [server.ts](../apps/copilot/src/server.ts) and continue via polling in [blue-poller.ts](../apps/copilot/src/jobs/blue-poller.ts).
 
 So the answer to "why sync if Blue already has the data?" is:
 
@@ -206,7 +206,7 @@ Manual sync is for:
 
 Admin-only manual sync routes exist here:
 
-- [sync.ts](/Users/hparacha/AyaFinancial/Blue/apps/copilot/src/routes/sync.ts)
+- [sync.ts](../apps/copilot/src/routes/sync.ts)
 
 That means production does not depend on an operator clicking "sync" all day. The manual routes are recovery tools, not the main architecture.
 
@@ -238,7 +238,7 @@ Likely causes:
 - the Blue workspace user data does not have emails populated for that workspace membership view
 - or the current Blue API/token scope does not expose them in this query
 
-The query Aya uses already requests `email` in [client.ts](/Users/hparacha/AyaFinancial/Blue/apps/copilot/src/modules/blue/graphql/client.ts), so this is not because Aya forgot to ask for it.
+The query Aya uses already requests `email` in [client.ts](../apps/copilot/src/modules/blue/graphql/client.ts), so this is not because Aya forgot to ask for it.
 
 Production recommendation:
 
@@ -271,7 +271,7 @@ Today, Aya supports two write modes:
 
 Current code:
 
-- request auth normalization: [request-auth.ts](/Users/hparacha/AyaFinancial/Blue/apps/copilot/src/modules/blue/request-auth.ts)
+- request auth normalization: [request-auth.ts](../apps/copilot/src/modules/blue/request-auth.ts)
 
 Recommended production policy:
 
@@ -302,19 +302,21 @@ So:
 - no, I would not keep "open MCP settings and paste keys" as the long-term product UX
 - yes, I would keep personal Blue credentials underneath if Blue attribution is required and Blue does not offer a better delegated auth model
 
-## First Production Admin Bootstrap
+## First Production Admin Setup
 
 Once the production workspace employees are synced:
 
-1. call `/auth/provision` with the bootstrap key
-2. provision one synced employee as `admin`
-3. log into Aya admin with that employee name + password
-4. optionally provision additional admins
+1. confirm `AYA_LIBRECHAT_ADMIN_EMAILS` includes the intended LibreChat admins before they register
+2. provision one synced employee as Aya `admin` before locking down production access
+3. log into Aya with that employee and use the existing admin session to provision additional Aya admins
+4. confirm each admin can ask `who am I signed in as?` and receives role `admin`
+
+The bootstrap route is intentionally disabled in production. Do not set `ALLOW_BOOTSTRAP_PROVISIONING=true` in production. If the first production admin is missing, use a controlled maintenance operation against the Aya database or temporarily perform provisioning before starting with `NODE_ENV=production`.
 
 Provisioning code:
 
-- [auth.ts](/Users/hparacha/AyaFinancial/Blue/apps/copilot/src/routes/auth.ts)
-- [service.ts](/Users/hparacha/AyaFinancial/Blue/apps/copilot/src/auth/service.ts)
+- [auth.ts](../apps/copilot/src/routes/auth.ts)
+- [service.ts](../apps/copilot/src/auth/service.ts)
 
 ## Services In The Stack
 

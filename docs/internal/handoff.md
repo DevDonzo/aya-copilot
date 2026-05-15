@@ -94,6 +94,20 @@ Blocked without Blue credentials:
 - team/admin reports
 - all Blue writes
 
+## Admin Access Checklist
+
+Admin access has two separate layers:
+
+- LibreChat admin role: controlled by `AYA_LIBRECHAT_ADMIN_EMAILS` in the LibreChat deployment environment before users register.
+- Aya CRM/reporting admin role: controlled by `employees.role_name = admin` in the Aya Copilot database.
+
+For the current handoff, make sure Rehan and Sarah are covered in both layers:
+
+- Keep their company emails in `AYA_LIBRECHAT_ADMIN_EMAILS` before they register or sign in.
+- Confirm employee sync has created their Aya employee rows and email identity links.
+- Provision their Aya employee records with `roleName: admin` through an existing admin session or a controlled maintenance operation.
+- Verify from the chat surface that `who am I signed in as?` reports `admin` for each of them.
+
 ## Workspace Guardrails
 
 Allowed Blue workspace:

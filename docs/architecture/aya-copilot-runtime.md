@@ -61,7 +61,7 @@ This makes the next frontend step straightforward:
 
 The planner now directly supports stronger handling for:
 
-- `show me Hamza`
+- `show me Jordan`
 - `what's going on with X`
 - `comments on this client`
 - `move this to underwriting`

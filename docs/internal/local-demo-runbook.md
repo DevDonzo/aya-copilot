@@ -18,7 +18,7 @@ Recommended read-only demo prompts:
 4. `where have I been mentioned?`
 5. `show recent comments on AYA SMOKE TEST - OpenAI gpt-4o-mini`
 6. `who did what today?`
-7. `what is Hamza working on?`
+7. `what is another employee working on?`
 8. `show employee workload`
 
 Optional write demo prompts:

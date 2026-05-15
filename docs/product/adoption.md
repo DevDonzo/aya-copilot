@@ -23,7 +23,7 @@ Search by **Name, Email, or Phone Number** in seconds.
 - `find John Smith`
 - `show me sheraz`
 - `look up 416-555-0199`
-- `search for hamza@example.com`
+- `search for client@example.com`
 
 ### 3. Read the latest comments on a client
 Get the context before a call without digging through the CRM.

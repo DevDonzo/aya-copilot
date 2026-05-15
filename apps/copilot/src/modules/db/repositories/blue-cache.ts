@@ -62,13 +62,17 @@ export async function replaceBlueRecordsCache(input: {
     rawJson?: string | null;
   }>;
 }) {
+  const uniqueItems = Array.from(
+    new Map(input.items.map((item) => [item.id, item])).values(),
+  );
+
   await db.transaction().execute(async (trx) => {
     await trx
       .deleteFrom("blue_records_cache")
       .where("workspace_id", "=", input.workspaceId)
       .execute();
 
-    for (const item of input.items) {
+    for (const item of uniqueItems) {
       await trx
         .insertInto("blue_records_cache")
         .values({

@@ -86,5 +86,44 @@ describe("db repositories", () => {
       env.cleanup();
     }
   });
-});
 
+  it("deduplicates repeated Blue record ids during full cache replacement", async () => {
+    const env = createTestEnvironment();
+    try {
+      vi.resetModules();
+      const { initializeDatabase, listCachedBlueRecords, replaceBlueRecordsCache } =
+        await import("../../../src/db.js");
+
+      await initializeDatabase();
+      await replaceBlueRecordsCache({
+        workspaceId: "cmhazc4rl1vkand1eonnmiyjy",
+        items: [
+          {
+            id: "todo_1",
+            listId: "list_old",
+            listTitle: "Old Stage",
+            title: "Repeated Client",
+            normalizedTitle: "repeated client",
+          },
+          {
+            id: "todo_1",
+            listId: "list_new",
+            listTitle: "New Stage",
+            title: "Repeated Client",
+            normalizedTitle: "repeated client",
+          },
+        ],
+      });
+
+      const records = await listCachedBlueRecords("cmhazc4rl1vkand1eonnmiyjy");
+      expect(records).toHaveLength(1);
+      expect(records[0]).toMatchObject({
+        id: "todo_1",
+        list_id: "list_new",
+        list_title: "New Stage",
+      });
+    } finally {
+      env.cleanup();
+    }
+  });
+});

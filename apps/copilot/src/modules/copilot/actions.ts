@@ -87,8 +87,11 @@ export async function searchClients(
     transport?: string;
   },
 ) {
-  await refreshRecordIndexForSpecificLookup(input.blueAuth);
-  const items = await searchRecordQuery(input.query, input.limit ?? 8);
+  let items = await searchRecordQuery(input.query, input.limit ?? 8);
+  if (items.length === 0) {
+    await refreshRecordIndexForSpecificLookup(input.blueAuth);
+    items = await searchRecordQuery(input.query, input.limit ?? 8);
+  }
 
   if (input.actor && items.length > 1) {
     await rememberPendingRecordChoice({
@@ -1284,7 +1287,7 @@ async function resolveRecordOrThrow(input: RecordResolutionInput) {
   const originalQuery = input.query.trim();
   const trimmedQuery = normalizeRecordLookupQuery(originalQuery);
   const normalizedQuery = normalizeCacheQuery(trimmedQuery);
-  await refreshRecordIndexForSpecificLookup(input.blueAuth);
+
   if (input.actor && input.requireExactMatch) {
     const assignedRecords = await loadAssignedOpenRecords(input.actor.employeeId);
     const exactAssignedMatches = assignedRecords.items

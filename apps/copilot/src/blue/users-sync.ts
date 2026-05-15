@@ -2,6 +2,7 @@ import {
   createId,
   ensureEmployee,
   findEmployeeByName,
+  reassignEmployeeReferences,
   upsertIdentityLink,
 } from "../db.js";
 import { logger } from "../lib/logger.js";
@@ -11,23 +12,13 @@ import {
   fetchWorkspaceUsers,
 } from "../modules/blue/graphql/client.js";
 import { config } from "../config.js";
+import {
+  applyKnownAyaEmployeeEmails,
+  canonicalizeBlueEmployee,
+  getDuplicateBlueEmployeeMappings,
+} from "./employee-identity.js";
 
-const knownAyaEmployeeEmailsByName = new Map([
-  ["abdullah albiz", "abdullaha@ayafinancial.com"],
-  ["ajlan bilwani", "abilwani@ayafinancial.com"],
-  ["arslan shahid", "ashahid@ayafinancial.com"],
-  ["asiyah azmi", "support@ayafinancial.com"],
-  ["hamza paracha", "hamza@ayafinancial.com"],
-  ["haya h", "hayah@ayafinancial.com"],
-  ["hayah hussain", "hayah@ayafinancial.com"],
-  ["muhammad arslan shahid", "ashahid@ayafinancial.com"],
-  ["nauman nazir", "nnazir@ayafinancial.com"],
-  ["naved hussain", "nh@ayafinancial.com"],
-  ["rehan s", "rsaeed@ayafinancial.com"],
-  ["rehan saeed", "rsaeed@ayafinancial.com"],
-  ["sarah khan", "skhan@ayafinancial.com"],
-  ["tahmyna qazi", "tqazi@ayafinancial.com"],
-]);
+export { applyKnownAyaEmployeeEmails } from "./employee-identity.js";
 
 export async function syncWorkspaceEmployees() {
   const workspaceUsers = await fetchWorkspaceUsers(config.BLUE_READ_WORKSPACE_ID);
@@ -83,30 +74,36 @@ export async function syncWorkspaceEmployees() {
   }
 
   for (const user of users) {
+    const employee = canonicalizeBlueEmployee(user);
+
     await ensureEmployee({
-      employeeId: user.id,
-      displayName: user.fullName,
-      email: user.email,
-      timezone: user.timezone ?? "America/Toronto",
+      employeeId: employee.employeeId,
+      displayName: employee.displayName,
+      email: employee.email,
+      timezone: employee.timezone,
     });
 
     await upsertIdentityLink({
       id: createId("ident"),
-      employeeId: user.id,
+      employeeId: employee.employeeId,
       source: "blue",
       externalId: user.id,
-      externalLabel: user.fullName,
+      externalLabel: employee.originalDisplayName,
     });
 
-    if (user.email) {
+    if (employee.email) {
       await upsertIdentityLink({
         id: createId("ident"),
-        employeeId: user.id,
+        employeeId: employee.employeeId,
         source: "email",
-        externalId: user.email,
-        externalLabel: user.fullName,
+        externalId: employee.email,
+        externalLabel: employee.displayName,
       });
     }
+  }
+
+  for (const mapping of getDuplicateBlueEmployeeMappings()) {
+    await reassignEmployeeReferences(mapping);
   }
 
   return {
@@ -118,24 +115,6 @@ export async function syncWorkspaceEmployees() {
 
 export async function resolveEmployeeName(name: string) {
   return await findEmployeeByName(name);
-}
-
-export function applyKnownAyaEmployeeEmails(users: BlueUser[]) {
-  return users.map((user) => {
-    if (user.email?.trim()) {
-      return user;
-    }
-
-    const knownEmail = knownAyaEmployeeEmailsByName.get(normalizeName(user.fullName));
-    if (!knownEmail) {
-      return user;
-    }
-
-    return {
-      ...user,
-      email: knownEmail,
-    };
-  });
 }
 
 export function enrichWorkspaceUsersWithCompanyDirectory(

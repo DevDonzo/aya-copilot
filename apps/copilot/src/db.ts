@@ -18,6 +18,7 @@ export { createId, db, initializeDatabase };
 
 export const ensureEmployee = employeesRepo.ensureEmployee;
 export const updateEmployeeRole = employeesRepo.updateEmployeeRole;
+export const reassignEmployeeReferences = employeesRepo.reassignEmployeeReferences;
 export const findEmployeeByName = employeesRepo.findEmployeeByName;
 export const findEmployeeById = employeesRepo.findEmployeeById;
 export const findEmployeeByEmailColumn = employeesRepo.findEmployeeByEmailColumn;

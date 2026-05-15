@@ -6,6 +6,7 @@ import { createTestEnvironment } from "../helpers/test-env.js";
 const mockEnsureEmployee = vi.fn();
 const mockCreateId = vi.fn(() => "ident_test");
 const mockFindEmployeeByName = vi.fn();
+const mockReassignEmployeeReferences = vi.fn();
 const mockUpsertIdentityLink = vi.fn();
 const mockFetchWorkspaceUsers = vi.fn();
 const mockFetchCompanyUsers = vi.fn();
@@ -14,6 +15,7 @@ vi.mock("../../src/db.js", () => ({
   ensureEmployee: mockEnsureEmployee,
   createId: mockCreateId,
   findEmployeeByName: mockFindEmployeeByName,
+  reassignEmployeeReferences: mockReassignEmployeeReferences,
   upsertIdentityLink: mockUpsertIdentityLink,
 }));
 
@@ -185,6 +187,14 @@ describe("users sync", () => {
         timezone: null,
       } as BlueUser,
       {
+        id: "emp_rehan_aya",
+        email: "",
+        firstName: "Rehan",
+        lastName: "AYA",
+        fullName: "Rehan AYA",
+        timezone: null,
+      } as BlueUser,
+      {
         id: "emp_sarah",
         email: "",
         firstName: "Sarah",
@@ -220,9 +230,73 @@ describe("users sync", () => {
       { email: "nnazir@ayafinancial.com" },
       { email: "nh@ayafinancial.com" },
       { email: "rsaeed@ayafinancial.com" },
+      { email: "rsaeed@ayafinancial.com" },
       { email: "skhan@ayafinancial.com" },
       { email: "tqazi@ayafinancial.com" },
       { email: "existing@ayafinancial.com" },
     ]);
+  });
+
+  it("maps duplicate Blue user ids for the same employee to one canonical employee", async () => {
+    const env = createTestEnvironment();
+    try {
+      mockFetchWorkspaceUsers.mockResolvedValue([
+        {
+          id: "cm2o7pr4f3tlroi9uexnouw44",
+          email: "",
+          firstName: "Rehan",
+          lastName: "S",
+          fullName: "Rehan S",
+          timezone: null,
+        } satisfies BlueUser,
+        {
+          id: "cm2or9cai0j7pcacvqx3kgvxz",
+          email: "",
+          firstName: "Rehan",
+          lastName: "AYA",
+          fullName: "Rehan AYA",
+          timezone: null,
+        } satisfies BlueUser,
+      ]);
+      mockFetchCompanyUsers.mockResolvedValue([]);
+
+      const { syncWorkspaceEmployees } = await import("../../src/blue/users-sync.js");
+      const result = await syncWorkspaceEmployees();
+
+      expect(mockEnsureEmployee).toHaveBeenCalledWith(
+        expect.objectContaining({
+          employeeId: "cm2o7pr4f3tlroi9uexnouw44",
+          displayName: "Rehan S",
+          email: "rsaeed@ayafinancial.com",
+        }),
+      );
+      expect(mockUpsertIdentityLink).toHaveBeenCalledWith(
+        expect.objectContaining({
+          employeeId: "cm2o7pr4f3tlroi9uexnouw44",
+          source: "blue",
+          externalId: "cm2o7pr4f3tlroi9uexnouw44",
+          externalLabel: "Rehan S",
+        }),
+      );
+      expect(mockUpsertIdentityLink).toHaveBeenCalledWith(
+        expect.objectContaining({
+          employeeId: "cm2o7pr4f3tlroi9uexnouw44",
+          source: "blue",
+          externalId: "cm2or9cai0j7pcacvqx3kgvxz",
+          externalLabel: "Rehan AYA",
+        }),
+      );
+      expect(mockReassignEmployeeReferences).toHaveBeenCalledWith({
+        duplicateEmployeeId: "cm2or9cai0j7pcacvqx3kgvxz",
+        canonicalEmployeeId: "cm2o7pr4f3tlroi9uexnouw44",
+      });
+      expect(result).toEqual({
+        fetched: 2,
+        withEmail: 2,
+        missingEmail: 0,
+      });
+    } finally {
+      env.cleanup();
+    }
   });
 });

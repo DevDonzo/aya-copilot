@@ -10,29 +10,19 @@ import { insertActivityEvent } from "../store/activity-store.js";
 import type { BlueActivityEvent } from "../types/blue.js";
 import type { NormalizedActivityEvent } from "../domain/types.js";
 import { config } from "../config.js";
-
-function formatUser(user?: {
-  id: string;
-  fullName: string;
-  firstName?: string;
-  lastName?: string;
-  email?: string;
-} | null) {
-  if (!user) {
-    return "Unknown";
-  }
-  return (
-    user.fullName ||
-    [user.firstName, user.lastName].filter(Boolean).join(" ").trim() ||
-    user.email ||
-    user.id
-  );
-}
+import {
+  canonicalizeBlueEmployee,
+  formatBlueActorName,
+} from "../blue/employee-identity.js";
 
 function normalizeBlueActivityItem(item: BlueActivityEvent): NormalizedActivityEvent {
+  const actor = item.createdBy
+    ? canonicalizeBlueEmployee(item.createdBy)
+    : null;
+
   return {
     id: `blue_${item.id}`,
-    employeeId: item.createdBy?.id,
+    employeeId: actor?.employeeId,
     workspaceId: item.project?.id,
     projectName: item.project?.name,
     source: "blue",
@@ -46,7 +36,7 @@ function normalizeBlueActivityItem(item: BlueActivityEvent): NormalizedActivityE
       item.todo?.title ||
       item.comment?.text ||
       item.html ||
-      `${formatUser(item.createdBy)} ${item.category}`,
+      `${formatBlueActorName(item.createdBy)} ${item.category}`,
     rawPayload: item,
   };
 }
@@ -68,28 +58,30 @@ export async function ingestBlueActivity(limit = 100) {
 
   for (const item of items) {
     if (item.createdBy?.id) {
+      const actor = canonicalizeBlueEmployee(item.createdBy);
+
       await ensureEmployee({
-        employeeId: item.createdBy.id,
-        displayName: formatUser(item.createdBy),
-        email: item.createdBy.email,
-        timezone: item.createdBy.timezone ?? "America/Toronto",
+        employeeId: actor.employeeId,
+        displayName: actor.displayName,
+        email: actor.email,
+        timezone: actor.timezone,
       });
 
       await upsertIdentityLink({
         id: createId("ident"),
-        employeeId: item.createdBy.id,
+        employeeId: actor.employeeId,
         source: "blue",
         externalId: item.createdBy.id,
-        externalLabel: formatUser(item.createdBy),
+        externalLabel: actor.originalDisplayName,
       });
 
-      if (item.createdBy.email) {
+      if (actor.email) {
         await upsertIdentityLink({
           id: createId("ident"),
-          employeeId: item.createdBy.id,
+          employeeId: actor.employeeId,
           source: "email",
-          externalId: item.createdBy.email,
-          externalLabel: formatUser(item.createdBy),
+          externalId: actor.email,
+          externalLabel: actor.displayName,
         });
       }
     }

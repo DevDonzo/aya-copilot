@@ -57,6 +57,7 @@ export async function findEmployeeByName(name: string) {
   return await db
     .selectFrom("employees")
     .select(["id", "display_name", "email", "role_name", "timezone"])
+    .where("active", "=", 1)
     .where(({ eb, fn }) =>
       eb.or([
         eb(fn("lower", ["display_name"]), "=", exact),
@@ -79,6 +80,7 @@ export async function listEmployees() {
   return await db
     .selectFrom("employees")
     .select(["id", "display_name", "email", "role_name"])
+    .where("active", "=", 1)
     .orderBy("display_name", "asc")
     .execute();
 }
@@ -87,6 +89,48 @@ export async function findEmployeeByEmailColumn(email: string) {
   return await db
     .selectFrom("employees")
     .select(["id", "display_name", "email", "role_name", "timezone"])
+    .where("active", "=", 1)
     .where("email", "=", email.trim().toLowerCase())
     .executeTakeFirst();
+}
+
+export async function reassignEmployeeReferences(input: {
+  duplicateEmployeeId: string;
+  canonicalEmployeeId: string;
+}) {
+  if (input.duplicateEmployeeId === input.canonicalEmployeeId) {
+    return;
+  }
+
+  await db.transaction().execute(async (trx) => {
+    await trx
+      .updateTable("activity_events")
+      .set({ employee_id: input.canonicalEmployeeId })
+      .where("employee_id", "=", input.duplicateEmployeeId)
+      .execute();
+
+    await trx
+      .updateTable("bot_audit_logs")
+      .set({ employee_id: input.canonicalEmployeeId })
+      .where("employee_id", "=", input.duplicateEmployeeId)
+      .execute();
+
+    await trx
+      .updateTable("auth_sessions")
+      .set({ employee_id: input.canonicalEmployeeId })
+      .where("employee_id", "=", input.duplicateEmployeeId)
+      .execute();
+
+    await trx
+      .updateTable("identity_links")
+      .set({ employee_id: input.canonicalEmployeeId })
+      .where("employee_id", "=", input.duplicateEmployeeId)
+      .execute();
+
+    await trx
+      .updateTable("employees")
+      .set({ active: 0 })
+      .where("id", "=", input.duplicateEmployeeId)
+      .execute();
+  });
 }

@@ -21,6 +21,7 @@ import {
   fetchRecordDetail,
 } from "../graphql/client.js";
 import type { BlueWebhookEventType } from "../../../types/blue.js";
+import { canonicalizeBlueEmployee } from "../../../blue/employee-identity.js";
 
 const supportedEvents: BlueWebhookEventType[] = [
   "TODO_CREATED",
@@ -83,7 +84,7 @@ export async function verifyAndProcessBlueWebhook(input: {
 
   const eventData = isRecord(payload.data) ? payload.data : {};
   const eventMeta = extractWebhookMeta(eventName, eventData, payload);
-  await maybeEnsureWebhookActor(eventMeta.actor);
+  const actorEmployeeId = await maybeEnsureWebhookActor(eventMeta.actor);
 
   if (eventName.startsWith("TODO_")) {
     await repairTodoCacheFromWebhook(eventName, eventMeta);
@@ -93,7 +94,7 @@ export async function verifyAndProcessBlueWebhook(input: {
 
   await insertActivityEvent({
     id: createId("evt"),
-    employeeId: eventMeta.actor?.id,
+    employeeId: actorEmployeeId,
     source: "blue_webhook",
     sourceEventId: eventMeta.eventId ?? undefined,
     actionType: eventName,
@@ -296,7 +297,7 @@ async function maybeEnsureWebhookActor(
   } | null,
 ) {
   if (!actor?.id) {
-    return;
+    return undefined;
   }
 
   const displayName =
@@ -304,31 +305,34 @@ async function maybeEnsureWebhookActor(
     [actor.firstName, actor.lastName].filter(Boolean).join(" ").trim() ||
     actor.email ||
     actor.id;
+  const employee = canonicalizeBlueEmployee({ ...actor, fullName: displayName });
 
   await ensureEmployee({
-    employeeId: actor.id,
-    displayName,
-    email: actor.email,
-    timezone: actor.timezone ?? "America/Toronto",
+    employeeId: employee.employeeId,
+    displayName: employee.displayName,
+    email: employee.email,
+    timezone: employee.timezone,
   });
 
   await upsertIdentityLink({
     id: createId("ident"),
-    employeeId: actor.id,
+    employeeId: employee.employeeId,
     source: "blue",
     externalId: actor.id,
-    externalLabel: displayName,
+    externalLabel: employee.originalDisplayName,
   });
 
-  if (actor.email) {
+  if (employee.email) {
     await upsertIdentityLink({
       id: createId("ident"),
-      employeeId: actor.id,
+      employeeId: employee.employeeId,
       source: "email",
-      externalId: actor.email,
-      externalLabel: displayName,
+      externalId: employee.email,
+      externalLabel: employee.displayName,
     });
   }
+
+  return employee.employeeId;
 }
 
 function extractWebhookMeta(

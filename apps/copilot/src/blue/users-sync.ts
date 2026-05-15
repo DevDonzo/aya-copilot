@@ -13,9 +13,20 @@ import {
 import { config } from "../config.js";
 
 const knownAyaEmployeeEmailsByName = new Map([
+  ["abdullah albiz", "abdullaha@ayafinancial.com"],
+  ["ajlan bilwani", "abilwani@ayafinancial.com"],
+  ["arslan shahid", "ashahid@ayafinancial.com"],
+  ["asiyah azmi", "support@ayafinancial.com"],
   ["hamza paracha", "hamza@ayafinancial.com"],
+  ["haya h", "hayah@ayafinancial.com"],
+  ["hayah hussain", "hayah@ayafinancial.com"],
+  ["muhammad arslan shahid", "ashahid@ayafinancial.com"],
+  ["nauman nazir", "nnazir@ayafinancial.com"],
+  ["naved hussain", "nh@ayafinancial.com"],
   ["rehan s", "rsaeed@ayafinancial.com"],
+  ["rehan saeed", "rsaeed@ayafinancial.com"],
   ["sarah khan", "skhan@ayafinancial.com"],
+  ["tahmyna qazi", "tqazi@ayafinancial.com"],
 ]);
 
 export async function syncWorkspaceEmployees() {
@@ -181,7 +192,7 @@ function buildUniqueNameMap(users: BlueUser[]) {
 }
 
 function normalizeName(value?: string | null) {
-  return value?.trim().toLowerCase() ?? "";
+  return value?.trim().replace(/\s+/g, " ").toLowerCase() ?? "";
 }
 
 function countUsersMissingEmail(users: BlueUser[]) {

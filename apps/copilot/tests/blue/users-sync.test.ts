@@ -108,16 +108,72 @@ describe("users sync", () => {
     });
   });
 
-  it("fills known Aya admin emails when Blue does not expose them", async () => {
+  it("fills known Aya employee emails when Blue does not expose them", async () => {
     const { applyKnownAyaEmployeeEmails } = await import("../../src/blue/users-sync.js");
 
     const result = applyKnownAyaEmployeeEmails([
+      {
+        id: "emp_abdullah",
+        email: "",
+        firstName: "Abdullah",
+        lastName: "Albiz",
+        fullName: "Abdullah Albiz",
+        timezone: null,
+      } as BlueUser,
+      {
+        id: "emp_ajlan",
+        email: "",
+        firstName: "Ajlan",
+        lastName: "Bilwani",
+        fullName: "Ajlan  Bilwani",
+        timezone: null,
+      } as BlueUser,
+      {
+        id: "emp_arslan",
+        email: "",
+        firstName: "Muhammad",
+        lastName: "Shahid",
+        fullName: "Muhammad Arslan Shahid",
+        timezone: null,
+      } as BlueUser,
+      {
+        id: "emp_asiyah",
+        email: "",
+        firstName: "Asiyah",
+        lastName: "Azmi",
+        fullName: "Asiyah Azmi",
+        timezone: null,
+      } as BlueUser,
       {
         id: "emp_hamza",
         email: "",
         firstName: "Hamza",
         lastName: "Paracha",
         fullName: "Hamza Paracha",
+        timezone: null,
+      } as BlueUser,
+      {
+        id: "emp_haya",
+        email: "",
+        firstName: "Hayah",
+        lastName: "Hussain",
+        fullName: "Hayah Hussain",
+        timezone: null,
+      } as BlueUser,
+      {
+        id: "emp_nauman",
+        email: "",
+        firstName: "Nauman",
+        lastName: "Nazir",
+        fullName: "Nauman Nazir",
+        timezone: null,
+      } as BlueUser,
+      {
+        id: "emp_naved",
+        email: "",
+        firstName: "Naved",
+        lastName: "Hussain",
+        fullName: "Naved Hussain",
         timezone: null,
       } as BlueUser,
       {
@@ -137,6 +193,14 @@ describe("users sync", () => {
         timezone: null,
       } as BlueUser,
       {
+        id: "emp_tahmyna",
+        email: "",
+        firstName: "Tahmyna",
+        lastName: "Qazi",
+        fullName: "Tahmyna Qazi",
+        timezone: null,
+      } as BlueUser,
+      {
         id: "emp_existing",
         email: "existing@ayafinancial.com",
         firstName: "Existing",
@@ -147,9 +211,17 @@ describe("users sync", () => {
     ]);
 
     expect(result).toMatchObject([
+      { email: "abdullaha@ayafinancial.com" },
+      { email: "abilwani@ayafinancial.com" },
+      { email: "ashahid@ayafinancial.com" },
+      { email: "support@ayafinancial.com" },
       { email: "hamza@ayafinancial.com" },
+      { email: "hayah@ayafinancial.com" },
+      { email: "nnazir@ayafinancial.com" },
+      { email: "nh@ayafinancial.com" },
       { email: "rsaeed@ayafinancial.com" },
       { email: "skhan@ayafinancial.com" },
+      { email: "tqazi@ayafinancial.com" },
       { email: "existing@ayafinancial.com" },
     ]);
   });

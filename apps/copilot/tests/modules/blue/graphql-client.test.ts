@@ -525,6 +525,27 @@ describe("blue graphql client mutations and workload query", () => {
     }
   });
 
+  it("queries assigned open records with multiple assignee ids", async () => {
+    const env = createTestEnvironment();
+    try {
+      const { listAssignedOpenRecords } = await import(
+        "../../../src/modules/blue/graphql/client.js"
+      );
+      await listAssignedOpenRecords({
+        workspaceId: "cmhazc4rl1vkand1eonnmiyjy",
+        companyId: "test-company",
+        assigneeIds: ["canonical_user", "duplicate_user"],
+      });
+
+      expect(requests[0]?.variables.assigneeIds).toEqual([
+        "canonical_user",
+        "duplicate_user",
+      ]);
+    } finally {
+      env.cleanup();
+    }
+  });
+
   it("queries checklist assignments by assignee and done status", async () => {
     const env = createTestEnvironment();
     try {
@@ -547,6 +568,27 @@ describe("blue graphql client mutations and workload query", () => {
         todoDone: false,
       });
       expect((requests[0]?.variables.take as number) ?? 0).toBe(50);
+    } finally {
+      env.cleanup();
+    }
+  });
+
+  it("queries checklist assignments with multiple assignee ids", async () => {
+    const env = createTestEnvironment();
+    try {
+      const { listAssignedChecklistItems } = await import(
+        "../../../src/modules/blue/graphql/client.js"
+      );
+      await listAssignedChecklistItems({
+        workspaceId: "cmhazc4rl1vkand1eonnmiyjy",
+        assigneeIds: ["canonical_user", "duplicate_user"],
+        done: false,
+      });
+
+      expect(requests[0]?.variables.filter).toMatchObject({
+        assigneeIds: ["canonical_user", "duplicate_user"],
+        done: false,
+      });
     } finally {
       env.cleanup();
     }

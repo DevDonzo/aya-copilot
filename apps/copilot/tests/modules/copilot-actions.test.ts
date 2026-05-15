@@ -120,6 +120,59 @@ describe("copilot actions", () => {
       env.cleanup();
     }
   });
+
+  it("includes duplicate Blue user ids when loading canonical employee workload", async () => {
+    const env = createTestEnvironment();
+    const listAssignedOpenRecords = vi.fn().mockResolvedValue({
+      items: [],
+      pageInfo: {
+        totalItems: 0,
+        hasNextPage: false,
+        hasPreviousPage: false,
+        page: 1,
+        perPage: 50,
+      },
+    });
+
+    vi.doMock("../../src/modules/blue/graphql/client.js", async () => {
+      const actual =
+        await vi.importActual<
+          typeof import("../../src/modules/blue/graphql/client.js")
+        >("../../src/modules/blue/graphql/client.js");
+
+      return {
+        ...actual,
+        listAssignedOpenRecords,
+      };
+    });
+
+    try {
+      const { ensureEmployee, initializeDatabase } = await import("../../src/db.js");
+      await initializeDatabase();
+      await ensureEmployee({
+        employeeId: "cm2o7pr4f3tlroi9uexnouw44",
+        displayName: "Rehan S",
+        email: "rsaeed@ayafinancial.com",
+        roleName: "admin",
+      });
+
+      const { getEmployeeWorkload } = await import(
+        "../../src/modules/copilot/actions.js"
+      );
+      await getEmployeeWorkload({ employeeName: "Rehan S" });
+
+      expect(listAssignedOpenRecords).toHaveBeenCalledWith(
+        expect.objectContaining({
+          assigneeIds: [
+            "cm2o7pr4f3tlroi9uexnouw44",
+            "cm2or9cai0j7pcacvqx3kgvxz",
+          ],
+        }),
+      );
+    } finally {
+      env.cleanup();
+    }
+  });
 });
 
 function mockWorkspaceIndex(input: {

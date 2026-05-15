@@ -108,6 +108,16 @@ export function getDuplicateBlueEmployeeMappings() {
   );
 }
 
+export function getBlueEmployeeIdsForAssignmentLookup(employeeId: string) {
+  const ids = new Set([employeeId]);
+  for (const [duplicateEmployeeId, canonical] of canonicalBlueEmployeesByDuplicateId) {
+    if (canonical.employeeId === employeeId) {
+      ids.add(duplicateEmployeeId);
+    }
+  }
+  return Array.from(ids);
+}
+
 export function getKnownAyaEmployeeSeeds() {
   return knownAyaEmployeeSeeds;
 }

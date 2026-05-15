@@ -1576,10 +1576,16 @@ export async function createComment(input: {
 export async function listAssignedOpenRecords(input: {
   workspaceId?: string;
   companyId: string;
-  assigneeId: string;
+  assigneeId?: string;
+  assigneeIds?: string[];
   limit?: number;
   skip?: number;
 }) {
+  const assigneeIds = input.assigneeIds?.length
+    ? input.assigneeIds
+    : input.assigneeId
+      ? [input.assigneeId]
+      : [];
   const data = await blueGraphqlRequest<{
     todoQueries: {
       todos: {
@@ -1671,7 +1677,7 @@ export async function listAssignedOpenRecords(input: {
     {
       companyIds: [input.companyId],
       projectIds: input.workspaceId ? [input.workspaceId] : null,
-      assigneeIds: [input.assigneeId],
+      assigneeIds,
       limit: input.limit ?? 50,
       skip: input.skip ?? 0,
     },
@@ -1683,14 +1689,20 @@ export async function listAssignedOpenRecords(input: {
 
 export async function listAssignedChecklistItems(input: {
   workspaceId?: string;
-  assigneeId: string;
+  assigneeId?: string;
+  assigneeIds?: string[];
   done?: boolean;
   todoDone?: boolean;
   limit?: number;
   skip?: number;
 }) {
+  const assigneeIds = input.assigneeIds?.length
+    ? input.assigneeIds
+    : input.assigneeId
+      ? [input.assigneeId]
+      : [];
   const filter: Record<string, unknown> = {
-    assigneeIds: [input.assigneeId],
+    assigneeIds,
     excludeArchivedProjects: true,
   };
 

@@ -21,6 +21,7 @@ import {
   searchRecordQuery,
   syncWorkspaceIndex,
 } from "../../blue/workspace-index.js";
+import { getBlueEmployeeIdsForAssignmentLookup } from "../../blue/employee-identity.js";
 import { config } from "../../config.js";
 import type { BlueRequestAuth, EmployeeIdentity } from "../../domain/types.js";
 import type { BlueChecklistItem, BluePageInfo, BlueRecord } from "../../types/blue.js";
@@ -1701,10 +1702,11 @@ function buildCommentsResponseText(
 async function loadAssignedOpenRecords(
   assigneeId: string,
 ): Promise<{ items: WorkloadItem[]; pageInfo: BluePageInfo }> {
+  const assigneeIds = getBlueEmployeeIdsForAssignmentLookup(assigneeId);
   const result = await listAssignedOpenRecords({
     workspaceId: config.BLUE_WORKSPACE_ID,
     companyId: config.BLUE_COMPANY_ID,
-    assigneeId,
+    assigneeIds,
     limit: 50,
     skip: 0,
   });
@@ -1725,10 +1727,11 @@ async function loadAssignedChecklistItems(
   assigneeId: string,
   status: "open" | "completed" | "all",
 ): Promise<{ items: AssignmentItem[]; pageInfo: BluePageInfo }> {
+  const assigneeIds = getBlueEmployeeIdsForAssignmentLookup(assigneeId);
   const [checklistResult, recordsResult] = await Promise.all([
     listAssignedChecklistItems({
       workspaceId: config.BLUE_WORKSPACE_ID,
-      assigneeId,
+      assigneeIds,
       done:
         status === "open"
           ? false
@@ -1743,7 +1746,7 @@ async function loadAssignedChecklistItems(
       ? listAssignedOpenRecords({
           workspaceId: config.BLUE_WORKSPACE_ID,
           companyId: config.BLUE_COMPANY_ID,
-          assigneeId,
+          assigneeIds,
           limit: 50,
           skip: 0,
         })

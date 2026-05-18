@@ -1237,7 +1237,11 @@ function enforceBlueCredentialsForIntent(
   blueAuth: BlueRequestAuth | null,
   actor: EmployeeIdentity,
 ) {
-  if (intent === "help.overview" || intent === "identity.self") {
+  if (
+    intent === "help.overview" ||
+    intent === "identity.self" ||
+    intent === "operations.attention_report"
+  ) {
     return;
   }
 

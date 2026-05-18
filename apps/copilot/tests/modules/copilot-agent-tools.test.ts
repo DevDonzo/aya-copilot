@@ -436,6 +436,56 @@ describe("Aya AI SDK tool registry", () => {
     });
   });
 
+  it("lets admins run the daily operations report without personal Blue credentials", async () => {
+    const getWorkspaceAttentionReport = vi.fn().mockResolvedValue({
+      responseText:
+        "Blue daily operations report for 2026-05-18\nNew tasks created yesterday: 1",
+    });
+
+    vi.doMock("../../src/modules/copilot/actions.js", () =>
+      mockedActions({ getWorkspaceAttentionReport }),
+    );
+
+    const traces: any[] = [];
+    const { createAyaAgentTools } = await import(
+      "../../src/modules/copilot/agent/tool-registry.js"
+    );
+    const tools = createAyaAgentTools(
+      buildContext({
+        blueAuth: null,
+        actor: {
+          ...actor,
+          employeeId: "employee_1",
+          displayName: "Admin User",
+          email: "hamza@ayafinancial.com",
+          roleName: "admin",
+        },
+      }),
+      traces,
+    );
+
+    const output = await tools.getWorkspaceAttentionReport.execute({
+      date: "2026-05-18",
+      limit: 1,
+    });
+
+    expect(output).toMatchObject({
+      ok: true,
+    });
+    expect(String(output.responseText)).toContain(
+      "Blue daily operations report for 2026-05-18",
+    );
+    expect(getWorkspaceAttentionReport).toHaveBeenCalledWith({
+      date: "2026-05-18",
+      limit: 1,
+    });
+    expect(traces[0]).toMatchObject({
+      toolName: "getWorkspaceAttentionReport",
+      intent: "operations.attention_report",
+      outcome: "success",
+    });
+  });
+
   it("maps assign-task tool calls with separate record and task queries", async () => {
     const assignTask = vi.fn().mockResolvedValue({
       recordId: "record_1",

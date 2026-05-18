@@ -36,7 +36,7 @@ export async function enforceAyaToolPolicy(
   if (
     policy.blueAuthRequired ||
     policy.write ||
-    (intent != null && intent !== "identity.self")
+    (intent != null && !canRunWithoutBlueCredentials(intent))
   ) {
     await requireValidatedBlueRequestAuth(context.blueAuth, context.actor);
   }
@@ -65,6 +65,10 @@ export async function enforceAyaToolPolicy(
       });
     }
   }
+}
+
+function canRunWithoutBlueCredentials(intent: string) {
+  return intent === "identity.self" || intent === "operations.attention_report";
 }
 
 export function formatAyaToolError(error: unknown) {

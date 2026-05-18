@@ -7,6 +7,112 @@ describe("copilot actions", () => {
     vi.resetModules();
   });
 
+  it("renders the workspace attention report with the same sections as the daily email", async () => {
+    const env = createTestEnvironment();
+
+    try {
+      const { buildWorkspaceAttentionResponseText } = await import(
+        "../../src/modules/copilot/actions.js"
+      );
+
+      const responseText = buildWorkspaceAttentionResponseText({
+        reportDate: "2026-05-14",
+        timezone: "America/Toronto",
+        limit: 100,
+        newRecords: [
+          {
+            id: "new_record",
+            clientName: "New Client",
+            list: "Leads",
+            source: "Referral",
+            createdAt: "2026-05-14T15:00:00.000Z",
+            assignedTo: "Sarah Khan",
+            dueAt: "2026-05-20T15:00:00.000Z",
+          },
+        ],
+        overdueNoRecentComments: [
+          {
+            id: "overdue_no_comment",
+            clientName: "Overdue No Comment",
+            list: "Active",
+            assignedTo: "Rehan S",
+            dueAt: "2026-05-10T15:00:00.000Z",
+            lastCommentAt: null,
+            daysSinceComment: null,
+            commentCount: 0,
+          },
+        ],
+        overdueWithRecentComments: [
+          {
+            id: "overdue_recent",
+            clientName: "Overdue Recent",
+            list: "Active",
+            assignedTo: "Rehan S",
+            dueAt: "2026-05-10T15:00:00.000Z",
+            lastCommentAt: "2026-05-13T15:00:00.000Z",
+            daysSinceComment: 1,
+            commentCount: 2,
+          },
+        ],
+        upcomingDue: [
+          {
+            id: "upcoming_due",
+            clientName: "Upcoming Due",
+            list: "Closing",
+            assignedTo: "Sarah Khan",
+            dueAt: "2026-05-16T15:00:00.000Z",
+            lastCommentAt: "2026-05-08T15:00:00.000Z",
+            daysSinceComment: 6,
+            commentCount: 1,
+          },
+        ],
+        commentsLast24Hours: [
+          {
+            recordId: "new_record",
+            clientName: "New Client",
+            assignedTo: "Sarah Khan",
+            commenter: "Rehan S",
+            timestamp: "2026-05-14T16:00:00.000Z",
+            update: "Called client and requested documents.",
+            actionType: "CREATE_COMMENT",
+          },
+        ],
+        staffStatus: [
+          {
+            staffId: "sarah",
+            staffName: "Sarah Khan",
+            openAssignedRecords: 12,
+            commentsPlacedYesterday: 3,
+            untouchedRecords: 4,
+          },
+        ],
+        totalNewRecords: 1,
+        totalOverdueNoRecentComments: 1,
+        totalOverdueWithRecentComments: 1,
+        totalUpcomingDue: 1,
+        totalCommentsLast24Hours: 1,
+        totalStaffStatusRows: 1,
+      });
+
+      expect(responseText).toContain(
+        "Blue daily operations report for 2026-05-14",
+      );
+      expect(responseText).toContain("New tasks created yesterday:");
+      expect(responseText).toContain("Source: Referral");
+      expect(responseText).toContain("Overdue tasks:");
+      expect(responseText).toContain("Overdue tasks with comments:");
+      expect(responseText).toContain("Upcoming due:");
+      expect(responseText).toContain("Comments/updates from last 24 hours:");
+      expect(responseText).toContain("Called client and requested documents.");
+      expect(responseText).toContain("Status Update:");
+      expect(responseText).toContain(
+        "Sarah Khan: 12 total tasks assigned, 3 comments placed on tasks, 4 untouched tasks",
+      );
+    } finally {
+      env.cleanup();
+    }
+  });
+
   it("searches the local client cache before refreshing Blue", async () => {
     const env = createTestEnvironment();
     const syncWorkspaceIndex = vi.fn();

@@ -9,6 +9,7 @@ import { identityLinkRoutes } from "../routes/identity-links.js";
 import { mcpRoutes } from "../routes/mcp.js";
 import { messageRoutes } from "../routes/messages.js";
 import { recordRoutes } from "../routes/records.js";
+import { reportRoutes } from "../routes/reports.js";
 import { summaryRoutes } from "../routes/summaries.js";
 import { syncRoutes } from "../routes/sync.js";
 import { webhookRoutes } from "../routes/webhooks.js";
@@ -51,6 +52,7 @@ export async function buildAyaApp() {
   await app.register(authRoutes);
   await app.register(identityLinkRoutes);
   await app.register(recordRoutes);
+  await app.register(reportRoutes);
   await app.register(summaryRoutes);
   await app.register(syncRoutes);
   await app.register(messageRoutes);

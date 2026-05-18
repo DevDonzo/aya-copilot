@@ -60,10 +60,19 @@ Core values:
 - `AYA_MCP_API_KEY`
 - `AYA_HOSTINGER_MCP_API_KEY`
 - `OPENAI_API_KEY`
-- `AYA_CHAT_RUNTIME=agent_with_planner_fallback`
-- `AYA_AGENT_MODEL=gpt-4o`
+- `AYA_CHAT_RUNTIME=agent`
+- `AYA_AGENT_MODEL=gpt-4o-mini`
+- `AYA_AGENT_MAX_STEPS=3`
+- `AYA_BLUE_AUTH_CACHE_TTL_MS=43200000`
 - `LIBRECHAT_MONGO_URI`
 - `LIBRECHAT_MONGO_DB_NAME`
+- `BLUE_DAILY_REPORT_ENABLED=false` during rollout
+- `BLUE_DAILY_REPORT_TIME=12:00`
+- `BLUE_DAILY_REPORT_TIMEZONE=America/Toronto`
+- `BLUE_DAILY_REPORT_RECIPIENTS=rsaeed@ayafinancial.com,skhan@ayafinancial.com`
+- `BLUE_DAILY_REPORT_CC=hamza@ayafinancial.com`
+- `BLUE_DAILY_REPORT_FROM=hamza@ayafinancial.com`
+- `GOOGLE_GMAIL_CLIENT_ID`, `GOOGLE_GMAIL_CLIENT_SECRET`, and `GOOGLE_GMAIL_REFRESH_TOKEN` for Gmail API delivery
 
 Safety values:
 

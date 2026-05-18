@@ -229,9 +229,9 @@ Use a server-owned location such as:
 
 Keep backups and permissions managed outside Git.
 
-## 14. Keep planner fallback briefly, then delete old planner paths
+## 14. Keep planner fallback as rollback only, then delete old planner paths
 
-The agent path is now strong, but keep `agent_with_planner_fallback` until audit logs show stable production behavior.
+The agent path is now strong. Use `AYA_CHAT_RUNTIME=agent` for normal operation and keep `agent_with_planner_fallback` only as a rollback setting until old planner paths are deleted.
 
 Before deleting planner files, verify live usage for:
 

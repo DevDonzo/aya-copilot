@@ -10,12 +10,12 @@ Do not delete `planner.ts` and `llm-planner.ts` before this test pass.
 
 Recommended handoff state:
 
-- Keep `AYA_CHAT_RUNTIME=agent_with_planner_fallback` for the first production observation window.
+- Keep `AYA_CHAT_RUNTIME=agent` for normal operation.
 - Run the tests below.
 - Watch audit logs for fallback frequency, tool errors, and permission blocks.
-- If fallback usage is zero, or every fallback case has been ported to agent tools, then remove the old planner paths.
+- If fallback stays unused, remove the old planner paths.
 
-Do not leave three runtimes alive indefinitely. The desired final state is agent-only, but the safe handoff state is agent with planner fallback until live audit data proves parity.
+Do not leave three runtimes alive indefinitely. The desired final state is agent-only.
 
 ## Preflight
 
@@ -33,7 +33,7 @@ Expected:
 
 Also verify:
 
-- `AYA_CHAT_RUNTIME=agent_with_planner_fallback`
+- `AYA_CHAT_RUNTIME=agent`
 - `OPENAI_API_KEY` is set
 - `AYA_MCP_API_KEY` is set
 - `BLUE_WEBHOOK_PUBLIC_URL` is set in production
@@ -350,14 +350,14 @@ Look for:
 
 Expected:
 
-- Most normal requests are handled by the agent.
-- Fallback count is low or zero.
-- Any fallback case is documented and either accepted temporarily or ported to the agent registry.
+- Normal requests are handled by the agent.
+- Fallback count is zero unless rollback mode was intentionally enabled.
+- Any rollback-only case is documented and either accepted temporarily or ported to the agent registry.
 
 Decision:
 
-- If fallback is still used for important workflows, keep `agent_with_planner_fallback`.
-- If fallback is zero after real usage, switch to `agent`.
+- If fallback is still needed for important workflows, temporarily re-enable `agent_with_planner_fallback`.
+- If fallback is zero after real usage, keep `agent`.
 - After a short stable production window, delete old planner code.
 
 ## Error message tests
@@ -433,13 +433,13 @@ Aya is ready for handoff when all are true:
 For handoff, use:
 
 ```txt
-AYA_CHAT_RUNTIME=agent_with_planner_fallback
+AYA_CHAT_RUNTIME=agent
 ```
 
-After one stable observation window:
+Rollback option:
 
 ```txt
-AYA_CHAT_RUNTIME=agent
+AYA_CHAT_RUNTIME=agent_with_planner_fallback
 ```
 
 Then remove:

@@ -9,6 +9,7 @@ import * as employeesRepo from "./modules/db/repositories/employees.js";
 import * as identityRepo from "./modules/db/repositories/identity-links.js";
 import * as notificationStateRepo from "./modules/db/repositories/notification-state.js";
 import * as pendingRecordChoiceRepo from "./modules/db/repositories/pending-record-choices.js";
+import * as reportRunsRepo from "./modules/db/repositories/report-runs.js";
 import * as syncStateRepo from "./modules/db/repositories/sync-state.js";
 import * as webhookRepo from "./modules/db/repositories/webhooks.js";
 
@@ -49,6 +50,9 @@ export const getEmployeeNotificationState =
   notificationStateRepo.getEmployeeNotificationState;
 export const upsertEmployeeNotificationState =
   notificationStateRepo.upsertEmployeeNotificationState;
+export const hasSentReportRun = reportRunsRepo.hasSentReportRun;
+export const insertReportRun = reportRunsRepo.insertReportRun;
+export const listReportRuns = reportRunsRepo.listReportRuns;
 
 export const replaceBlueListsCache = blueCacheRepo.replaceBlueListsCache;
 export const replaceBlueRecordsCache = blueCacheRepo.replaceBlueRecordsCache;

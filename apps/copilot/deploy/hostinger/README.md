@@ -115,6 +115,15 @@ Edit `deploy/hostinger/env/aya.env` and set:
 - `BLUE_GRAPHQL_TIMEOUT_MS=15000`
 - `BLUE_INGEST_INTERVAL_MS=300000`
 - `WORKSPACE_FULL_RECONCILE_HOURS=4`
+- `BLUE_DAILY_REPORT_ENABLED=false`
+- `BLUE_DAILY_REPORT_TIME=12:00`
+- `BLUE_DAILY_REPORT_TIMEZONE=America/Toronto`
+- `BLUE_DAILY_REPORT_RECIPIENTS=rsaeed@ayafinancial.com,skhan@ayafinancial.com`
+- `BLUE_DAILY_REPORT_CC=hamza@ayafinancial.com`
+- `BLUE_DAILY_REPORT_FROM=hamza@ayafinancial.com`
+- `GOOGLE_GMAIL_CLIENT_ID`
+- `GOOGLE_GMAIL_CLIENT_SECRET`
+- `GOOGLE_GMAIL_REFRESH_TOKEN`
 
 Keep:
 

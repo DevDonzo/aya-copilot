@@ -72,10 +72,20 @@ const runtimeEnv = {
   AYA_AGENT_MODEL: process.env.AYA_AGENT_MODEL,
   AYA_AGENT_MAX_STEPS: process.env.AYA_AGENT_MAX_STEPS,
   AYA_AGENT_TIMEOUT_MS: process.env.AYA_AGENT_TIMEOUT_MS,
+  AYA_BLUE_AUTH_CACHE_TTL_MS: process.env.AYA_BLUE_AUTH_CACHE_TTL_MS,
   AYA_LLM_PLANNER_ENABLED: process.env.AYA_LLM_PLANNER_ENABLED,
   AYA_LLM_PLANNER_MODEL: process.env.AYA_LLM_PLANNER_MODEL,
   AYA_LLM_PLANNER_TIMEOUT_MS: process.env.AYA_LLM_PLANNER_TIMEOUT_MS,
   BLUE_GRAPHQL_TIMEOUT_MS: process.env.BLUE_GRAPHQL_TIMEOUT_MS,
+  BLUE_DAILY_REPORT_ENABLED: process.env.BLUE_DAILY_REPORT_ENABLED,
+  BLUE_DAILY_REPORT_TIME: process.env.BLUE_DAILY_REPORT_TIME,
+  BLUE_DAILY_REPORT_TIMEZONE: process.env.BLUE_DAILY_REPORT_TIMEZONE,
+  BLUE_DAILY_REPORT_RECIPIENTS: process.env.BLUE_DAILY_REPORT_RECIPIENTS,
+  BLUE_DAILY_REPORT_CC: process.env.BLUE_DAILY_REPORT_CC,
+  BLUE_DAILY_REPORT_FROM: process.env.BLUE_DAILY_REPORT_FROM,
+  GOOGLE_GMAIL_CLIENT_ID: process.env.GOOGLE_GMAIL_CLIENT_ID,
+  GOOGLE_GMAIL_CLIENT_SECRET: process.env.GOOGLE_GMAIL_CLIENT_SECRET,
+  GOOGLE_GMAIL_REFRESH_TOKEN: process.env.GOOGLE_GMAIL_REFRESH_TOKEN,
 };
 
 const configSchema = z.object({
@@ -108,15 +118,34 @@ const configSchema = z.object({
     ),
   BLUE_WEBHOOK_PUBLIC_URL: z.string().optional(),
   BLUE_WEBHOOK_SECRET: z.string().optional(),
+  BLUE_DAILY_REPORT_ENABLED: z
+    .string()
+    .default("false")
+    .transform((value) => value.toLowerCase() === "true"),
+  BLUE_DAILY_REPORT_TIME: z.string().default("12:00"),
+  BLUE_DAILY_REPORT_TIMEZONE: z.string().default("America/Toronto"),
+  BLUE_DAILY_REPORT_RECIPIENTS: z
+    .string()
+    .default("rsaeed@ayafinancial.com,skhan@ayafinancial.com")
+    .transform(parseCsvList),
+  BLUE_DAILY_REPORT_CC: z
+    .string()
+    .default("hamza@ayafinancial.com")
+    .transform(parseCsvList),
+  BLUE_DAILY_REPORT_FROM: z.string().default("hamza@ayafinancial.com"),
+  GOOGLE_GMAIL_CLIENT_ID: z.string().optional(),
+  GOOGLE_GMAIL_CLIENT_SECRET: z.string().optional(),
+  GOOGLE_GMAIL_REFRESH_TOKEN: z.string().optional(),
   AYA_MCP_API_KEY: z.string().optional(),
   AYA_HOSTINGER_MCP_API_KEY: z.string().optional(),
   OPENAI_API_KEY: z.string().optional(),
   AYA_CHAT_RUNTIME: z
     .enum(["planner", "agent", "agent_with_planner_fallback"])
-    .default("agent_with_planner_fallback"),
-  AYA_AGENT_MODEL: z.string().default("gpt-4o"),
-  AYA_AGENT_MAX_STEPS: z.coerce.number().int().min(1).max(8).default(5),
+    .default("agent"),
+  AYA_AGENT_MODEL: z.string().default("gpt-4o-mini"),
+  AYA_AGENT_MAX_STEPS: z.coerce.number().int().min(1).max(8).default(3),
   AYA_AGENT_TIMEOUT_MS: z.coerce.number().default(30_000),
+  AYA_BLUE_AUTH_CACHE_TTL_MS: z.coerce.number().min(0).default(43_200_000),
   AYA_LLM_PLANNER_ENABLED: z
     .string()
     .default("true")
@@ -198,6 +227,13 @@ function readLocalBlueToken(filePath: string) {
   }
 }
 
+function parseCsvList(value: string) {
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 function assertConfigSafety<T extends {
   BLUE_WORKSPACE_ID: string;
   BLUE_READ_WORKSPACE_ID: string;
@@ -212,6 +248,13 @@ function assertConfigSafety<T extends {
   ALLOW_BOOTSTRAP_PROVISIONING: boolean;
   AYA_MCP_API_KEY?: string;
   BLUE_WEBHOOK_PUBLIC_URL?: string;
+  BLUE_DAILY_REPORT_ENABLED: boolean;
+  BLUE_DAILY_REPORT_TIME: string;
+  BLUE_DAILY_REPORT_RECIPIENTS: string[];
+  BLUE_DAILY_REPORT_FROM: string;
+  GOOGLE_GMAIL_CLIENT_ID?: string;
+  GOOGLE_GMAIL_CLIENT_SECRET?: string;
+  GOOGLE_GMAIL_REFRESH_TOKEN?: string;
 }>(parsed: T) {
   if (parsed.BLUE_WORKSPACE_ID === forbiddenBlueWorkspaceId) {
     throw new Error(
@@ -262,6 +305,49 @@ function assertConfigSafety<T extends {
 
     if (parsed.AUDIT_STDOUT_MODE === "full") {
       throw new Error("AUDIT_STDOUT_MODE=full is not allowed in production");
+    }
+  }
+
+  const [reportHour, reportMinute] = parsed.BLUE_DAILY_REPORT_TIME
+    .split(":")
+    .map(Number);
+  if (
+    !/^\d{2}:\d{2}$/.test(parsed.BLUE_DAILY_REPORT_TIME) ||
+    reportHour == null ||
+    reportMinute == null ||
+    reportHour < 0 ||
+    reportHour > 23 ||
+    reportMinute < 0 ||
+    reportMinute > 59
+  ) {
+    throw new Error("BLUE_DAILY_REPORT_TIME must use HH:mm format");
+  }
+
+  if (parsed.BLUE_DAILY_REPORT_ENABLED) {
+    if (parsed.BLUE_WORKSPACE_ID !== safeBlueWorkspaceId) {
+      throw new Error(
+        `BLUE_DAILY_REPORT_ENABLED requires BLUE_WORKSPACE_ID ${safeBlueWorkspaceId}`,
+      );
+    }
+
+    if (parsed.BLUE_READ_WORKSPACE_ID !== safeBlueWorkspaceId) {
+      throw new Error(
+        `BLUE_DAILY_REPORT_ENABLED requires BLUE_READ_WORKSPACE_ID ${safeBlueWorkspaceId}`,
+      );
+    }
+
+    if (parsed.BLUE_DAILY_REPORT_RECIPIENTS.length === 0) {
+      throw new Error("BLUE_DAILY_REPORT_RECIPIENTS must include at least one address");
+    }
+
+    if (
+      !parsed.GOOGLE_GMAIL_CLIENT_ID ||
+      !parsed.GOOGLE_GMAIL_CLIENT_SECRET ||
+      !parsed.GOOGLE_GMAIL_REFRESH_TOKEN
+    ) {
+      throw new Error(
+        "BLUE_DAILY_REPORT_ENABLED requires GOOGLE_GMAIL_CLIENT_ID, GOOGLE_GMAIL_CLIENT_SECRET, and GOOGLE_GMAIL_REFRESH_TOKEN",
+      );
     }
   }
 

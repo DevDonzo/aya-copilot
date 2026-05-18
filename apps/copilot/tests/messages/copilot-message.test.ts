@@ -305,6 +305,108 @@ describe("Aya copilot message flow", () => {
     }
   });
 
+  it("answers trivial identity requests without invoking the LLM agent", async () => {
+    const env = createTestEnvironment({
+      AYA_CHAT_RUNTIME: "agent",
+      OPENAI_API_KEY: "test-openai-key",
+    });
+
+    try {
+      const { ensureEmployee, initializeDatabase, listBotAuditLogsForDay } =
+        await import("../../src/db.js");
+
+      await initializeDatabase();
+      await ensureEmployee({
+        employeeId: "employee_1",
+        displayName: "Hamza Paracha",
+        email: "hamza@ayafinancial.com",
+        roleName: "employee",
+      });
+
+      const { handleInboundMessage } = await import(
+        "../../src/messages/handle-message.js"
+      );
+
+      const message = "who am I signed in as?";
+      const response = await handleInboundMessage({
+        actorEmployeeId: "employee_1",
+        message,
+      });
+
+      expect(response).toMatchObject({
+        matched: true,
+        intent: "identity.self",
+      });
+      expect(response.responseText).toContain(
+        "You are signed in as Hamza Paracha.",
+      );
+
+      const auditRows = await listBotAuditLogsForDay({
+        dateIso: new Date().toISOString().slice(0, 10),
+      });
+      const matchingRows = auditRows.filter((row) => row.inbound_text === message);
+
+      expect(matchingRows).toHaveLength(1);
+      expect(matchingRows[0]).toMatchObject({
+        adapter: "fast-path",
+        outcome: "success",
+        detected_intent: "identity.self",
+      });
+    } finally {
+      env.cleanup();
+    }
+  });
+
+  it("answers help requests on the fast path", async () => {
+    const env = createTestEnvironment({
+      AYA_CHAT_RUNTIME: "agent",
+      OPENAI_API_KEY: "test-openai-key",
+    });
+
+    try {
+      const { ensureEmployee, initializeDatabase, listBotAuditLogsForDay } =
+        await import("../../src/db.js");
+
+      await initializeDatabase();
+      await ensureEmployee({
+        employeeId: "employee_1",
+        displayName: "Hamza Paracha",
+        email: "hamza@ayafinancial.com",
+        roleName: "employee",
+      });
+
+      const { handleInboundMessage } = await import(
+        "../../src/messages/handle-message.js"
+      );
+
+      const message = "what can you do?";
+      const response = await handleInboundMessage({
+        actorEmployeeId: "employee_1",
+        message,
+      });
+
+      expect(response).toMatchObject({
+        matched: true,
+        intent: "help.overview",
+      });
+      expect(response.responseText).toContain("daily briefs");
+
+      const auditRows = await listBotAuditLogsForDay({
+        dateIso: new Date().toISOString().slice(0, 10),
+      });
+      const matchingRows = auditRows.filter((row) => row.inbound_text === message);
+
+      expect(matchingRows).toHaveLength(1);
+      expect(matchingRows[0]).toMatchObject({
+        adapter: "fast-path",
+        outcome: "success",
+        detected_intent: "help.overview",
+      });
+    } finally {
+      env.cleanup();
+    }
+  });
+
   it("falls back to the planner when the AI SDK agent does not call a tool", async () => {
     const env = createTestEnvironment({
       AYA_CHAT_RUNTIME: "agent_with_planner_fallback",
@@ -1195,7 +1297,10 @@ describe("Aya copilot message flow", () => {
         "Sarah Khan has 1 open assignment in Blue.",
       );
       expect(response.responseText).toContain(
-        "[Task] Employment Letter, Paystubs - open, due 2026-04-11 | Assigned: Sarah Khan | Sarah Client (Underwriting) | Checklist: AYA Checklist V1",
+        "[Task] Employment Letter, Paystubs - open, due 2026-04-11, last updated 2026-04-09",
+      );
+      expect(response.responseText).toContain(
+        "Assigned: Sarah Khan | Sarah Client (Underwriting) | Checklist: AYA Checklist V1",
       );
     } finally {
       env.cleanup();

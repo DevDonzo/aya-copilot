@@ -214,4 +214,53 @@ describe("blue request auth helpers", () => {
       env.cleanup();
     }
   });
+
+  it("caches successful Blue credential validation for the configured TTL", async () => {
+    const env = createTestEnvironment({
+      AYA_BLUE_AUTH_CACHE_TTL_MS: "300000",
+    });
+    const fetchCurrentBlueUser = vi.fn();
+    const fetchWorkspaceLists = vi.fn();
+    vi.doMock("../../../src/modules/blue/graphql/client.js", () => ({
+      fetchCurrentBlueUser,
+      fetchWorkspaceLists,
+    }));
+
+    try {
+      const { requireValidatedBlueRequestAuth } = await import(
+        "../../../src/modules/blue/request-auth.js"
+      );
+      const auth = { tokenId: "token_1", tokenSecret: "secret_1" };
+      const actor = {
+        employeeId: "employee_1",
+        displayName: "Hamza Paracha",
+        email: "hamza@ayafinancial.com",
+        roleName: "employee",
+      };
+
+      fetchCurrentBlueUser.mockResolvedValueOnce({
+        id: "employee_1",
+        uid: "employee_1",
+        email: "hamza@ayafinancial.com",
+        fullName: "Hamza Paracha",
+        projectUserRole: {
+          id: "role_1",
+          name: "Member",
+          isRecordsEnabled: true,
+        },
+      });
+
+      await expect(requireValidatedBlueRequestAuth(auth, actor)).resolves.toEqual(
+        auth,
+      );
+      await expect(requireValidatedBlueRequestAuth(auth, actor)).resolves.toEqual(
+        auth,
+      );
+
+      expect(fetchCurrentBlueUser).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.doUnmock("../../../src/modules/blue/graphql/client.js");
+      env.cleanup();
+    }
+  });
 });

@@ -38,22 +38,22 @@ MCP is the bridge between LibreChat and Aya Copilot. Keep this architecture.
 Use this during handoff:
 
 ```txt
-AYA_CHAT_RUNTIME=agent_with_planner_fallback
+AYA_CHAT_RUNTIME=agent
 ```
 
-The AI SDK agent should handle normal traffic first. The old planner is only a safety net during the handoff window.
+The AI SDK agent handles normal traffic. The old planner remains in code as an emergency rollback path.
 
 Current cleanup decision:
 
-- Keep `AYA_CHAT_RUNTIME=agent_with_planner_fallback` for the first production observation window.
+- Use `AYA_CHAT_RUNTIME=agent` after the first production observation window.
 - Production audit inspection after the `dd9903b` deploy showed `ai-sdk-agent` traffic and no unexpected fallback/old `aya-agent` rows for the final deep-dive run.
-- Do not delete `planner.ts` or `llm-planner.ts` until production audit logs over the full observation window also show zero important fallback usage, or every fallback case is explicitly ported to an agent tool.
-- If fallback appears for important workflows, keep it temporarily and document the specific prompts/intents that still need porting.
+- Keep `planner.ts` and `llm-planner.ts` only as temporary rollback code until the next cleanup pass.
+- If fallback is re-enabled for important workflows, document the specific prompts/intents that still need porting.
 
-After the final deep-dive test and a short production observation window:
+Rollback option:
 
 ```txt
-AYA_CHAT_RUNTIME=agent
+AYA_CHAT_RUNTIME=agent_with_planner_fallback
 ```
 
 Then remove:
@@ -182,7 +182,7 @@ Backups should run nightly at minimum. A restore test should be documented and p
 
 1. Complete `docs/internal/fix.md`.
 2. Run `docs/internal/final-deep-dive-test.md`.
-3. Keep `AYA_CHAT_RUNTIME=agent_with_planner_fallback` during the first production observation window.
+3. Keep `AYA_CHAT_RUNTIME=agent` unless production audit logs show critical misses.
 4. Monitor audit logs for:
    - agent successes
    - fallback usage
@@ -190,7 +190,7 @@ Backups should run nightly at minimum. A restore test should be documented and p
    - permission blocks
    - missing/invalid Blue credential blocks
 5. Port or remove any remaining fallback-only behavior.
-6. Switch to `AYA_CHAT_RUNTIME=agent`.
+6. Keep `AYA_CHAT_RUNTIME=agent`.
 7. Delete old planner paths.
 
 ## Final Deep-Dive Status

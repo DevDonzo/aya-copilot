@@ -433,6 +433,7 @@ Edit `env/aya.env` and set:
 - `AYA_AGENT_MODEL`
 - `AYA_AGENT_MAX_STEPS`
 - `AYA_AGENT_TIMEOUT_MS`
+- `AYA_BLUE_AUTH_CACHE_TTL_MS`
 
 Keep the deployment constrained to the approved workspace:
 
@@ -440,10 +441,12 @@ Keep the deployment constrained to the approved workspace:
 
 Recommended chat runtime rollout:
 
-- `AYA_CHAT_RUNTIME=agent_with_planner_fallback`
-- keep `AYA_AGENT_MAX_STEPS=5`
+- `AYA_CHAT_RUNTIME=agent`
+- keep `AYA_AGENT_MODEL=gpt-4o-mini`
+- keep `AYA_AGENT_MAX_STEPS=3`
+- keep `AYA_BLUE_AUTH_CACHE_TTL_MS=43200000`
 - use `AYA_AGENT_TIMEOUT_MS=30000` unless production logs show a specific need to tune it
-- set `AYA_CHAT_RUNTIME=planner` for immediate rollback to the deterministic planner
+- set `AYA_CHAT_RUNTIME=agent_with_planner_fallback` or `planner` for rollback if production audit logs show missed critical workflows
 
 Operational note:
 
@@ -491,7 +494,7 @@ If you are upgrading an existing no-auth Mongo volume, there is usually no exist
 
 That script generates a password if needed, writes it into `env/librechat.env` and `env/aya.env`, and creates the Mongo admin user in the currently running Mongo container. It does not print the password.
 
-The default LibreChat endpoint is `openAI`, the default LibreChat model is `gpt-4o-mini`, and the default Aya tool-calling agent model is `gpt-4o`.
+The default LibreChat endpoint is `openAI`, the default LibreChat model is `gpt-4o-mini`, and the default Aya tool-calling agent model is `gpt-4o-mini`.
 
 Edit `config/librechat.yaml` only if Aya-specific UI or policy settings need to change.
 

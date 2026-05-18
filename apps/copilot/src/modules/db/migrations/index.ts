@@ -203,6 +203,20 @@ export async function runMigrations() {
       FOREIGN KEY(employee_id) REFERENCES employees(id)
     );
 
+    CREATE TABLE IF NOT EXISTS report_runs (
+      id TEXT PRIMARY KEY,
+      report_type TEXT NOT NULL,
+      report_date TEXT NOT NULL,
+      send_status TEXT NOT NULL,
+      recipients TEXT NOT NULL,
+      generated_filename TEXT,
+      row_counts_json TEXT NOT NULL DEFAULT '{}',
+      sent_at TEXT,
+      error_message TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE INDEX IF NOT EXISTS idx_blue_lists_cache_workspace
       ON blue_lists_cache(workspace_id);
     CREATE INDEX IF NOT EXISTS idx_blue_lists_cache_normalized
@@ -223,6 +237,8 @@ export async function runMigrations() {
       ON active_record_context(expires_at);
     CREATE INDEX IF NOT EXISTS idx_copilot_memory_expires_at
       ON copilot_memory(expires_at);
+    CREATE INDEX IF NOT EXISTS idx_report_runs_type_date
+      ON report_runs(report_type, report_date);
   `);
 
   ensureColumn("employees", "email", "TEXT");
@@ -241,6 +257,8 @@ export async function runMigrations() {
   ensureColumn("bot_audit_logs", "response_json", "TEXT");
   ensureColumn("activity_events", "workspace_id", "TEXT");
   ensureColumn("activity_events", "project_name", "TEXT");
+  ensureColumn("report_runs", "generated_filename", "TEXT");
+  ensureColumn("report_runs", "error_message", "TEXT");
   ensureScopedContextTables();
 
   sqlite.exec(`
@@ -254,6 +272,8 @@ export async function runMigrations() {
       ON active_record_context(expires_at);
     CREATE INDEX IF NOT EXISTS idx_copilot_memory_expires_at
       ON copilot_memory(expires_at);
+    CREATE INDEX IF NOT EXISTS idx_report_runs_type_date
+      ON report_runs(report_type, report_date);
   `);
 }
 

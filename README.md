@@ -115,8 +115,8 @@ Any Blue write path should stay pinned to the allowed workspace only.
 
 - LibreChat is live and serving the Aya employee chat flow.
 - Aya Copilot is live behind LibreChat and Blue health checks are passing.
-- The production chat runtime is `AYA_CHAT_RUNTIME=agent_with_planner_fallback`.
-- The primary chat path is the Vercel AI SDK tool-calling agent using `gpt-4o`; the old planner remains only as temporary fallback during the observation window.
+- The production chat runtime is `AYA_CHAT_RUNTIME=agent`.
+- The primary chat path is the Vercel AI SDK tool-calling agent using `gpt-4o-mini`; the old planner remains in code as an emergency rollback path.
 - The separate visual admin dashboard has been removed.
 - Managers should ask workload, assignment, and activity questions directly in LibreChat.
 - Blue webhooks are registered, healthy, and have a stored signing secret. A real `COMMENT_CREATED` webhook was received after the latest deploy.

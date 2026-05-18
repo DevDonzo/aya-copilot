@@ -294,6 +294,148 @@ describe("Aya AI SDK tool registry", () => {
     ]);
   });
 
+  it("lets admins request another employee's assignments", async () => {
+    const getEmployeeAssignmentReport = vi.fn().mockResolvedValue({
+      responseText: "Sarah Khan has 2 open assignments.",
+    });
+
+    vi.doMock("../../src/modules/copilot/actions.js", () =>
+      mockedActions({ getEmployeeAssignmentReport }),
+    );
+
+    const traces: any[] = [];
+    const { createAyaAgentTools } = await import(
+      "../../src/modules/copilot/agent/tool-registry.js"
+    );
+    const tools = createAyaAgentTools(
+      buildContext({
+        actor: {
+          ...actor,
+          employeeId: "employee_1",
+          displayName: "Admin User",
+          email: "hamza@ayafinancial.com",
+          roleName: "admin",
+        },
+      }),
+      traces,
+    );
+
+    const output = await tools.getEmployeeAssignments.execute({
+      employeeName: "Sarah Khan",
+      status: "open",
+    });
+
+    expect(output).toMatchObject({
+      ok: true,
+      responseText: "Sarah Khan has 2 open assignments.",
+    });
+    expect(getEmployeeAssignmentReport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        employeeName: "Sarah Khan",
+        status: "open",
+      }),
+    );
+    expect(traces[0]).toMatchObject({
+      toolName: "getEmployeeAssignments",
+      intent: "assignments.report",
+      outcome: "success",
+    });
+  });
+
+  it("maps admin untouched-file questions to the team follow-up queue", async () => {
+    const getTeamFollowUpQueue = vi.fn().mockResolvedValue({
+      responseText:
+        "Team follow-up queue on 2026-05-18\n1. Sarah Khan: 0 overdue, 0 due today, 2 stale",
+    });
+
+    vi.doMock("../../src/modules/copilot/actions.js", () =>
+      mockedActions({ getTeamFollowUpQueue }),
+    );
+
+    const traces: any[] = [];
+    const { createAyaAgentTools } = await import(
+      "../../src/modules/copilot/agent/tool-registry.js"
+    );
+    const tools = createAyaAgentTools(
+      buildContext({
+        actor: {
+          ...actor,
+          employeeId: "employee_1",
+          displayName: "Admin User",
+          email: "hamza@ayafinancial.com",
+          roleName: "admin",
+        },
+      }),
+      traces,
+    );
+
+    const output = await tools.getTeamFollowUpQueue.execute({
+      date: "2026-05-18",
+    });
+
+    expect(output).toMatchObject({
+      ok: true,
+    });
+    expect(String(output.responseText)).toContain("2 stale");
+    expect(getTeamFollowUpQueue).toHaveBeenCalledWith({
+      date: "2026-05-18",
+    });
+    expect(traces[0]).toMatchObject({
+      toolName: "getTeamFollowUpQueue",
+      intent: "records.team_follow_up",
+      outcome: "success",
+    });
+  });
+
+  it("maps no-comment follow-up hygiene questions to the workspace attention report", async () => {
+    const getWorkspaceAttentionReport = vi.fn().mockResolvedValue({
+      responseText:
+        "Blue attention report for 2026-05-18\nOverdue clients with no recent comments: 3",
+    });
+
+    vi.doMock("../../src/modules/copilot/actions.js", () =>
+      mockedActions({ getWorkspaceAttentionReport }),
+    );
+
+    const traces: any[] = [];
+    const { createAyaAgentTools } = await import(
+      "../../src/modules/copilot/agent/tool-registry.js"
+    );
+    const tools = createAyaAgentTools(
+      buildContext({
+        actor: {
+          ...actor,
+          employeeId: "employee_1",
+          displayName: "Admin User",
+          email: "hamza@ayafinancial.com",
+          roleName: "admin",
+        },
+      }),
+      traces,
+    );
+
+    const output = await tools.getWorkspaceAttentionReport.execute({
+      date: "2026-05-18",
+      limit: 100,
+    });
+
+    expect(output).toMatchObject({
+      ok: true,
+    });
+    expect(String(output.responseText)).toContain(
+      "Overdue clients with no recent comments: 3",
+    );
+    expect(getWorkspaceAttentionReport).toHaveBeenCalledWith({
+      date: "2026-05-18",
+      limit: 100,
+    });
+    expect(traces[0]).toMatchObject({
+      toolName: "getWorkspaceAttentionReport",
+      intent: "operations.attention_report",
+      outcome: "success",
+    });
+  });
+
   it("maps assign-task tool calls with separate record and task queries", async () => {
     const assignTask = vi.fn().mockResolvedValue({
       recordId: "record_1",
@@ -561,6 +703,7 @@ function mockedActions(overrides: Record<string, unknown>) {
     getTeamDaySummary: defaultResult,
     getTeamFollowUpQueue: defaultResult,
     getWorkspaceActivityReport: defaultResult,
+    getWorkspaceAttentionReport: defaultResult,
     getWorkspaceExceptionReport: defaultResult,
     moveClientToStage: defaultResult,
     searchClients: defaultResult,

@@ -103,8 +103,29 @@ function getForcedTraceResponseText(toolCalls: AyaAgentToolTrace[]) {
     return latestTrace.errorMessage;
   }
 
+  if (
+    latestTrace?.responseText &&
+    latestTrace.intent &&
+    fullToolResponseIntents.has(latestTrace.intent)
+  ) {
+    return latestTrace.responseText;
+  }
+
   return null;
 }
+
+const fullToolResponseIntents = new Set([
+  "assignments.report",
+  "records.follow_up",
+  "records.team_follow_up",
+  "operations.attention_report",
+  "activity.employee_report",
+  "activity.record_report",
+  "activity.workspace_report",
+  "records.exception_report",
+  "summary.team_day",
+  "summary.no_activity_day",
+]);
 
 function buildRecoveredAgentResult(
   toolCalls: AyaAgentToolTrace[],

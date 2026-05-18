@@ -4,6 +4,10 @@ import { config } from "./config.js";
 import { buildAyaApp } from "./app/server.js";
 import { startBluePoller, stopBluePoller } from "./jobs/blue-poller.js";
 import { registerBlueWebhookIfConfigured } from "./modules/blue/webhooks/service.js";
+import {
+  startBlueDailyReportScheduler,
+  stopBlueDailyReportScheduler,
+} from "./reports/blue-daily/scheduler.js";
 
 const app = await buildAyaApp();
 
@@ -27,10 +31,12 @@ void registerBlueWebhookIfConfigured().catch((error) => {
 });
 
 startBluePoller();
+startBlueDailyReportScheduler();
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.on(signal, () => {
     stopBluePoller();
+    stopBlueDailyReportScheduler();
     void app.close().finally(() => {
       process.exit(0);
     });

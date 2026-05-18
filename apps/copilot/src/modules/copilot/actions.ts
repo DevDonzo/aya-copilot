@@ -52,6 +52,18 @@ import {
 import { resolveActorIdentity as resolveActorIdentityService } from "../identity/service.js";
 import { normalizeCacheQuery } from "../db/repositories/helpers.js";
 import { answerReportingQuestion, getReportingOverview } from "../../reporting/service.js";
+import { collectBlueDailyReportInputs } from "../../reports/blue-daily/collect.js";
+import {
+  getPreviousCalendarDate,
+  getReportWindow,
+} from "../../reports/blue-daily/dates.js";
+import { buildBlueDailyReportData } from "../../reports/blue-daily/rules.js";
+import type {
+  AttentionRecordRow,
+  CommentRow,
+  NewRecordRow,
+  StaffStatusRow,
+} from "../../reports/blue-daily/types.js";
 import { buildEmployeeDaySummary } from "../../summary/daily.js";
 import {
   buildNoActivitySummary,
@@ -78,6 +90,8 @@ import { getPreAuthSafetyBlock } from "./safety.js";
 
 const BLUE_WRITE_AUTH_REJECTED_MESSAGE =
   "Blue rejected your saved personal Token ID and Secret for this write action. Open the Aya MCP server settings, re-save your Blue Token ID and Secret from Blue > Profile > API, then try again.";
+const BLUE_LIST_PAGE_SIZE = 100;
+const BLUE_LIST_MAX_ITEMS = 500;
 
 export async function searchClients(
   input: {
@@ -401,7 +415,10 @@ export async function getTeamFollowUpQueue(input: {
   limitPerEmployee?: number;
 }) {
   const referenceDate = normalizeDate(input.date);
-  const limitPerEmployee = Math.max(1, Math.min(input.limitPerEmployee ?? 5, 12));
+  const limitPerEmployee =
+    input.limitPerEmployee == null
+      ? BLUE_LIST_MAX_ITEMS
+      : Math.max(1, Math.min(input.limitPerEmployee, BLUE_LIST_MAX_ITEMS));
   const employees = await listEmployees();
   const employeeSummaries = [];
 
@@ -466,6 +483,78 @@ export async function getTeamFollowUpQueue(input: {
   };
 }
 
+export async function getWorkspaceAttentionReport(input: {
+  date?: string;
+  limit?: number;
+}) {
+  const reportDate =
+    input.date?.trim() ||
+    getPreviousCalendarDate(new Date(), config.BLUE_DAILY_REPORT_TIMEZONE);
+  const limit = Math.max(1, Math.min(input.limit ?? 100, BLUE_LIST_MAX_ITEMS));
+  const window = getReportWindow({
+    reportDate,
+    timezone: config.BLUE_DAILY_REPORT_TIMEZONE,
+  });
+  const collected = await collectBlueDailyReportInputs({
+    workspaceId: config.BLUE_READ_WORKSPACE_ID,
+    window,
+  });
+  const data = buildBlueDailyReportData({
+    window,
+    records: collected.records,
+    activities: collected.activities,
+  });
+  const staffWithUntouched = data.staffStatus
+    .filter((row) => row.untouchedRecords > 0)
+    .sort(
+      (left, right) =>
+        right.untouchedRecords - left.untouchedRecords ||
+        left.staffName.localeCompare(right.staffName),
+  );
+  const overdueNoRecentComments = data.overdueNoRecentComments.slice(0, limit);
+  const overdueWithRecentComments = data.overdueWithRecentComments.slice(0, limit);
+  const upcomingDue = data.upcomingDue.slice(0, limit);
+  const newRecords = data.newRecords.slice(0, limit);
+  const commentsLast24Hours = data.commentsLast24Hours.slice(0, limit);
+  const staffStatus = data.staffStatus.slice(0, limit);
+  const responseText = buildWorkspaceAttentionResponseText({
+    reportDate,
+    timezone: window.timezone,
+    newRecords,
+    overdueNoRecentComments,
+    overdueWithRecentComments,
+    upcomingDue,
+    commentsLast24Hours,
+    staffStatus,
+    totalNewRecords: data.newRecords.length,
+    totalOverdueNoRecentComments: data.overdueNoRecentComments.length,
+    totalOverdueWithRecentComments: data.overdueWithRecentComments.length,
+    totalUpcomingDue: data.upcomingDue.length,
+    totalCommentsLast24Hours: data.commentsLast24Hours.length,
+    totalStaffStatusRows: data.staffStatus.length,
+    limit,
+  });
+
+  return {
+    date: reportDate,
+    responseText,
+    totalNewRecords: data.newRecords.length,
+    totalOverdueNoRecentComments: data.overdueNoRecentComments.length,
+    totalOverdueWithRecentComments: data.overdueWithRecentComments.length,
+    totalUpcomingDue: data.upcomingDue.length,
+    totalCommentsLast24Hours: data.commentsLast24Hours.length,
+    totalStaffStatusRows: data.staffStatus.length,
+    totalStaffWithUntouched: staffWithUntouched.length,
+    newRecords,
+    overdueNoRecentComments,
+    overdueWithRecentComments,
+    upcomingDue,
+    commentsLast24Hours,
+    staffStatus,
+    staffWithUntouched,
+  };
+}
+
 export async function getEmployeeWorkload(input: {
   employeeId?: string;
   employeeEmail?: string;
@@ -523,6 +612,7 @@ export async function getEmployeeAssignmentReport(input: {
     items,
     totalItems: pageInfo.totalItems ?? items.length,
     hasNextPage: pageInfo.hasNextPage,
+    referenceDate: normalizeDate(undefined),
   });
 
   return {
@@ -1703,23 +1793,11 @@ async function loadAssignedOpenRecords(
   assigneeId: string,
 ): Promise<{ items: WorkloadItem[]; pageInfo: BluePageInfo }> {
   const assigneeIds = getBlueEmployeeIdsForAssignmentLookup(assigneeId);
-  const result = await listAssignedOpenRecords({
-    workspaceId: config.BLUE_WORKSPACE_ID,
-    companyId: config.BLUE_COMPANY_ID,
-    assigneeIds,
-    limit: 50,
-    skip: 0,
-  });
+  const result = await listAllAssignedOpenRecords(assigneeIds);
 
   return {
     items: result.items.map(toWorkloadItem),
-    pageInfo: {
-      hasNextPage: Boolean(result.pageInfo.hasNextPage),
-      hasPreviousPage: Boolean(result.pageInfo.hasPreviousPage),
-      totalItems: result.pageInfo.totalItems ?? undefined,
-      page: result.pageInfo.page ?? undefined,
-      perPage: result.pageInfo.perPage ?? undefined,
-    },
+    pageInfo: result.pageInfo,
   };
 }
 
@@ -1729,27 +1807,12 @@ async function loadAssignedChecklistItems(
 ): Promise<{ items: AssignmentItem[]; pageInfo: BluePageInfo }> {
   const assigneeIds = getBlueEmployeeIdsForAssignmentLookup(assigneeId);
   const [checklistResult, recordsResult] = await Promise.all([
-    listAssignedChecklistItems({
-      workspaceId: config.BLUE_WORKSPACE_ID,
+    listAllAssignedChecklistItems({
       assigneeIds,
-      done:
-        status === "open"
-          ? false
-          : status === "completed"
-            ? true
-            : undefined,
-      todoDone: status === "open" ? false : undefined,
-      limit: 50,
-      skip: 0,
+      status,
     }),
     status !== "completed"
-      ? listAssignedOpenRecords({
-          workspaceId: config.BLUE_WORKSPACE_ID,
-          companyId: config.BLUE_COMPANY_ID,
-          assigneeIds,
-          limit: 50,
-          skip: 0,
-        })
+      ? listAllAssignedOpenRecords(assigneeIds)
       : Promise.resolve({
           items: [] as BlueRecord[],
           pageInfo: {
@@ -1789,6 +1852,110 @@ async function loadAssignedChecklistItems(
         Boolean(recordsResult.pageInfo.hasPreviousPage),
       totalItems,
     },
+  };
+}
+
+async function listAllAssignedOpenRecords(assigneeIds: string[]) {
+  const items: BlueRecord[] = [];
+  let skip = 0;
+  let latestPageInfo: BluePageInfo = {
+    hasNextPage: false,
+    hasPreviousPage: false,
+    totalItems: 0,
+  };
+
+  while (items.length < BLUE_LIST_MAX_ITEMS) {
+    const result = await listAssignedOpenRecords({
+      workspaceId: config.BLUE_WORKSPACE_ID,
+      companyId: config.BLUE_COMPANY_ID,
+      assigneeIds,
+      limit: BLUE_LIST_PAGE_SIZE,
+      skip,
+    });
+    items.push(...result.items);
+    latestPageInfo = toBluePageInfo(result.pageInfo);
+
+    if (!result.pageInfo.hasNextPage || result.items.length === 0) {
+      break;
+    }
+
+    skip += result.items.length;
+  }
+
+  return {
+    items: items.slice(0, BLUE_LIST_MAX_ITEMS),
+    pageInfo: withPageCapInfo(latestPageInfo, items.length),
+  };
+}
+
+async function listAllAssignedChecklistItems(input: {
+  assigneeIds: string[];
+  status: "open" | "completed" | "all";
+}) {
+  const items: BlueChecklistItem[] = [];
+  let skip = 0;
+  let latestPageInfo: BluePageInfo = {
+    hasNextPage: false,
+    hasPreviousPage: false,
+    totalItems: 0,
+  };
+
+  while (items.length < BLUE_LIST_MAX_ITEMS) {
+    const result = await listAssignedChecklistItems({
+      workspaceId: config.BLUE_WORKSPACE_ID,
+      assigneeIds: input.assigneeIds,
+      done:
+        input.status === "open"
+          ? false
+          : input.status === "completed"
+            ? true
+            : undefined,
+      todoDone: input.status === "open" ? false : undefined,
+      limit: BLUE_LIST_PAGE_SIZE,
+      skip,
+    });
+    items.push(...result.items);
+    latestPageInfo = toBluePageInfo(result.pageInfo);
+
+    if (!result.pageInfo.hasNextPage || result.items.length === 0) {
+      break;
+    }
+
+    skip += result.items.length;
+  }
+
+  return {
+    items: items.slice(0, BLUE_LIST_MAX_ITEMS),
+    pageInfo: withPageCapInfo(latestPageInfo, items.length),
+  };
+}
+
+function toBluePageInfo(pageInfo: {
+  totalItems?: number | null;
+  hasNextPage?: boolean | null;
+  hasPreviousPage?: boolean | null;
+  page?: number | null;
+  perPage?: number | null;
+}): BluePageInfo {
+  return {
+    hasNextPage: Boolean(pageInfo.hasNextPage),
+    hasPreviousPage: Boolean(pageInfo.hasPreviousPage),
+    totalItems: pageInfo.totalItems ?? undefined,
+    page: pageInfo.page ?? undefined,
+    perPage: pageInfo.perPage ?? undefined,
+  };
+}
+
+function withPageCapInfo(
+  pageInfo: BluePageInfo,
+  fetchedCount: number,
+): BluePageInfo {
+  return {
+    ...pageInfo,
+    hasNextPage:
+      Boolean(pageInfo.hasNextPage) ||
+      Boolean(pageInfo.totalItems && pageInfo.totalItems > fetchedCount),
+    totalItems: pageInfo.totalItems ?? fetchedCount,
   };
 }
 
@@ -1848,6 +2015,7 @@ function buildAssignmentReportResponseText(input: {
   items: AssignmentItem[];
   totalItems: number;
   hasNextPage: boolean;
+  referenceDate: string;
 }) {
   const statusLabel =
     input.status === "open"
@@ -1864,7 +2032,7 @@ function buildAssignmentReportResponseText(input: {
     `${input.employeeName} has ${input.totalItems} ${statusLabel}${
       input.totalItems === 1 ? "" : "s"
     } in Blue.`,
-    ...input.items.slice(0, 15).map((item, index) => {
+    ...input.items.map((item, index) => {
       const state = item.done ? "completed" : "open";
       const typeLabel = item.type === "record" ? "[Record]" : "[Task]";
       const date =
@@ -1877,8 +2045,9 @@ function buildAssignmentReportResponseText(input: {
         item.assigneeNames.length > 0
           ? item.assigneeNames.join(", ")
           : "unassigned";
+      const updateAge = formatAgeSince(input.referenceDate, item.updatedAt);
 
-      return `${index + 1}. ${typeLabel} ${item.title} - ${state}, ${date} | Assigned: ${assignees} | ${item.recordTitle} (${item.listTitle}) ${
+      return `${index + 1}. ${typeLabel} ${item.title} - ${state}, ${date}, ${updateAge} | Assigned: ${assignees} | ${item.recordTitle} (${item.listTitle}) ${
         item.type === "checklist" ? `| Checklist: ${item.checklistTitle}` : ""
       }`;
     }),
@@ -1888,6 +2057,235 @@ function buildAssignmentReportResponseText(input: {
   ]
     .filter(Boolean)
     .join("\n");
+}
+
+export function buildWorkspaceAttentionResponseText(input: {
+  reportDate: string;
+  timezone: string;
+  newRecords: NewRecordRow[];
+  overdueNoRecentComments: AttentionRecordRow[];
+  overdueWithRecentComments: AttentionRecordRow[];
+  upcomingDue: AttentionRecordRow[];
+  commentsLast24Hours: CommentRow[];
+  staffStatus: StaffStatusRow[];
+  totalNewRecords: number;
+  totalOverdueNoRecentComments: number;
+  totalOverdueWithRecentComments: number;
+  totalUpcomingDue: number;
+  totalCommentsLast24Hours: number;
+  totalStaffStatusRows: number;
+  limit: number;
+}) {
+  const newRecordsHasMore = input.totalNewRecords > input.newRecords.length;
+  const overdueHasMore =
+    input.totalOverdueNoRecentComments > input.overdueNoRecentComments.length;
+  const overdueWithCommentsHasMore =
+    input.totalOverdueWithRecentComments >
+    input.overdueWithRecentComments.length;
+  const upcomingHasMore = input.totalUpcomingDue > input.upcomingDue.length;
+  const commentsHasMore =
+    input.totalCommentsLast24Hours > input.commentsLast24Hours.length;
+  const staffStatusHasMore =
+    input.totalStaffStatusRows > input.staffStatus.length;
+
+  return [
+    `Blue daily operations report for ${input.reportDate}`,
+    `New tasks created yesterday: ${input.totalNewRecords}`,
+    `Overdue tasks: ${input.totalOverdueNoRecentComments}`,
+    `Overdue tasks with comments: ${input.totalOverdueWithRecentComments}`,
+    `Upcoming due: ${input.totalUpcomingDue}`,
+    `Comments/updates from last 24 hours: ${input.totalCommentsLast24Hours}`,
+    `Status Update rows: ${input.totalStaffStatusRows}`,
+    "",
+    buildNewRecordsSection(
+      "New tasks created yesterday",
+      input.newRecords,
+      newRecordsHasMore,
+      input.limit,
+      input.timezone,
+    ),
+    "",
+    buildAttentionSection(
+      "Overdue tasks",
+      input.overdueNoRecentComments,
+      overdueHasMore,
+      input.limit,
+      input.timezone,
+    ),
+    "",
+    buildAttentionSection(
+      "Overdue tasks with comments",
+      input.overdueWithRecentComments,
+      overdueWithCommentsHasMore,
+      input.limit,
+      input.timezone,
+    ),
+    "",
+    buildAttentionSection(
+      "Upcoming due",
+      input.upcomingDue,
+      upcomingHasMore,
+      input.limit,
+      input.timezone,
+    ),
+    "",
+    buildCommentsSection(
+      "Comments/updates from last 24 hours",
+      input.commentsLast24Hours,
+      commentsHasMore,
+      input.limit,
+      input.timezone,
+    ),
+    "",
+    buildStaffStatusSection(
+      "Status Update",
+      input.staffStatus,
+      staffStatusHasMore,
+      input.limit,
+    ),
+  ].join("\n");
+}
+
+function buildNewRecordsSection(
+  title: string,
+  rows: NewRecordRow[],
+  hasMore: boolean,
+  limit: number,
+  timezone: string,
+) {
+  if (rows.length === 0) {
+    return `${title}: none.`;
+  }
+
+  return [
+    `${title}:`,
+    ...rows.map(
+      (row, index) =>
+        `${index + 1}. ${row.clientName} (${row.list}) | Source: ${
+          row.source || "Unknown"
+        } | Created: ${
+          formatReportDateTime(row.createdAt, timezone) || "unknown"
+        } | Assigned: ${row.assignedTo || "unassigned"} | Due: ${
+          formatReportDate(row.dueAt, timezone) || "none"
+        }`,
+    ),
+    hasMore ? `Showing the first ${limit}; more rows are available.` : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function buildAttentionSection(
+  title: string,
+  rows: AttentionRecordRow[],
+  hasMore: boolean,
+  limit: number,
+  timezone: string,
+) {
+  if (rows.length === 0) {
+    return `${title}: none.`;
+  }
+
+  return [
+    `${title}:`,
+    ...rows.map((row, index) => {
+      return `${index + 1}. ${row.clientName} (${row.list}) | Assigned: ${row.assignedTo || "unassigned"} | Due: ${
+        formatReportDate(row.dueAt, timezone) || "none"
+      } | Last comment: ${formatLastCommentSummary(row, timezone)} | Comment count: ${row.commentCount}`;
+    }),
+    hasMore ? `Showing the first ${limit}; more rows are available.` : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function buildCommentsSection(
+  title: string,
+  rows: CommentRow[],
+  hasMore: boolean,
+  limit: number,
+  timezone: string,
+) {
+  if (rows.length === 0) {
+    return `${title}: none.`;
+  }
+
+  return [
+    `${title}:`,
+    ...rows.map(
+      (row, index) =>
+        `${index + 1}. ${row.clientName} | Assigned: ${
+          row.assignedTo || "unassigned"
+        } | Commenter: ${row.commenter || "unknown"} | Timestamp: ${
+          formatReportDateTime(row.timestamp, timezone) || "unknown"
+        } | Comment/Update: ${row.update}`,
+    ),
+    hasMore ? `Showing the first ${limit}; more rows are available.` : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function buildStaffStatusSection(
+  title: string,
+  rows: StaffStatusRow[],
+  hasMore: boolean,
+  limit: number,
+) {
+  if (rows.length === 0) {
+    return `${title}: none.`;
+  }
+
+  return [
+    `${title}:`,
+    ...rows.map(
+      (row, index) =>
+        `${index + 1}. ${row.staffName}: ${row.openAssignedRecords} total tasks assigned, ${row.commentsPlacedYesterday} comments placed on tasks, ${row.untouchedRecords} untouched tasks`,
+    ),
+    hasMore ? `Showing the first ${limit}; more rows are available.` : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function formatLastCommentSummary(row: AttentionRecordRow, timezone: string) {
+  if (row.lastCommentAt) {
+    const days =
+      row.daysSinceComment == null
+        ? "unknown days"
+        : `${row.daysSinceComment} day${row.daysSinceComment === 1 ? "" : "s"} ago`;
+    return `${formatReportDateTime(row.lastCommentAt, timezone)} (${days})`;
+  }
+  return row.commentCount > 0
+    ? "comment exists; date unavailable"
+    : "no comment found";
+}
+
+function formatReportDate(value: string | null | undefined, timezone: string) {
+  if (!value) {
+    return "";
+  }
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  }).format(new Date(value));
+}
+
+function formatReportDateTime(value: string | null | undefined, timezone: string) {
+  if (!value) {
+    return "";
+  }
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short",
+  }).format(new Date(value));
 }
 
 function buildFollowUpPriorityQueue(
@@ -1978,12 +2376,12 @@ function buildFollowUpQueueResponseText(
   return [
     `Follow-up queue for ${employeeName} on ${referenceDate}`,
     `Overdue: ${priorities.overdue.length} | Due today: ${priorities.dueToday.length} | Stale: ${priorities.stale.length}`,
-    ...priorities.prioritized.slice(0, 10).map(
+    ...priorities.prioritized.map(
       (item, index) =>
         `${index + 1}. ${item.title} (${item.listTitle}) - ${item.reason}`,
     ),
     hasMore
-      ? "Showing the first priority files only. More open files are available."
+      ? `Showing the first ${priorities.prioritized.length} priority files. More open files are available.`
       : null,
   ]
     .filter(Boolean)
@@ -2063,6 +2461,26 @@ function shiftIsoDate(date: string, days: number) {
   const normalized = new Date(`${date}T00:00:00.000Z`);
   normalized.setUTCDate(normalized.getUTCDate() + days);
   return normalized.toISOString().slice(0, 10);
+}
+
+function formatAgeSince(referenceDate: string, value: string | null | undefined) {
+  const date = isoDay(value);
+  if (!date) {
+    return "last updated unknown";
+  }
+
+  const days = Math.max(0, daysBetween(date, referenceDate));
+  if (days === 0) {
+    return `last updated ${date} (today)`;
+  }
+
+  return `last updated ${date} (${days} day${days === 1 ? "" : "s"} ago)`;
+}
+
+function daysBetween(startDate: string, endDate: string) {
+  const start = new Date(`${startDate}T00:00:00.000Z`).getTime();
+  const end = new Date(`${endDate}T00:00:00.000Z`).getTime();
+  return Math.floor((end - start) / 86_400_000);
 }
 
 function sortByDate(left: string | null, right: string | null) {

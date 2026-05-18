@@ -21,15 +21,21 @@ describe("config safety", () => {
     }
   });
 
-  it("defaults chat runtime to agent with planner fallback on gpt-4o", async () => {
-    const env = createTestEnvironment();
+  it("defaults chat runtime to the fast agent profile", async () => {
+    const env = createTestEnvironment({
+      AYA_CHAT_RUNTIME: undefined,
+      AYA_AGENT_MODEL: undefined,
+      AYA_AGENT_MAX_STEPS: undefined,
+      AYA_BLUE_AUTH_CACHE_TTL_MS: undefined,
+    });
 
     try {
       const { config } = await import("../src/config.js");
 
-      expect(config.AYA_CHAT_RUNTIME).toBe("agent_with_planner_fallback");
-      expect(config.AYA_AGENT_MODEL).toBe("gpt-4o");
-      expect(config.AYA_AGENT_MAX_STEPS).toBe(5);
+      expect(config.AYA_CHAT_RUNTIME).toBe("agent");
+      expect(config.AYA_AGENT_MODEL).toBe("gpt-4o-mini");
+      expect(config.AYA_AGENT_MAX_STEPS).toBe(3);
+      expect(config.AYA_BLUE_AUTH_CACHE_TTL_MS).toBe(43_200_000);
     } finally {
       env.cleanup();
     }

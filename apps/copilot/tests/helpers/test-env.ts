@@ -3,20 +3,23 @@ import os from "node:os";
 import path from "node:path";
 
 export function createTestEnvironment(
-  overrides: Record<string, string> = {},
+  overrides: Record<string, string | undefined> = {},
 ) {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "aya-copilot-test-"));
   const dbPath = path.join(tempDir, "aya-copilot.sqlite");
   const snapshot = new Map<string, string | undefined>();
 
-  const nextEnv: Record<string, string> = {
+  const nextEnv: Record<string, string | undefined> = {
     AYA_DB_PATH: dbPath,
+    AYA_DATA_DIR: tempDir,
     BLUE_API_URL: "https://blue.test/graphql",
     BLUE_AUTH_TOKEN: "test-secret",
     BLUE_CLIENT_ID: "test-client",
     BLUE_COMPANY_ID: "test-company",
     BLUE_WORKSPACE_ID: "cmhazc4rl1vkand1eonnmiyjy",
     BLUE_WEBHOOK_PUBLIC_URL: "https://copilot.test/webhooks/blue",
+    AYA_CHAT_RUNTIME: "planner",
+    AYA_BLUE_AUTH_CACHE_TTL_MS: "0",
     NODE_ENV: "test",
     PORT: "0",
     LOG_LEVEL: "silent",
@@ -25,7 +28,11 @@ export function createTestEnvironment(
 
   for (const [key, value] of Object.entries(nextEnv)) {
     snapshot.set(key, process.env[key]);
-    process.env[key] = value;
+    if (value === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = value;
+    }
   }
 
   return {

@@ -495,6 +495,50 @@ export async function fetchRecordDetail(
   };
 }
 
+export async function fetchRecordLatestComment(input: {
+  workspaceId: string;
+  recordId: string;
+  auth?: BlueRequestAuth | null;
+}) {
+  const data = await blueGraphqlRequest<{
+    commentList: {
+      comments: BlueComment[];
+    };
+  }>(
+    `
+      query RecordLatestComment($recordId: String!) {
+        commentList(categoryId: $recordId, category: TODO, first: 12, orderBy: createdAt_DESC) {
+          comments {
+            id
+            uid
+            text
+            html
+            createdAt
+            updatedAt
+            deletedAt
+            user {
+              id
+              uid
+              email
+              firstName
+              lastName
+              fullName
+              timezone
+              updatedAt
+            }
+          }
+        }
+      }
+    `,
+    {
+      recordId: input.recordId,
+    },
+    { projectId: input.workspaceId, auth: input.auth },
+  );
+
+  return data.commentList.comments.find((comment) => !comment.deletedAt) ?? null;
+}
+
 export async function fetchWorkspaceActivity(input: {
   workspaceId?: string;
   limit: number;

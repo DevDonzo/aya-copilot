@@ -7,6 +7,7 @@ import type {
   IntentPlan,
 } from "../../domain/types.js";
 import {
+  BLUE_AUTH_REQUIRED_MESSAGE,
   normalizeBlueRequestAuth,
   requireValidatedBlueRequestAuth,
 } from "../blue/request-auth.js";
@@ -52,6 +53,7 @@ import {
   getTeamFollowUpQueue,
   getTeamDaySummary,
   getWorkspaceActivityReport,
+  getWorkspaceAttentionReport,
   moveClientToStage,
   setRecordDueDate,
   setTaskDueDate,
@@ -191,6 +193,16 @@ export async function handleInboundMessage(
     };
   }
 
+  const fastPathResponse = await respondToFastPathMessage({
+    actor,
+    transport,
+    payload,
+    auditPayload,
+  });
+  if (fastPathResponse) {
+    return fastPathResponse;
+  }
+
   const activeRecordContext = await getActiveRecordContextForActor(
     actor,
     transport,
@@ -242,6 +254,136 @@ export async function handleInboundMessage(
     request: agentRequest,
     agentPlan,
   });
+}
+
+async function respondToFastPathMessage(input: {
+  actor: EmployeeIdentity;
+  transport: string;
+  payload: InboundMessagePayload;
+  auditPayload: ReturnType<typeof redactPayloadForAudit>;
+}): Promise<MessageResponse | null> {
+  const fastPath = detectFastPathMessage(input.payload.message, input.actor);
+  if (!fastPath) {
+    return null;
+  }
+
+  const plan = {
+    intent: fastPath.intent,
+    confidence: 1,
+    parameters: {},
+    requiresClarification: false,
+    matchedSignals: ["fast-path"],
+  } satisfies IntentPlan;
+
+  await recordAudit({
+    actor: input.actor,
+    transport: input.transport,
+    inboundText: input.payload.message,
+    detectedIntent: fastPath.intent,
+    adapter: "fast-path",
+    outcome: "success",
+    responseText: fastPath.responseText,
+    commandName: "fast_path.respond",
+    requestJson: {
+      payload: input.auditPayload,
+    },
+    responseJson: {
+      runtime: "fast-path",
+      visibleResponseText: fastPath.responseText,
+    },
+  });
+
+  await rememberCopilotTurnMemory({
+    actor: input.actor,
+    transport: input.transport,
+    message: input.payload.message,
+    responseText: fastPath.responseText,
+    intent: fastPath.intent,
+  });
+
+  return {
+    matched: true,
+    intent: fastPath.intent,
+    actor: input.actor,
+    responseText: fastPath.responseText,
+    plan,
+  };
+}
+
+function detectFastPathMessage(
+  message: string,
+  actor: EmployeeIdentity,
+): { intent: IntentName; responseText: string } | null {
+  const normalized = message.trim().toLowerCase().replace(/\s+/g, " ");
+  if (!normalized) {
+    return null;
+  }
+
+  if (
+    /^(?:hi|hello|hey|yo|good morning|good afternoon|good evening|thanks|thank you|thx)[.!?]*$/.test(
+      normalized,
+    )
+  ) {
+    return {
+      intent: "help.overview",
+      responseText:
+        "Hi. I can help with Blue clients, tasks, comments, assignments, follow-ups, and reporting.",
+    };
+  }
+
+  if (
+    /^(?:help|what can you do|what do you do|what can aya do|show help|show me help|how can you help)[?!.]*$/.test(
+      normalized,
+    )
+  ) {
+    return {
+      intent: "help.overview",
+      responseText: [
+        "I can help with Aya/Blue work like daily briefs, notifications, client status, comments, assignments, follow-ups, activity, and reporting.",
+        "Examples:",
+        "- start my day",
+        "- show my assignments",
+        "- updates on a client",
+        "- show recent comments for a client",
+        "- move a client to underwriting",
+        "- assign a client or task",
+        "- what changed today?",
+      ].join("\n"),
+    };
+  }
+
+  if (
+    /^(?:who am i|who am i signed in as|what account am i using|what account am i signed in as|which account am i signed in as|show my identity)[?!.]*$/.test(
+      normalized,
+    )
+  ) {
+    return {
+      intent: "identity.self",
+      responseText: [
+        `You are signed in as ${actor.displayName}.`,
+        actor.email ? `Email: ${actor.email}` : null,
+        actor.roleName ? `Role: ${actor.roleName}` : null,
+      ]
+        .filter(Boolean)
+        .join("\n"),
+    };
+  }
+
+  if (
+    /\b(?:connect|set up|setup|save|add|enter|update)\b.*\b(?:blue token|blue tokens|blue credentials|blue credential|mcp settings)\b/.test(
+      normalized,
+    ) ||
+    /\b(?:blue token|blue tokens|blue credentials|blue credential)\b.*\b(?:connect|set up|setup|save|add|enter|update)\b/.test(
+      normalized,
+    )
+  ) {
+    return {
+      intent: "help.overview",
+      responseText: BLUE_AUTH_REQUIRED_MESSAGE,
+    };
+  }
+
+  return null;
 }
 
 interface AgentStepTrace extends AgentStepResultSummary {
@@ -1043,6 +1185,7 @@ function enforceIntentPermissions(actor: EmployeeIdentity, plan: IntentPlan) {
     plan.intent === "activity.workspace_report" ||
     plan.intent === "records.exception_report" ||
     plan.intent === "records.team_follow_up" ||
+    plan.intent === "operations.attention_report" ||
     plan.intent === "summary.team_day" ||
     plan.intent === "summary.no_activity_day" ||
     plan.intent === "reporting.overview" ||
@@ -1442,6 +1585,23 @@ async function executePlan(input: {
         date:
           typeof plan.parameters.date === "string"
             ? plan.parameters.date
+            : undefined,
+      });
+      return {
+        responseText: result.responseText,
+        data: result,
+      };
+    }
+
+    case "operations.attention_report": {
+      const result = await getWorkspaceAttentionReport({
+        date:
+          typeof plan.parameters.date === "string"
+            ? plan.parameters.date
+            : undefined,
+        limit:
+          typeof plan.parameters.limit === "number"
+            ? plan.parameters.limit
             : undefined,
       });
       return {
@@ -1986,6 +2146,7 @@ function getAuditAdapter(intent: IntentName) {
     case "activity.record_report":
     case "activity.workspace_report":
     case "records.exception_report":
+    case "operations.attention_report":
     case "summary.team_day":
     case "summary.no_activity_day":
       return "local";
@@ -2017,6 +2178,7 @@ function getAuditCommandName(intent: IntentName) {
     case "records.list_assigned":
     case "records.follow_up":
     case "records.team_follow_up":
+    case "operations.attention_report":
       return "todoQueries.todos";
     case "records.complete":
       return "updateTodos";

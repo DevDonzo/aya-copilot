@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { AuthError, ExternalServiceError } from "../../app/errors.js";
 import { config } from "../../config.js";
 import type { BlueRequestAuth, EmployeeIdentity } from "../../domain/types.js";
@@ -5,6 +7,8 @@ import { fetchCurrentBlueUser, fetchWorkspaceLists } from "./graphql/client.js";
 
 const unresolvedPlaceholderPattern = /^\{\{.+\}\}$/;
 const blueTokenIdPattern = /^[0-9a-f]{32}$/i;
+const maxValidatedAuthCacheEntries = 1000;
+const validatedAuthCache = new Map<string, number>();
 
 export const BLUE_WRITE_AUTH_REQUIRED_MESSAGE =
   "Connect your Blue account before using Aya with CRM data. Open the Aya MCP server settings and enter both your Blue Token ID and Blue Token Secret, then try again.";
@@ -95,6 +99,11 @@ export async function requireValidatedBlueRequestAuth(
   actor?: EmployeeIdentity | null,
 ): Promise<BlueRequestAuth> {
   const requestAuth = requireBlueRequestAuth(auth);
+  const cacheKey = getValidatedAuthCacheKey(requestAuth, actor);
+  if (isValidatedAuthCacheFresh(cacheKey)) {
+    return requestAuth;
+  }
+
   const blueUser = await fetchCurrentBlueUser(requestAuth).catch((error: unknown) => {
     if (isBlueCredentialRejection(error)) {
       throw new AuthError(BLUE_AUTH_INVALID_MESSAGE);
@@ -119,6 +128,7 @@ export async function requireValidatedBlueRequestAuth(
     await requireWorkspaceAccessProbe(requestAuth);
   }
 
+  rememberValidatedAuth(cacheKey);
   return requestAuth;
 }
 
@@ -169,6 +179,65 @@ function blueUserMatchesActor(
 function normalizeComparable(value?: string | null) {
   const normalized = value?.trim().toLowerCase();
   return normalized || undefined;
+}
+
+function getValidatedAuthCacheKey(
+  auth: BlueRequestAuth,
+  actor?: EmployeeIdentity | null,
+) {
+  const actorKey = [
+    actor?.employeeId,
+    actor?.blueUserId,
+    actor?.email,
+  ]
+    .map(normalizeComparable)
+    .filter(Boolean)
+    .join("|");
+  return createHash("sha256")
+    .update([auth.tokenId, auth.tokenSecret, actorKey].join("\0"))
+    .digest("hex");
+}
+
+function isValidatedAuthCacheFresh(cacheKey: string) {
+  const ttlMs = config.AYA_BLUE_AUTH_CACHE_TTL_MS;
+  if (ttlMs <= 0) {
+    return false;
+  }
+
+  const expiresAt = validatedAuthCache.get(cacheKey);
+  if (!expiresAt) {
+    return false;
+  }
+
+  if (expiresAt <= Date.now()) {
+    validatedAuthCache.delete(cacheKey);
+    return false;
+  }
+
+  return true;
+}
+
+function rememberValidatedAuth(cacheKey: string) {
+  const ttlMs = config.AYA_BLUE_AUTH_CACHE_TTL_MS;
+  if (ttlMs <= 0) {
+    return;
+  }
+
+  pruneValidatedAuthCache();
+  validatedAuthCache.set(cacheKey, Date.now() + ttlMs);
+}
+
+function pruneValidatedAuthCache() {
+  if (validatedAuthCache.size < maxValidatedAuthCacheEntries) {
+    return;
+  }
+
+  const now = Date.now();
+  for (const [cacheKey, expiresAt] of validatedAuthCache.entries()) {
+    if (expiresAt <= now || validatedAuthCache.size >= maxValidatedAuthCacheEntries) {
+      validatedAuthCache.delete(cacheKey);
+    }
+  }
 }
 
 function isBlueCredentialRejection(error: unknown) {

@@ -40,6 +40,7 @@ export type IntentName =
   | "summary.employee_day"
   | "summary.team_day"
   | "summary.no_activity_day"
+  | "operations.attention_report"
   | "reporting.overview"
   | "reporting.question";
 

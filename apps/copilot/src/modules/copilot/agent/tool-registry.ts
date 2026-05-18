@@ -23,6 +23,7 @@ import {
   getTeamDaySummary,
   getTeamFollowUpQueue,
   getWorkspaceActivityReport,
+  getWorkspaceAttentionReport,
   getWorkspaceExceptionReport,
   moveClientToStage,
   searchClients,
@@ -463,7 +464,7 @@ export function createAyaAgentTools(
 
     getEmployeeFollowUpQueue: tool({
       description:
-        "Show follow-up queue for the signed-in employee or a named employee. Employees may only read their own follow-ups.",
+        "Show follow-up queue for the signed-in employee or a named employee: overdue, due-today, stale, untouched, or no-recent-movement Blue files. Employees may only read their own follow-ups.",
       inputSchema: z.object({
         employeeName: z.string().optional(),
         date: z.string().optional(),
@@ -485,7 +486,7 @@ export function createAyaAgentTools(
 
     getEmployeeAssignments: tool({
       description:
-        "Show checklist assignments/tasks for the signed-in employee or a named employee. Employees may only read their own assignments.",
+        "Show checklist assignments/tasks for the signed-in employee or a named employee. Use for questions like 'what assignments does Sarah have' or 'show Rehan's tasks'. Employees may only read their own assignments.",
       inputSchema: z.object({
         employeeName: z.string().optional(),
         status: z.enum(["open", "completed", "all"]).optional(),
@@ -527,7 +528,7 @@ export function createAyaAgentTools(
 
     getTeamFollowUpQueue: tool({
       description:
-        "Admin-only team overdue/follow-up queue across employees. Use for who is overdue or who has overdue assignments.",
+        "Admin-only team follow-up queue across employees. Use for who has overdue, due-today, stale, untouched, no-recent-movement, or needs-attention Blue files.",
       inputSchema: z.object({
         date: z.string().optional(),
       }),
@@ -541,8 +542,26 @@ export function createAyaAgentTools(
         }),
     }),
 
+    getWorkspaceAttentionReport: tool({
+      description:
+        "Admin-only Blue daily operations/email report. Use for new tasks created yesterday, overdue tasks, overdue tasks with comments, upcoming due, comments/updates from the last 24 hours, Status Update, staff follow-up hygiene, clients/files with no comments, no recent comments, not followed up, untouched assigned records, or overdue no-update clients.",
+      inputSchema: z.object({
+        date: z.string().optional(),
+        limit: z.number().int().min(1).max(500).optional(),
+      }),
+      execute: async (input) =>
+        runTool(context, traces, {
+          toolName: "getWorkspaceAttentionReport",
+          intent: "operations.attention_report",
+          input,
+          policy: { adminOnly: true },
+          execute: async () => getWorkspaceAttentionReport(input),
+        }),
+    }),
+
     getTeamDaySummary: tool({
-      description: "Admin-only team activity summary for today or a date.",
+      description:
+        "Admin-only employee activity summary for today or a date. Use inactiveOnly only for employees with no logged activity, not for untouched/stale client files.",
       inputSchema: z.object({
         date: z.string().optional(),
         inactiveOnly: z.boolean().optional(),

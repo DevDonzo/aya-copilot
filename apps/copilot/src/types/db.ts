@@ -184,6 +184,20 @@ export interface EmployeeNotificationStateTable {
   updated_at: Generated<string>;
 }
 
+export interface ReportRunsTable {
+  id: string;
+  report_type: string;
+  report_date: string;
+  send_status: string;
+  recipients: string;
+  generated_filename: string | null;
+  row_counts_json: Generated<string>;
+  sent_at: string | null;
+  error_message: string | null;
+  created_at: Generated<string>;
+  updated_at: Generated<string>;
+}
+
 export interface AyaDatabase {
   employees: EmployeesTable;
   identity_links: IdentityLinksTable;
@@ -200,4 +214,5 @@ export interface AyaDatabase {
   active_record_context: ActiveRecordContextTable;
   copilot_memory: CopilotMemoryTable;
   employee_notification_state: EmployeeNotificationStateTable;
+  report_runs: ReportRunsTable;
 }
